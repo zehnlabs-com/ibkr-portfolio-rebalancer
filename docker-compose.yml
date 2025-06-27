@@ -1,66 +1,37 @@
-version: '3.8'
-
 services:
   ibkr:
-    image: ghcr.io/extrange/ibkr:10.30.1w-stable
+    image: ghcr.io/extrange/ibkr:stable  # Use 'stable' tag or specific version like 'latest'
     container_name: ibkr-gateway
-    ports:
-      - "127.0.0.1:6080:6080"  # noVNC web interface
-      - "127.0.0.1:5000:5000"  # IB Gateway API port
     environment:
       - USERNAME=${IBKR_USERNAME}
       - PASSWORD=${IBKR_PASSWORD}
-      - GATEWAY_OR_TWS=gateway
-      - TRADING_MODE=${TRADING_MODE:-paper}
       - IBC_TradingMode=${TRADING_MODE:-paper}
-      - VNC_PASSWORD=${VNC_PASSWORD:-password}
-      - TWOFA_TIMEOUT_ACTION=restart
-      - IBC_ExistingSessionDetectedAction=secondary
-    volumes:
-      - ibkr_settings:/root/Jts
-    restart: "no"  # Managed by scheduler
-    networks:
-      - ibkr-network
-
-  scheduler:
-    image: alpine:latest
-    container_name: ibkr-scheduler
-    command: |
-      sh -c "
-      apk add --no-cache dcron docker-cli
-      echo 'Installing cron jobs...'
-      echo '# Stop IBKR container Friday 6 PM ET (22:00 UTC)' > /etc/crontabs/root
-      echo '0 22 * * 5 docker stop ibkr-gateway 2>/dev/null || true' >> /etc/crontabs/root
-      echo '# Start IBKR container Sunday 12 PM ET (16:00 UTC)' >> /etc/crontabs/root
-      echo '0 16 * * 0 docker start ibkr-gateway 2>/dev/null || true' >> /etc/crontabs/root
-      echo 'Cron jobs installed. Starting cron daemon...'
-      crond -f
-      "
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - GATEWAY_OR_TWS=${GATEWAY_OR_TWS:-gateway}
+    ports:
+      - "127.0.0.1:6080:6080"  # noVNC browser access
+      - "127.0.0.1:8888:8888"  # API access (paper trading)
+      - "127.0.0.1:7497:7497"  # API access (paper trading - alternative port)
+      - "127.0.0.1:7496:7496"  # API access (live trading)
+    ulimits:
+      nofile: 10000
     restart: unless-stopped
-    networks:
-      - ibkr-network
+    volumes:
+      - ibkr_settings:/home/ibkr/settings
 
   rebalancer-api:
     build: .
     container_name: rebalancer-api
+    environment:
+      - IBKR_HOST=ibkr
+      - IBKR_PORT=${IBKR_PORT:-8888}
+      - IBKR_CLIENT_ID=${IBKR_CLIENT_ID:-1}
+      - ACCOUNT_TYPE=${TRADING_MODE:-paper}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
     ports:
       - "8000:8000"
-    environment:
-      - IBKR_BASE_URL=http://ibkr:5000
-      - TRADING_MODE=${TRADING_MODE:-paper}
     depends_on:
       - ibkr
     restart: unless-stopped
-    networks:
-      - ibkr-network
-    volumes:
-      - ./logs:/app/logs
 
 volumes:
   ibkr_settings:
-
-networks:
-  ibkr-network:
-    driver: bridge
