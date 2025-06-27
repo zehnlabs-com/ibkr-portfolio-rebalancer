@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "Bash(mkdir:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:ibkr.com)",
+      "WebFetch(domain:www.ibkrguides.com)",
+      "WebFetch(domain:ibkrguides.com)"
+    ],
+    "deny": []
+  }
+}
