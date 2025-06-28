@@ -7,7 +7,9 @@
       "WebFetch(domain:api.github.com)",
       "WebFetch(domain:ibkr.com)",
       "WebFetch(domain:www.ibkrguides.com)",
-      "WebFetch(domain:ibkrguides.com)"
+      "WebFetch(domain:ibkrguides.com)",
+      "Bash(rg:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

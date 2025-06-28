@@ -5,7 +5,6 @@ from app.services.rebalancer import PortfolioRebalancer
 from app.services.ibkr_client import IBKRClient
 from app.config import Settings
 from loguru import logger
-import asyncio
 from functools import lru_cache
 
 router = APIRouter(prefix="/api/v1", tags=["portfolio"])
@@ -32,13 +31,7 @@ async def calculate_rebalance_orders(
 ):
     """Calculate orders without executing them"""
     try:
-        # Run synchronous calculation in thread pool
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None, 
-            rebalancer.calculate_orders, 
-            request.allocations
-        )
+        result = rebalancer.calculate_orders(request.allocations)
         return CalculateResponse(**result)
     except Exception as e:
         logger.error(f"Error in calculate endpoint: {str(e)}")
@@ -51,12 +44,7 @@ async def rebalance_portfolio(
 ):
     """Execute portfolio rebalancing"""
     try:
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(
-            None, 
-            rebalancer.execute_rebalance, 
-            request.allocations
-        )
+        result = rebalancer.execute_rebalance(request.allocations)
         return RebalanceResponse(**result)
     except Exception as e:
         logger.error(f"Error in rebalance endpoint: {str(e)}")
@@ -73,10 +61,8 @@ async def get_account_info():
     try:
         ibkr_client = get_ibkr_client()
         
-        # Run in thread pool to avoid blocking
-        loop = asyncio.get_event_loop()
-        account_value = await loop.run_in_executor(None, ibkr_client.get_account_value)
-        positions = await loop.run_in_executor(None, ibkr_client.get_positions)
+        account_value = ibkr_client.get_account_value()
+        positions = ibkr_client.get_positions()
         
         return {
             "success": True,
