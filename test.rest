@@ -1,0 +1,9 @@
+POST http://localhost:8000/api/v1/calculate
+content-type: application/json
+
+{
+    "allocations": [
+      {"symbol": "QQQ", "allocation": 0.6},
+      {"symbol": "SPY", "allocation": 0.4}
+    ]
+  }
