@@ -8,6 +8,7 @@ services:
       - GATEWAY_OR_TWS=${GATEWAY_OR_TWS:-gateway}
       - IBC_TradingMode=${TRADING_MODE:-paper}      
       - IBC_AcceptNonBrokerageAccountWarning=yes
+      - IBC_ReadOnlyApi=no
     ports:
       - "127.0.0.1:6080:6080"  # noVNC browser access
       - "127.0.0.1:8888:8888"  # API access (paper trading)
