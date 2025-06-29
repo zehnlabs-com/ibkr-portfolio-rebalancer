@@ -66,14 +66,14 @@ class IBKRClient:
             if not self._connected:
                 await self.connect()
             
-            account_summary = self.ib.accountSummary()
+            account_summary = self.ib.accountSummary(account=self.settings.ibkr_account_id)
             
             # Find NetLiquidation value
             for item in account_summary:
                 if item.tag == 'NetLiquidation' and item.value:
                     try:
                         value = float(item.value)
-                        logger.info(f"Account value: ${value:,.2f}")
+                        logger.info(f"Account value: ${value:,.2f} (Account: {self.settings.ibkr_account_id})")
                         return value
                     except (ValueError, TypeError):
                         continue
@@ -91,7 +91,8 @@ class IBKRClient:
             if not self._connected:
                 await self.connect()
             
-            positions = self.ib.positions()
+            positions = self.ib.positions(account=self.settings.ibkr_account_id)
+            
             position_dict = {}
             
             for position in positions:
@@ -128,11 +129,18 @@ class IBKRClient:
             
             contract = Stock(symbol, 'SMART', 'USD')
             
+            # Qualify the contract to populate conId
+            qualified_contracts = await self.ib.qualifyContractsAsync(contract)
+            if not qualified_contracts:
+                raise Exception(f"Could not qualify contract for {symbol}")
+            
+            qualified_contract = qualified_contracts[0]
+            
             # Use async market data request
-            self.ib.reqMktData(contract, '', False, False)
+            self.ib.reqMktData(qualified_contract, '', False, False)
             await asyncio.sleep(2)  # Wait for data
             
-            ticker = self.ib.ticker(contract)
+            ticker = self.ib.ticker(qualified_contract)
             
             # Try to get price
             price = None
@@ -144,7 +152,7 @@ class IBKRClient:
                 price = ticker.last
             
             # Cancel to clean up
-            self.ib.cancelMktData(contract)
+            self.ib.cancelMktData(qualified_contract)
             
             if price and price > 0:
                 logger.info(f"Price for {symbol}: ${price:.2f}")
@@ -163,12 +171,21 @@ class IBKRClient:
                 await self.connect()
             
             contract = Stock(symbol, 'SMART', 'USD')
+            
+            # Qualify the contract to populate conId
+            qualified_contracts = await self.ib.qualifyContractsAsync(contract)
+            if not qualified_contracts:
+                raise Exception(f"Could not qualify contract for {symbol}")
+            
+            qualified_contract = qualified_contracts[0]
             order = MarketOrder(action.upper(), quantity)
             
-            trade = self.ib.placeOrder(contract, order)
+            order.account = self.settings.ibkr_account_id
+            
+            trade = self.ib.placeOrder(qualified_contract, order)
             await asyncio.sleep(1)  # Brief wait
             
-            logger.info(f"Order placed: {action.upper()} {quantity} {symbol}")
+            logger.info(f"Order placed: {action.upper()} {quantity} {symbol} (Account: {self.settings.ibkr_account_id})")
             return trade
             
         except Exception as e:

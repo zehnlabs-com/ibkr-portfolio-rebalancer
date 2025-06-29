@@ -102,8 +102,8 @@ class IBKRService:
         self._ensure_connected()
         
         try:
-            # Standard synchronous call with nest_asyncio handling the event loop
-            account_summary = self.ib.accountSummary()
+            # Use specific account if configured
+            account_summary = self.ib.accountSummary(account=self.settings.ibkr_account_id)
             
             # Find NetLiquidation value
             for item in account_summary:
@@ -126,7 +126,7 @@ class IBKRService:
         self._ensure_connected()
         
         try:
-            positions = self.ib.positions()
+            positions = self.ib.positions(account=self.settings.ibkr_account_id)
             position_dict = {}
             
             for position in positions:
@@ -162,11 +162,18 @@ class IBKRService:
         try:
             contract = Stock(symbol, 'SMART', 'USD')
             
+            # Qualify the contract to populate conId
+            qualified_contracts = await self.ib.qualifyContractsAsync(contract)
+            if not qualified_contracts:
+                raise Exception(f"Could not qualify contract for {symbol}")
+            
+            qualified_contract = qualified_contracts[0]
+            
             # Simple market data request - nest_asyncio handles the complexity
-            self.ib.reqMktData(contract, '', False, False)
+            self.ib.reqMktData(qualified_contract, '', False, False)
             await asyncio.sleep(2)  # Standard wait time used by community
             
-            ticker = self.ib.ticker(contract)
+            ticker = self.ib.ticker(qualified_contract)
             
             # Try to get price - standard approach
             price = None
@@ -178,7 +185,7 @@ class IBKRService:
                 price = ticker.last
             
             # Clean up
-            self.ib.cancelMktData(contract)
+            self.ib.cancelMktData(qualified_contract)
             
             if price and price > 0:
                 logger.info(f"Price for {symbol}: ${price:.2f}")
@@ -196,10 +203,18 @@ class IBKRService:
         
         try:
             contract = Stock(symbol, 'SMART', 'USD')
+            
+            # Qualify the contract to populate conId
+            qualified_contracts = await self.ib.qualifyContractsAsync(contract)
+            if not qualified_contracts:
+                raise Exception(f"Could not qualify contract for {symbol}")
+            
+            qualified_contract = qualified_contracts[0]
             order = MarketOrder(action.upper(), quantity)
+            order.account = self.settings.ibkr_account_id
             
             # Standard order placement
-            trade = self.ib.placeOrder(contract, order)
+            trade = self.ib.placeOrder(qualified_contract, order)
             await asyncio.sleep(1)  # Brief wait
             
             logger.info(f"Order placed: {action.upper()} {quantity} {symbol}")

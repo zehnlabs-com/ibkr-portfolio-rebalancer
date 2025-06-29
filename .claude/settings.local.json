@@ -14,7 +14,8 @@
       "WebFetch(domain:stackoverflow.com)",
       "Bash(python:*)",
       "Bash(docker-compose:*)",
-      "Bash(pip install:*)"
+      "Bash(pip install:*)",
+      "Bash(cp:*)"
     ],
     "deny": []
   }

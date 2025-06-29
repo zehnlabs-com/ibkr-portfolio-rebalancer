@@ -27,6 +27,7 @@ services:
       - IBKR_HOST=ibkr
       - IBKR_PORT=${IBKR_PORT:-8888}
       - IBKR_CLIENT_ID=${IBKR_CLIENT_ID:-1}
+      - IBKR_ACCOUNT_ID=${IBKR_ACCOUNT_ID}
       - ACCOUNT_TYPE=${TRADING_MODE:-paper}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}      
     ports:

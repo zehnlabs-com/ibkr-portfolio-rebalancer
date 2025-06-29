@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     ibkr_host: str = "ibkr"  # Docker service name
     ibkr_port: int = 8888    # Port for extrange/ibkr image
     ibkr_client_id: int = 1  # Will be randomized in client
+    ibkr_account_id: str  # IBKR account ID (e.g., DU123456) - REQUIRED
     account_type: Literal["paper", "live"] = "paper"
     
     # App Settings
