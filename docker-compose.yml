@@ -5,8 +5,9 @@ services:
     environment:
       - USERNAME=${IBKR_USERNAME}
       - PASSWORD=${IBKR_PASSWORD}
-      - IBC_TradingMode=${TRADING_MODE:-paper}
       - GATEWAY_OR_TWS=${GATEWAY_OR_TWS:-gateway}
+      - IBC_TradingMode=${TRADING_MODE:-paper}      
+      - IBC_AcceptNonBrokerageAccountWarning=yes
     ports:
       - "127.0.0.1:6080:6080"  # noVNC browser access
       - "127.0.0.1:8888:8888"  # API access (paper trading)
@@ -26,7 +27,7 @@ services:
       - IBKR_PORT=${IBKR_PORT:-8888}
       - IBKR_CLIENT_ID=${IBKR_CLIENT_ID:-1}
       - ACCOUNT_TYPE=${TRADING_MODE:-paper}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}      
     ports:
       - "8000:8000"
     depends_on:
