@@ -1,25 +1,25 @@
-from app.services.ibkr_client import IBKRClient
+from app.services.ibkr_service import IBKRService
 from app.models import AllocationRequest, CalculatedOrder
 from typing import List, Dict
 import math
 from loguru import logger
 
 class PortfolioRebalancer:
-    def __init__(self, ibkr_client: IBKRClient):
-        self.ibkr_client = ibkr_client
+    def __init__(self, ibkr_service: IBKRService):
+        self.ibkr_service = ibkr_service
     
-    def calculate_orders(self, target_allocations: List[AllocationRequest]) -> Dict:
+    async def calculate_orders(self, target_allocations: List[AllocationRequest]) -> Dict:
         """
         Calculate required orders without executing them
         Returns orders in execution order (sells first, then buys)
         """
         try:
             # 1. Get current account value
-            account_value = self.ibkr_client.get_account_value()
+            account_value = await self.ibkr_service.get_account_value()
             logger.info(f"Total account value: ${account_value:,.2f}")
             
             # 2. Get current positions
-            current_positions = self.ibkr_client.get_positions()
+            current_positions = await self.ibkr_service.get_positions()
             logger.info(f"Current positions: {current_positions}")
             
             # 3. Calculate orders for each symbol
@@ -29,7 +29,7 @@ class PortfolioRebalancer:
                 target_allocation = allocation.allocation
                 
                 # Get current market price
-                current_price = self.ibkr_client.get_current_price(symbol)
+                current_price = await self.ibkr_service.get_current_price(symbol)
                 
                 # Calculate values
                 target_value = account_value * target_allocation
@@ -76,11 +76,11 @@ class PortfolioRebalancer:
                 'orders': []
             }
     
-    def execute_rebalance(self, target_allocations: List[AllocationRequest]) -> Dict:
+    async def execute_rebalance(self, target_allocations: List[AllocationRequest]) -> Dict:
         """Execute portfolio rebalancing"""
         try:
             # First calculate the orders
-            calculation_result = self.calculate_orders(target_allocations)
+            calculation_result = await self.calculate_orders(target_allocations)
             
             if not calculation_result['success']:
                 return {
@@ -94,7 +94,7 @@ class PortfolioRebalancer:
             
             # Execute each order
             for order in orders:
-                self.ibkr_client.place_order(
+                await self.ibkr_service.place_order(
                     symbol=order.ticker,
                     quantity=order.quantity,
                     action=order.side.upper()

@@ -22,6 +22,12 @@ curl http://localhost:8000/api/v1/health
 curl -X POST "http://localhost:8000/api/v1/calculate" \
   -H "Content-Type: application/json" \
   -d '{"allocations": [{"symbol": "QQQ", "allocation": 0.6}, {"symbol": "SPY", "allocation": 0.4}]}'
+
+# Check IBKR connection status
+curl http://localhost:8000/api/v1/connection/status
+
+# Get account information
+curl http://localhost:8000/api/v1/account/info
 ```
 
 ### Container Management
@@ -133,7 +139,19 @@ This is a **FastAPI-based portfolio rebalancing service** that connects to Inter
 
 ### Recent Changes
 
-The codebase was recently converted from async/await to synchronous operations:
-- Removed incorrect `await` calls on synchronous IBKR client methods
-- Simplified error handling and connection management
-- Maintained FastAPI async endpoints but with sync business logic calls
+**Major Refactor (2025-06-29): Fixed Event Loop Conflicts**
+- **Implemented community-standard approach**: `nest-asyncio` + `--loop asyncio`
+- **Applied nest_asyncio patch** to allow nested event loops within FastAPI
+- **Forced asyncio loop** instead of uvloop to ensure nest_asyncio compatibility
+- **Implemented singleton IBKR service** with FastAPI lifespan management  
+- **Background connection management** with automatic retry logic
+- **Simplified patterns** following community best practices
+
+**Key Improvements:**
+- Uses **proven community patterns** (nest_asyncio + asyncio loop)
+- Persistent IBKR connection maintained in background
+- No more mock/fallback data - real errors when IBKR unavailable
+- Standard ib-insync patterns with nest_asyncio handling event loop complexity
+- New `/connection/status` endpoint for monitoring
+- Graceful startup/shutdown with FastAPI lifespan events
+- Compatible with most FastAPI + ib-insync deployments

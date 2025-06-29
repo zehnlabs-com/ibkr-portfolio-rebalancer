@@ -9,7 +9,11 @@
       "WebFetch(domain:www.ibkrguides.com)",
       "WebFetch(domain:ibkrguides.com)",
       "Bash(rg:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "WebFetch(domain:ib-insync.readthedocs.io)",
+      "WebFetch(domain:stackoverflow.com)",
+      "Bash(python:*)",
+      "Bash(docker-compose:*)"
     ],
     "deny": []
   }
