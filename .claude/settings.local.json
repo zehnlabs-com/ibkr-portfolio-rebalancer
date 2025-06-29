@@ -13,7 +13,8 @@
       "WebFetch(domain:ib-insync.readthedocs.io)",
       "WebFetch(domain:stackoverflow.com)",
       "Bash(python:*)",
-      "Bash(docker-compose:*)"
+      "Bash(docker-compose:*)",
+      "Bash(pip install:*)"
     ],
     "deny": []
   }

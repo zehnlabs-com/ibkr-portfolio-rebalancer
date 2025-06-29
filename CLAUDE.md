@@ -55,7 +55,7 @@ Use `test.rest` file with REST client or copy commands for curl testing.
 This is a **FastAPI-based portfolio rebalancing service** that connects to Interactive Brokers (IBKR) for automated trading:
 
 - **API Layer**: FastAPI application (`app/main.py`) with portfolio management endpoints
-- **IBKR Integration**: Uses `ib-insync` library to connect to IBKR Gateway/TWS
+- **IBKR Integration**: Uses `ib_async` library to connect to IBKR Gateway/TWS
 - **Docker Deployment**: Two-container setup (IBKR Gateway + FastAPI API)
 - **Synchronous Design**: Recently converted from async to sync for simplicity
 
@@ -72,7 +72,7 @@ This is a **FastAPI-based portfolio rebalancing service** that connects to Inter
 - Response models for API endpoints
 
 **IBKR Client** (`app/services/ibkr_client.py`):
-- Synchronous wrapper around `ib-insync` library
+- Synchronous wrapper around `ib_async` library
 - Handles connection management with retry logic and random client IDs
 - Key methods: `get_account_value()`, `get_positions()`, `get_current_price()`, `place_order()`
 
@@ -151,7 +151,7 @@ This is a **FastAPI-based portfolio rebalancing service** that connects to Inter
 - Uses **proven community patterns** (nest_asyncio + asyncio loop)
 - Persistent IBKR connection maintained in background
 - No more mock/fallback data - real errors when IBKR unavailable
-- Standard ib-insync patterns with nest_asyncio handling event loop complexity
+- Standard ib_async patterns with nest_asyncio handling event loop complexity
 - New `/connection/status` endpoint for monitoring
 - Graceful startup/shutdown with FastAPI lifespan events
-- Compatible with most FastAPI + ib-insync deployments
+- Compatible with most FastAPI + ib_async deployments

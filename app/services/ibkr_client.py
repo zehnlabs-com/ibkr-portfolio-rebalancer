@@ -1,5 +1,5 @@
 # app/services/ibkr_client.py
-from ib_insync import IB, Stock, MarketOrder
+from ib_async import IB, Stock, MarketOrder
 from app.config import Settings
 import asyncio
 import random

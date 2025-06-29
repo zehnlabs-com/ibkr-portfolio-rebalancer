@@ -2,7 +2,7 @@
 import asyncio
 import nest_asyncio
 from contextlib import asynccontextmanager
-from ib_insync import IB, Stock, MarketOrder
+from ib_async import IB, Stock, MarketOrder
 from app.config import Settings
 from loguru import logger
 from typing import Dict, Optional
