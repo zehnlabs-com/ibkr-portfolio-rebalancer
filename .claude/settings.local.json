@@ -25,7 +25,8 @@
       "Bash(bash:*)",
       "Bash(ls:*)",
       "Bash(touch:*)",
-      "Bash(time curl:*)"
+      "Bash(time curl:*)",
+      "WebFetch(domain:interactivebrokers.github.io)"
     ],
     "deny": []
   }
