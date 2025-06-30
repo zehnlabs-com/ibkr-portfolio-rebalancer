@@ -1,0 +1,44 @@
+### Test variables
+@baseUrl = http://localhost:8000
+@accountId = U20660659 
+# SEP=U20660659; INDV=U7794534; PPR=DUM959247
+
+### Health check
+GET {{baseUrl}}/health
+
+### Root endpoint
+GET {{baseUrl}}/
+
+### List all accounts
+GET {{baseUrl}}/accounts
+
+### Get account positions
+GET {{baseUrl}}/accounts/{{accountId}}/positions
+
+### Get account value
+GET {{baseUrl}}/accounts/{{accountId}}/value
+
+### Dry run rebalance (explicit endpoint)
+POST {{baseUrl}}/rebalance/{{accountId}}/dry-run
+
+### Dry run rebalance (via request body)
+POST {{baseUrl}}/rebalance/{{accountId}}
+Content-Type: application/json
+
+{
+    "execution_mode": "dry_run"
+}
+
+### Live rebalance (DANGER: This will execute real trades!)
+# POST {{baseUrl}}/rebalance/{{accountId}}
+# Content-Type: application/json
+# 
+# {
+#     "execution_mode": "rebalance"
+# }
+
+### Test with invalid account
+GET {{baseUrl}}/accounts/INVALID123/positions
+
+### Test dry run with invalid account
+POST {{baseUrl}}/rebalance/INVALID123/dry-run

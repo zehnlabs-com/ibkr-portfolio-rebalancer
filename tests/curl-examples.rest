@@ -1,0 +1,38 @@
+### Curl examples for rebalancer API testing
+
+## Health check
+curl -X GET http://localhost:8000/health
+
+## List accounts
+curl -X GET http://localhost:8000/accounts
+
+## Get account positions
+curl -X GET http://localhost:8000/accounts/U20660659/positions
+
+## Get account value
+curl -X GET http://localhost:8000/accounts/U20660659/value
+
+## Dry run rebalance (explicit endpoint)
+curl -X POST http://localhost:8000/rebalance/U20660659/dry-run
+
+## Dry run rebalance (via request body)
+curl -X POST \
+  http://localhost:8000/rebalance/U20660659 \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "execution_mode": "dry_run"
+  }'
+
+## Live rebalance (DANGER: This will execute real trades!)
+# curl -X POST \
+#   http://localhost:8000/rebalance/U20660659 \
+#   -H 'Content-Type: application/json' \
+#   -d '{
+#     "execution_mode": "rebalance"
+#   }'
+
+## Test with invalid account
+curl -X GET http://localhost:8000/accounts/INVALID123/positions
+
+## Test error handling
+curl -X POST http://localhost:8000/rebalance/INVALID123/dry-run

@@ -18,7 +18,14 @@
       "Bash(cp:*)",
       "Bash(find:*)",
       "Bash(rm:*)",
-      "Bash(docker:*)"
+      "Bash(docker:*)",
+      "Bash(curl:*)",
+      "Bash(chmod:*)",
+      "Bash(/mnt/c/source/ibkr-portfolio-rebalancer/test-rebalancer-api.sh:*)",
+      "Bash(bash:*)",
+      "Bash(ls:*)",
+      "Bash(touch:*)",
+      "Bash(time curl:*)"
     ],
     "deny": []
   }

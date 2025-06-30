@@ -41,5 +41,30 @@ services:
       - ibkr
     restart: unless-stopped
 
+  rebalancer-api:
+    build:
+      context: ./rebalancer-api
+      dockerfile: Dockerfile
+    container_name: rebalancer-api
+    environment:
+      # IBKR credentials (sensitive data)
+      - IBKR_HOST=ibkr
+      - IBKR_PORT=${IBKR_PORT}
+      - IBKR_USERNAME=${IBKR_USERNAME}
+      - IBKR_PASSWORD=${IBKR_PASSWORD}
+      - TRADING_MODE=${TRADING_MODE:-paper}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # API keys
+      - ALLOCATIONS_API_KEY=${ALLOCATIONS_API_KEY}
+      # FastAPI configuration
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - API_WORKERS=1
+    depends_on:
+      - ibkr
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
 volumes:
   ibkr_settings:
