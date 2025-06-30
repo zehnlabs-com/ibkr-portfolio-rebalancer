@@ -15,7 +15,10 @@
       "Bash(python:*)",
       "Bash(docker-compose:*)",
       "Bash(pip install:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(find:*)",
+      "Bash(rm:*)",
+      "Bash(docker:*)"
     ],
     "deny": []
   }

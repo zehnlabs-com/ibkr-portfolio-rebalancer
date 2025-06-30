@@ -1,193 +1,195 @@
-# app/services/ibkr_client.py
-from ib_async import IB, Stock, MarketOrder
-from app.config import Settings
 import asyncio
 import random
-from loguru import logger
-from typing import Dict
+from typing import List, Dict, Optional
+from ib_async import IB, Stock, Order, MarketOrder, LimitOrder, Contract
+from app.config import config
+from app.logger import setup_logger
+
+logger = setup_logger(__name__)
 
 class IBKRClient:
-    def __init__(self, settings: Settings):
-        self.settings = settings
+    def __init__(self):
         self.ib = IB()
-        self._connected = False
-        # Random client ID to avoid conflicts
-        self.client_id = random.randint(10, 100)
+        self.client_id = random.randint(1000, 9999)
+        self.connected = False
+        self.retry_count = 0
     
-    async def connect(self, max_retries: int = 3):
-        """Connect to IBKR using proper async method"""
-        if self._connected and self.ib.isConnected():
-            return
-            
-        for attempt in range(max_retries):
+    async def connect(self) -> bool:
+        if self.connected:
+            return True
+        
+        while self.retry_count < config.ibkr.max_retries:
             try:
-                logger.info(f"Connecting to IBKR (attempt {attempt + 1}) - Client ID: {self.client_id}")
+                logger.info(f"Attempting to connect to IBKR (attempt {self.retry_count + 1})")
                 
                 await self.ib.connectAsync(
-                    host=self.settings.ibkr_host,
-                    port=self.settings.ibkr_port,
-                    clientId=self.client_id,
-                    timeout=15
+                    host=config.ibkr.host,
+                    port=config.ibkr.port,
+                    clientId=self.client_id
                 )
                 
-                if self.ib.isConnected():
-                    self._connected = True
-                    logger.info("Successfully connected to IBKR")
-                    return
-                    
+                self.connected = True
+                self.retry_count = 0
+                logger.info(f"Connected to IBKR with client ID {self.client_id}")
+                return True
+                
             except Exception as e:
-                logger.warning(f"Connection attempt {attempt + 1} failed: {str(e)}")
+                self.retry_count += 1
+                logger.error(f"Failed to connect to IBKR: {e}")
                 
-                try:
-                    self.ib.disconnect()
-                except:
-                    pass
-                
-                if attempt < max_retries - 1:
-                    self.client_id = random.randint(10, 100)
-                    await asyncio.sleep(5)
+                if self.retry_count < config.ibkr.max_retries:
+                    delay = config.ibkr.retry_delay * (2 ** (self.retry_count - 1))
+                    logger.info(f"Retrying in {delay} seconds...")
+                    await asyncio.sleep(delay)
+                    
+                    self.client_id = random.randint(1000, 9999)
                 else:
-                    logger.error("Failed to connect after all retries")
-                    raise Exception(f"Unable to connect to IBKR after {max_retries} attempts. Please check IBKR Gateway is running and accessible.")
+                    logger.error("Max retries reached. Connection failed.")
+                    return False
+        
+        return False
     
-    def disconnect(self):
-        """Disconnect from IBKR"""
-        if self._connected:
+    async def disconnect(self):
+        if self.connected:
             try:
                 self.ib.disconnect()
-                self._connected = False
+                self.connected = False
                 logger.info("Disconnected from IBKR")
             except Exception as e:
-                logger.warning(f"Error during disconnect: {str(e)}")
+                logger.error(f"Error disconnecting from IBKR: {e}")
     
-    async def get_account_value(self) -> float:
-        """Get total account value"""
+    async def get_account_value(self, account_id: str, tag: str = "NetLiquidation") -> float:
+        if not self.connected:
+            if not await self.connect():
+                raise Exception("Not connected to IBKR")
+        
         try:
-            if not self._connected:
-                await self.connect()
-            
-            account_summary = self.ib.accountSummary(account=self.settings.ibkr_account_id)
-            
-            # Find NetLiquidation value
-            for item in account_summary:
-                if item.tag == 'NetLiquidation' and item.value:
-                    try:
-                        value = float(item.value)
-                        logger.info(f"Account value: ${value:,.2f} (Account: {self.settings.ibkr_account_id})")
-                        return value
-                    except (ValueError, TypeError):
-                        continue
-            
-            # If we get here, no valid account value was found
-            raise Exception("Unable to retrieve account value from IBKR. No NetLiquidation data available.")
-            
+            # Use run_in_executor to avoid blocking the event loop
+            import asyncio
+            loop = asyncio.get_event_loop()
+            account_values = await loop.run_in_executor(None, self.ib.accountValues, account_id)
+            for av in account_values:
+                if av.tag == tag and av.currency == "USD":
+                    return float(av.value)
+            return 0.0
         except Exception as e:
-            logger.error(f"Error getting account value: {str(e)}")
-            raise Exception(f"Failed to get account value: {str(e)}")
+            logger.error(f"Failed to get account value: {e}")
+            raise
     
-    async def get_positions(self) -> Dict:
-        """Get current positions"""
+    async def get_positions(self, account_id: str) -> List[Dict]:
+        if not self.connected:
+            if not await self.connect():
+                raise Exception("Not connected to IBKR")
+        
         try:
-            if not self._connected:
-                await self.connect()
+            # Use run_in_executor for sync method
+            import asyncio
+            loop = asyncio.get_event_loop()
+            positions = await loop.run_in_executor(None, self.ib.positions, account_id)
+            result = []
             
-            positions = self.ib.positions(account=self.settings.ibkr_account_id)
+            for pos in positions:
+                if pos.position != 0:
+                    result.append({
+                        'symbol': pos.contract.symbol,
+                        'position': pos.position,
+                        'market_value': pos.marketValue,
+                        'avg_cost': pos.avgCost
+                    })
             
-            position_dict = {}
-            
-            for position in positions:
-                if position.position != 0:
-                    symbol = position.contract.symbol
-                    
-                    # Get current market price
-                    try:
-                        market_price = await self.get_current_price(symbol)
-                    except Exception as e:
-                        logger.error(f"Failed to get price for {symbol}: {str(e)}")
-                        raise Exception(f"Unable to get current price for {symbol}: {str(e)}")
-                    
-                    market_value = position.position * market_price
-                    
-                    position_dict[symbol] = {
-                        'shares': int(position.position),
-                        'avg_cost': float(position.avgCost) if position.avgCost else 0.0,
-                        'market_value': market_value,
-                        'market_price': market_price
-                    }
-            
-            return position_dict
-            
+            return result
         except Exception as e:
-            logger.error(f"Error getting positions: {str(e)}")
-            raise Exception(f"Failed to get positions: {str(e)}")
+            logger.error(f"Failed to get positions: {e}")
+            raise
     
-    async def get_current_price(self, symbol: str) -> float:
-        """Get current market price"""
+    async def get_market_price(self, symbol: str) -> float:
+        if not self.connected:
+            if not await self.connect():
+                raise Exception("Not connected to IBKR")
+        
         try:
-            if not self._connected:
-                await self.connect()
-            
             contract = Stock(symbol, 'SMART', 'USD')
             
-            # Qualify the contract to populate conId
-            qualified_contracts = await self.ib.qualifyContractsAsync(contract)
+            # Use run_in_executor for sync methods that might block
+            import asyncio
+            loop = asyncio.get_event_loop()
+            
+            # Qualify contract
+            qualified_contracts = await loop.run_in_executor(None, self.ib.qualifyContracts, contract)
             if not qualified_contracts:
                 raise Exception(f"Could not qualify contract for {symbol}")
             
-            qualified_contract = qualified_contracts[0]
+            contract = qualified_contracts[0]
             
-            # Use async market data request
-            self.ib.reqMktData(qualified_contract, '', False, False)
-            await asyncio.sleep(2)  # Wait for data
+            # Request market data
+            ticker = await loop.run_in_executor(None, self.ib.reqMktData, contract, '', False, False)
             
-            ticker = self.ib.ticker(qualified_contract)
+            # Wait for price data
+            await asyncio.sleep(2)
             
-            # Try to get price
-            price = None
-            if ticker.marketPrice() and ticker.marketPrice() > 0:
-                price = ticker.marketPrice()
-            elif ticker.close and ticker.close > 0:
-                price = ticker.close
-            elif ticker.last and ticker.last > 0:
-                price = ticker.last
+            # Get the price
+            price = ticker.marketPrice()
             
-            # Cancel to clean up
-            self.ib.cancelMktData(qualified_contract)
+            # Cancel market data subscription
+            await loop.run_in_executor(None, self.ib.cancelMktData, contract)
             
+            # Return the price, fallback to last/close if market price not available
             if price and price > 0:
-                logger.info(f"Price for {symbol}: ${price:.2f}")
-                return float(price)
+                return price
+            elif ticker.last and ticker.last > 0:
+                return ticker.last
+            elif ticker.close and ticker.close > 0:
+                return ticker.close
             else:
                 raise Exception(f"No valid price data available for {symbol}")
                 
         except Exception as e:
-            logger.error(f"Error getting price for {symbol}: {str(e)}")
-            raise Exception(f"Failed to get current price for {symbol}: {str(e)}")
+            logger.error(f"Failed to get market price for {symbol}: {e}")
+            raise
     
-    async def place_order(self, symbol: str, quantity: int, action: str):
-        """Place market order"""
+    async def place_order(self, account_id: str, symbol: str, quantity: int, order_type: str = "MKT") -> Optional[str]:
+        if not self.connected:
+            if not await self.connect():
+                raise Exception("Not connected to IBKR")
+        
         try:
-            if not self._connected:
-                await self.connect()
-            
             contract = Stock(symbol, 'SMART', 'USD')
             
-            # Qualify the contract to populate conId
-            qualified_contracts = await self.ib.qualifyContractsAsync(contract)
+            # Use run_in_executor for sync methods
+            import asyncio
+            loop = asyncio.get_event_loop()
+            
+            qualified_contracts = await loop.run_in_executor(None, self.ib.qualifyContracts, contract)
             if not qualified_contracts:
                 raise Exception(f"Could not qualify contract for {symbol}")
             
-            qualified_contract = qualified_contracts[0]
-            order = MarketOrder(action.upper(), quantity)
+            contract = qualified_contracts[0]
             
-            order.account = self.settings.ibkr_account_id
+            action = "BUY" if quantity > 0 else "SELL"
             
-            trade = self.ib.placeOrder(qualified_contract, order)
-            await asyncio.sleep(1)  # Brief wait
+            if order_type == "MKT":
+                order = MarketOrder(action, abs(quantity))
+            else:
+                raise ValueError(f"Unsupported order type: {order_type}")
             
-            logger.info(f"Order placed: {action.upper()} {quantity} {symbol} (Account: {self.settings.ibkr_account_id})")
-            return trade
+            order.account = account_id
+            
+            trade = await loop.run_in_executor(None, self.ib.placeOrder, contract, order)
+            logger.info(f"Placed order: {action} {abs(quantity)} shares of {symbol}")
+            
+            return str(trade.order.orderId)
             
         except Exception as e:
-            logger.error(f"Error placing order: {str(e)}")
-            raise Exception(f"Failed to place order for {symbol}: {str(e)}")
+            logger.error(f"Failed to place order: {e}")
+            raise
+    
+    async def ensure_connected(self) -> bool:
+        if not self.connected:
+            return await self.connect()
+        
+        try:
+            await self.ib.reqCurrentTimeAsync()
+            return True
+        except:
+            self.connected = False
+            return await self.connect()

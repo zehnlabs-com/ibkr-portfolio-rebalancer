@@ -1,60 +1,67 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-from app.routers import portfolio
-from app.config import Settings
-from app.services.ibkr_service import get_ibkr_service
-import uvicorn
-from loguru import logger
+import asyncio
+import signal
+import sys
+from typing import List
+from app.config import config
+from app.logger import setup_logger
+from app.services.ably_service import AblyService
+from app.services.rebalancer_service import RebalancerService
+from app.services.ibkr_client import IBKRClient
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Manage IBKR service lifecycle"""
-    settings = Settings()
-    ibkr_service = get_ibkr_service(settings)
-    
-    # Startup
-    logger.info("Starting IBKR Portfolio Rebalancer...")
-    await ibkr_service.start_service()
-    
-    yield
-    
-    # Shutdown
-    logger.info("Shutting down IBKR Portfolio Rebalancer...")
-    await ibkr_service.stop_service()
+logger = setup_logger(__name__)
 
-def create_app() -> FastAPI:
-    app = FastAPI(
-        title="IBKR Portfolio Rebalancer",
-        description="FastAPI service for Interactive Brokers portfolio rebalancing",
-        version="1.0.0",
-        lifespan=lifespan
-    )
+class PortfolioRebalancerApp:
+    def __init__(self):
+        self.ibkr_client = IBKRClient()
+        self.rebalancer_service = RebalancerService(self.ibkr_client)
+        self.ably_services: List[AblyService] = []
+        self.running = False
     
-    # Add CORS middleware
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    async def start(self):
+        logger.info("Starting Portfolio Rebalancer App")
+        
+        try:
+            await self.ibkr_client.connect()
+            
+            for account_config in config.accounts:
+                ably_service = AblyService(
+                    account_config,
+                    self.rebalancer_service
+                )
+                self.ably_services.append(ably_service)
+                await ably_service.start()
+            
+            self.running = True
+            logger.info(f"App started with {len(self.ably_services)} account subscriptions")
+            
+            while self.running:
+                await asyncio.sleep(1)
+                
+        except Exception as e:
+            logger.error(f"Error starting app: {e}")
+            await self.stop()
     
-    # Include routers
-    app.include_router(portfolio.router)
-    
-    return app
+    async def stop(self):
+        logger.info("Stopping Portfolio Rebalancer App")
+        self.running = False
+        
+        for ably_service in self.ably_services:
+            await ably_service.stop()
+        
+        await self.ibkr_client.disconnect()
+        logger.info("App stopped")
 
-app = create_app()
-
+async def main():
+    app = PortfolioRebalancerApp()
+    
+    def signal_handler(signum, frame):
+        logger.info(f"Received signal {signum}")
+        asyncio.create_task(app.stop())
+    
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
+    await app.start()
 
 if __name__ == "__main__":
-    settings = Settings()
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=8000,
-        log_level=settings.log_level.lower(),
-        reload=True,
-        loop="asyncio"  # Force asyncio instead of uvloop
-    )
+    asyncio.run(main())

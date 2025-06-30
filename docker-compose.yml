@@ -21,18 +21,22 @@ services:
     volumes:
       - ibkr_settings:/home/ibkr/settings
 
-  rebalancer-api:
-    build: .
-    container_name: rebalancer-api
+  portfolio-rebalancer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: portfolio-rebalancer
     environment:
+      # IBKR credentials (sensitive data)
       - IBKR_HOST=ibkr
-      - IBKR_PORT=${IBKR_PORT:-8888}
-      - IBKR_CLIENT_ID=${IBKR_CLIENT_ID:-1}
-      - IBKR_ACCOUNT_ID=${IBKR_ACCOUNT_ID}
-      - ACCOUNT_TYPE=${TRADING_MODE:-paper}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}      
-    ports:
-      - "8000:8000"
+      - IBKR_PORT=${IBKR_PORT}
+      - IBKR_USERNAME=${IBKR_USERNAME}
+      - IBKR_PASSWORD=${IBKR_PASSWORD}
+      - TRADING_MODE=${TRADING_MODE:-paper}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      # API keys for accounts (sensitive data)
+      - REALTIME_API_KEY=${REALTIME_API_KEY}      
+      - ALLOCATIONS_API_KEY=${ALLOCATIONS_API_KEY}
     depends_on:
       - ibkr
     restart: unless-stopped

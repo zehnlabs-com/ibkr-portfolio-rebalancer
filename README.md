@@ -1,394 +1,228 @@
 # IBKR Portfolio Rebalancer
 
-A FastAPI service for automated portfolio rebalancing using Interactive Brokers (IBKR) API. This service runs in Docker containers and supports both paper and live trading accounts.
+An automated portfolio rebalancing service that integrates with Interactive Brokers and Ably.com for event-driven rebalancing.
 
 ## Features
 
-- 🔄 Automated portfolio rebalancing based on target allocations
-- 📊 Real-time portfolio position tracking
-- 🧪 Paper trading support for testing
-- 🚀 FastAPI with automatic API documentation
-- 🐳 Docker containerized deployment
-- 🔐 Secure IBKR API integration
+- **Event-Driven Rebalancing**: Subscribes to Ably.com endpoints for real-time rebalancing triggers
+- **Multi-Account Support**: Manage multiple IBKR accounts with different allocation strategies
+- **Configurable Allocation APIs**: Fetch target allocations from external APIs
+- **Dry-Run Mode**: Test rebalancing without executing actual trades
+- **Robust Connection Management**: Automatic retry logic and graceful degradation
+- **Modern IBKR Integration**: Uses ib_async (successor to ib_insync) for Interactive Brokers API
+- **Docker Support**: Containerized deployment with existing IBKR gateway
 
-## 📅 Weekly Schedule & 2FA Authentication
+## Architecture
 
-### Automated Trading Schedule
+The application follows a modular architecture with single responsibility principle:
 
-The service runs on a **weekly schedule** to provide predictable 2FA timing:
-
-**🟢 ACTIVE PERIOD**
-- **Sunday 12:00 PM ET** → **Friday 6:00 PM ET**
-- Full automated trading capabilities
-- Rebalancing API available
-
-**🔴 OFFLINE PERIOD**  
-- **Friday 6:00 PM ET** → **Sunday 12:00 PM ET**
-- Service automatically stops (weekend break)
-- No trading or API access
-
-### What to Expect - 2FA Authentication
-
-**📱 Every Sunday at 12:00 PM ET:**
-1. **Notification**: You'll receive a push notification on your IBKR Mobile app
-2. **Action Required**: Tap "Approve" within **3 minutes**
-3. **Authentication**: Use Face ID/Touch ID/PIN as prompted
-4. **Service Starts**: Trading service becomes active for the week
-
-**⏱️ If You Miss the 2FA:**
-- Service automatically retries every few minutes
-- You'll get additional notifications until approved
-- No manual intervention needed - just approve when convenient
-
-### Before First Use - Setup Required
-
-**📲 1. Install IBKR Mobile & Setup IB Key:**
-- Download "IBKR Mobile" app (not "IB Key")
-- Register for Two-Factor Authentication
-- ⚠️ **Important**: Only ONE device can have IB Key active at a time
-
-**📊 2. Request Trading Permissions:**
-- **Paper Trading**: Automatically available
-- **Live Trading**: Request permissions in Client Portal
-- **Stock Trading**: Usually approved overnight
-
-**🔑 3. Prepare Your Credentials:**
-- Have IBKR username/password ready
-- Ensure 2FA is working on your mobile device
-
-## Quick Start
-
-### Prerequisites
-
-- Docker and Docker Compose
-- Interactive Brokers account (paper or live)
-- IBKR Client Portal API access
-
-### Setup
-
-1. **Clone and navigate to the project:**
-   ```bash
-   git clone <your-repo-url>
-   cd ibkr-portfolio-rebalancer
-   ```
-
-2. **Create environment configuration:**
-   ```bash
-   cp .env.example .env
-   ```
-
-3. **Configure your IBKR credentials in `.env`:**
-   ```env
-   IBKR_USERNAME=your_ibkr_username
-   IBKR_PASSWORD=your_ibkr_password
-   TRADING_MODE=paper  # or 'live' for real trading
-   VNC_PASSWORD=password
-   ```
-
-4. **Start the services:**
-   ```bash
-   docker-compose up -d
-   ```
-
-5. **Access the services:**
-   - API Documentation: http://localhost:8000/docs
-   - IBKR Web Interface: http://localhost:6080 (password: `password`)
-   - Health Check: http://localhost:8000/health
-
-## API Usage
-
-### Rebalance Portfolio
-
-**POST** `/api/v1/rebalance`
-
-Rebalance your portfolio to match target allocations.
-
-**Request Body:**
-```json
-[
-    {"symbol": "QQQ", "allocation": 0.6},
-    {"symbol": "SPY", "allocation": 0.3},
-    {"symbol": "VIXY", "allocation": 0.1}
-]
 ```
-
-**Query Parameters:**
-- `execute` (boolean, default: false): Set to `true` to execute trades, `false` for dry-run
-
-**Example (Dry Run):**
-```bash
-curl -X POST "http://localhost:8000/api/v1/rebalance" \
-  -H "Content-Type: application/json" \
-  -d '[
-    {"symbol": "QQQ", "allocation": 0.6},
-    {"symbol": "SPY", "allocation": 0.3},
-    {"symbol": "VIXY", "allocation": 0.1}
-  ]'
+app/
+├── main.py                 # Main application entry point
+├── config.py              # Configuration management
+├── logger.py              # Logging setup
+├── cli.py                 # Command-line interface for testing
+└── services/
+    ├── ibkr_client.py     # IBKR connection and trading
+    ├── ably_service.py    # Ably.com event subscription
+    ├── allocation_service.py  # API calls for allocations
+    └── rebalancer_service.py  # Core rebalancing logic
 ```
-
-**Example (Execute Trades):**
-```bash
-curl -X POST "http://localhost:8000/api/v1/rebalance?execute=true" \
-  -H "Content-Type: application/json" \
-  -d '[
-    {"symbol": "QQQ", "allocation": 0.6},
-    {"symbol": "SPY", "allocation": 0.3},
-    {"symbol": "VIXY", "allocation": 0.1}
-  ]'
-```
-
-### Get Current Positions
-
-**GET** `/api/v1/positions`
-
-Retrieve current portfolio positions and total value.
-
-```bash
-curl http://localhost:8000/api/v1/positions
-```
-
-## ⚠️ IMPORTANT: Avoiding Login Conflicts
-
-### For Daily Account Monitoring (Recommended)
-
-**Use IBKR's Read-Only Access** to check balances without interrupting automated trading:
-
-1. **Enable Read-Only Access in TWS:**
-   - Open TWS/IB Gateway manually
-   - Go to `Settings → Trading Platform → Read-Only Access`
-   - Check the checkbox and click "Save"
-
-2. **Use Read-Only Mode:**
-   - When opening TWS, select "Read-Only" mode
-   - View balances, positions, and market data
-   - ✅ **No impact on automated rebalancing**
-
-### For Full Trading Access
-
-If you need to login with trading permissions:
-
-- ⚠️ **Automated rebalancing will pause** when you login
-- System automatically resumes when you logout
-- **Avoid manual logins during active rebalancing**
-- Check `/api/v1/positions` endpoint instead when possible
-
-### Session Management
-
-The service uses `secondary` session priority, meaning:
-- Your manual logins take precedence
-- Service gracefully yields and reconnects after you logout
-- Auto-restart on 2FA timeouts for reliability
 
 ## Configuration
 
+### Accounts Configuration
+
+Edit `accounts.yaml` to configure your IBKR accounts:
+
+```yaml
+- account_id: "DU123456"
+  notification:
+    channel: "rebalance-primary"
+  allocations:
+    url: "https://your-api.com/allocations/primary"
+
+- account_id: "DU789012"
+  notification:
+    channel: "rebalance-secondary"
+  allocations:
+    url: "https://your-api.com/allocations/secondary"
+```
+
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `IBKR_USERNAME` | Your IBKR username | Required |
-| `IBKR_PASSWORD` | Your IBKR password | Required |
-| `TRADING_MODE` | Trading mode: `paper` or `live` | `paper` |
-| `VNC_PASSWORD` | Password for web interface | `password` |
-| `IBKR_BASE_URL` | IBKR API base URL | `http://ibkr:5000` |
+Copy `.env.example` to `.env` for sensitive data:
 
-### Trading Modes
+```bash
+# IBKR Credentials
+IBKR_USERNAME=your_username
+IBKR_PASSWORD=your_password
+TRADING_MODE=paper
 
-- **Paper Trading**: Use `TRADING_MODE=paper` for testing with virtual money
-- **Live Trading**: Use `TRADING_MODE=live` for real money trading
+# Global API Keys (shared across all accounts)
+REALTIME_API_KEY=your_ably_key
+ALLOCATIONS_API_KEY=your_allocation_key
 
-⚠️ **Always test with paper trading first!**
+# Application Settings
+LOG_LEVEL=INFO
+```
+
+### Allocation API Format
+
+Your allocation API should return JSON in this format:
+
+```json
+{
+  "status": "success",
+  "data": {
+    "allocations": [
+      {"symbol": "EDC", "allocation": 0.2141},
+      {"symbol": "QLD", "allocation": 0.1779},
+      {"symbol": "QQQ", "allocation": 0.141},
+      {"symbol": "BTAL", "allocation": 0.2817},
+      {"symbol": "SPXL", "allocation": 0.0368},
+      {"symbol": "TQQQ", "allocation": 0.1475}
+    ],
+    "name": "etf-blend-301-20",
+    "strategy_long_name": "ETF Blend 301-20",
+    "last_rebalance_on": "2025-06-24",
+    "as_of": "2025-06-24"
+  }
+}
+```
+
+The application will:
+- Check that `status` is `"success"`
+- Extract allocations from `data.allocations` array
+- Log strategy information for transparency
+- Validate that allocations sum to approximately 1.0
+
+### Execution Control via Ably Payload
+
+The application uses the Ably notification payload to determine execution mode:
+
+**Live Execution:**
+```json
+{"execution": "rebalance"}
+```
+
+**Dry Run (default for safety):**
+```json
+{}
+```
+or 
+```json
+{"execution": "dry_run"}
+```
+or any other value/missing payload.
+
+This design ensures that **dry run is the safe default** - live execution only happens when explicitly requested with the exact `"rebalance"` value.
+
+## Usage
+
+### Docker Deployment
+
+1. Start the services:
+```bash
+docker-compose up -d
+```
+
+2. Check logs:
+```bash
+docker-compose logs -f portfolio-rebalancer
+```
+
+### Dry Run Testing
+
+Test rebalancing without executing trades:
+
+```bash
+# Run dry run for first configured account
+docker-compose exec portfolio-rebalancer python -m app.cli dry-run
+
+# Run dry run for specific account
+docker-compose exec portfolio-rebalancer python -m app.cli dry-run --account-id DU123456
+
+# List configured accounts
+docker-compose exec portfolio-rebalancer python -m app.cli list-accounts
+```
+
+## Rebalancing Algorithm
+
+The rebalancer implements a standard portfolio rebalancing algorithm:
+
+1. **Fetch Target Allocations**: Calls configured API to get target percentages
+2. **Get Current Positions**: Retrieves current holdings from IBKR
+3. **Calculate Differences**: Compares current vs target allocations
+4. **Generate Orders**: Creates buy/sell orders to reach target allocation
+5. **Execute Trades**: Submits market orders to IBKR
+
+### Key Features:
+- Handles fractional shares by rounding to nearest whole share
+- Sells positions not in target allocation
+- Only trades when difference exceeds 0.5 shares
+- Supports dry-run mode for testing
+
+## Event Flow
+
+1. Ably.com publishes rebalance event to configured channel
+2. Application receives event for specific account
+3. Parses payload to determine execution mode:
+   - `{"execution": "rebalance"}` → Live execution
+   - No payload or other values → Dry run (safe default)
+4. Calls allocation API to get target percentages
+5. Calculates required trades
+6. Executes rebalancing orders (live or dry run based on payload)
+
+## Security
+
+- Uses random client IDs to avoid IBKR login conflicts
+- Supports both paper and live trading modes
+- API keys configured via environment variables
+- Non-root user in Docker container
+
+## Monitoring
+
+- Comprehensive logging with configurable levels
+- Error handling with retry logic
+- Connection health monitoring
+- Trade execution logging
 
 ## Development
 
-### Project Structure
-
-```
-ibkr-portfolio-rebalancer/
-├── docker-compose.yml          # Docker services configuration
-├── Dockerfile                  # API service container
-├── requirements.txt           # Python dependencies
-├── main.py                   # FastAPI application entry point
-├── src/
-│   ├── api/                  # API endpoints
-│   │   └── rebalance.py     # Rebalancing endpoints
-│   ├── models/              # Pydantic models
-│   │   └── portfolio.py     # Portfolio data models
-│   ├── services/            # Business logic
-│   │   ├── ibkr_client.py  # IBKR API client
-│   │   └── rebalancer.py   # Rebalancing logic
-│   └── utils/               # Utility functions
-├── logs/                    # Application logs
-└── .env.example            # Environment template
-```
-
 ### Local Development
 
-1. **Install dependencies:**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. **Run the API locally:**
-   ```bash
-   uvicorn main:app --reload --host 0.0.0.0 --port 8000
-   ```
-
-3. **Access API documentation:**
-   http://localhost:8000/docs
-
-## Updates and Maintenance
-
-### Version Management
-
-This project uses **version pinning** for stability and predictable deployments:
-
-- **IBKR Docker Image**: Pinned to specific version (`10.30.1w-stable`)
-- **Python Dependencies**: Pinned in `requirements.txt`
-- **No automatic updates** - you control when to upgrade
-
-**Benefits:**
-- ✅ Tested, compatible combinations
-- ✅ No surprise breakages from upstream changes
-- ✅ Easy rollback to previous versions
-- ✅ Consistent deployments across environments
-
-### Updating the Service
-
-#### For Users (Simple Process)
-
-When the maintainer releases updates:
-
+1. Install dependencies:
 ```bash
-# 1. Pull latest changes
-git pull origin main
-
-# 2. Restart services with new versions
-docker-compose down
-docker-compose up -d --build
+pip install -r requirements.txt
 ```
 
-**That's it!** The maintainer has already tested the new versions for compatibility.
-
-#### For Maintainers (Testing & Release Process)
-
-**Before releasing updates to users:**
-
-1. **Monitor upstream releases:**
-   - Watch [extrange/ibkr-docker releases](https://github.com/extrange/ibkr-docker/releases)
-   - Check Python package updates
-   - Review changelogs for breaking changes
-
-2. **Test new versions:**
-   ```bash
-   # Update versions in docker-compose.yml and requirements.txt
-   # Test thoroughly in your environment
-   docker-compose down
-   docker-compose up -d --build
-   
-   # Verify functionality
-   curl http://localhost:8000/health
-   curl http://localhost:8000/api/v1/positions
-   # Test actual rebalancing with paper trading
-   ```
-
-3. **Release to users:**
-   ```bash
-   git add docker-compose.yml requirements.txt
-   git commit -m "Update IBKR image to vX.X.X and dependencies"
-   git push origin main
-   ```
-
-4. **Notify users:**
-   - Document any breaking changes
-   - Provide update instructions if different from standard process
-
-### Version History
-
-Current versions:
-- **IBKR Docker**: `10.30.1w-stable`
-- **FastAPI**: `0.104.1`
-- **Last updated**: 2024-06-27
-
-### Monitoring & Health Checks
-
-**Service Status:**
-- **API Health**: `GET /health` - Check if API is running
-- **IBKR Connection**: http://localhost:6080 - Visual Gateway status
-- **Weekly Schedule**: Check if it's during active hours (Sun 12PM - Fri 6PM ET)
-
-**Container Status:**
+2. Run the application:
 ```bash
-# Check which containers are running
-docker-compose ps
-
-# View IBKR Gateway logs
-docker-compose logs -f ibkr
-
-# View API logs  
-docker-compose logs -f rebalancer-api
-
-# View scheduler logs
-docker-compose logs -f scheduler
+python -m app.main
 ```
 
-**Expected Container States:**
-- **During Active Period**: `ibkr`, `rebalancer-api`, `scheduler` all running
-- **During Offline Period**: Only `rebalancer-api`, `scheduler` running (`ibkr` stopped)
-- **Sunday 12 PM ET**: `ibkr` starts automatically, expect 2FA notification
+3. Run tests:
+```bash
+python -m app.cli dry-run
+```
 
-### Troubleshooting
+## Troubleshooting
 
-**IBKR Connection Issues:**
-1. Verify credentials in `.env` file
-2. Check IBKR web interface at http://localhost:6080
-3. Ensure 2FA is properly configured
-4. Check container logs: `docker-compose logs ibkr`
+### Common Issues
 
-**API Errors:**
-1. Check API logs: `docker-compose logs rebalancer-api`
-2. Verify portfolio has sufficient funds
-3. Ensure symbols are valid and tradeable
+1. **Connection Failed**: Check IBKR gateway is running and accessible
+2. **Authentication Error**: Verify IBKR credentials in .env file
+3. **API Errors**: Check allocation API URL and authentication
+4. **Ably Connection**: Verify Ably API key and endpoint format
 
-**Common Issues:**
-- Allocations must sum to exactly 1.0 (100%)
-- Minimum trade size is $100
-- Some symbols may not be available in paper trading
+### Logs
 
-### Updating
-
-1. **Pull latest changes:**
-   ```bash
-   git pull origin main
-   ```
-
-2. **Rebuild and restart:**
-   ```bash
-   docker-compose down
-   docker-compose up -d --build
-   ```
-
-## Security Considerations
-
-- Never commit `.env` file to version control
-- Use strong passwords for VNC access
-- Regularly rotate IBKR credentials
-- Monitor trading activity regularly
-- Start with paper trading for testing
-
-## Support
-
-For issues and questions:
-1. Check the logs for error messages
-2. Verify IBKR account status and permissions
-3. Ensure network connectivity to IBKR servers
-4. Test with paper trading first
+Check application logs for detailed error information:
+```bash
+docker-compose logs portfolio-rebalancer
+```
 
 ## License
 
-This project is for educational and personal use. Please review Interactive Brokers' terms of service before using with live accounts.
-
----
-
-⚠️ **Risk Warning**: Automated trading involves financial risk. Always test thoroughly with paper trading before using live accounts. The authors are not responsible for any financial losses.
-
-
+MIT License - see LICENSE file for details.
