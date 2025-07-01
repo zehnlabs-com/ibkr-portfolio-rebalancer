@@ -15,7 +15,7 @@ from app.logger import setup_logger
 from app.models.requests import RebalanceRequest
 from app.models.responses import (
     RebalanceResponse, AccountsResponse, AccountInfo, PositionsResponse, 
-    PositionInfo, AccountValueResponse, HealthResponse, RebalanceOrder, AccountEquityInfo
+    PositionInfo, AccountValueResponse, HealthResponse, RebalanceOrder, CancelledOrder, AccountEquityInfo
 )
 from app.services.ibkr_client import IBKRClient
 from app.services.rebalancer_service import RebalancerService
@@ -202,6 +202,18 @@ async def rebalance_account(account_id: str):
                 market_value=order.market_value
             ))
         
+        # Convert cancelled orders to response format
+        cancelled_orders = []
+        for order in result.cancelled_orders:
+            cancelled_orders.append(CancelledOrder(
+                order_id=order['order_id'],
+                symbol=order['symbol'],
+                quantity=order['quantity'],
+                action=order['action'],
+                order_type=order['order_type'],
+                status=order['status']
+            ))
+        
         # Create equity info response
         equity_info = AccountEquityInfo(
             total_equity=result.equity_info['total_equity'],
@@ -215,6 +227,7 @@ async def rebalance_account(account_id: str):
             execution_mode="live",
             equity_info=equity_info,
             orders=response_orders,
+            cancelled_orders=cancelled_orders,
             status="success",
             message="Live rebalancing completed successfully",
             timestamp=datetime.utcnow()
@@ -234,6 +247,7 @@ async def rebalance_account(account_id: str):
                 available_for_trading=0.0
             ),
             orders=[],
+            cancelled_orders=[],
             status="error",
             message=str(e),
             timestamp=datetime.utcnow()
@@ -292,6 +306,7 @@ async def dry_run_rebalance(
             execution_mode="dry_run",
             equity_info=equity_info,
             orders=response_orders,
+            cancelled_orders=[],
             status="success",
             message="Dry run rebalancing completed successfully",
             timestamp=datetime.utcnow()
@@ -311,6 +326,7 @@ async def dry_run_rebalance(
                 available_for_trading=0.0
             ),
             orders=[],
+            cancelled_orders=[],
             status="error",
             message=f"Dry run failed: {str(e)}",
             timestamp=datetime.utcnow()

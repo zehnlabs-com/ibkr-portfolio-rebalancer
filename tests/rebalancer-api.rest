@@ -18,24 +18,11 @@ GET {{baseUrl}}/accounts/{{accountId}}/positions
 ### Get account value
 GET {{baseUrl}}/accounts/{{accountId}}/value
 
-### Dry run rebalance (explicit endpoint)
+### Dry run rebalance
 POST {{baseUrl}}/rebalance/{{accountId}}/dry-run
 
-### Dry run rebalance (via request body)
+### Rebalance
 POST {{baseUrl}}/rebalance/{{accountId}}
-Content-Type: application/json
-
-{
-    "execution_mode": "rebalance"
-}
-
-### Live rebalance (DANGER: This will execute real trades!)
-# POST {{baseUrl}}/rebalance/{{accountId}}
-# Content-Type: application/json
-# 
-# {
-#     "execution_mode": "rebalance"
-# }
 
 ### Test with invalid account
 GET {{baseUrl}}/accounts/INVALID123/positions

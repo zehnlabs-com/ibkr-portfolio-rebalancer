@@ -18,6 +18,26 @@ class RebalanceOrder(BaseModel):
             }
         }
 
+class CancelledOrder(BaseModel):
+    order_id: str
+    symbol: str
+    quantity: int
+    action: str  # BUY or SELL
+    order_type: str
+    status: str
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "order_id": "12345",
+                "symbol": "AAPL",
+                "quantity": 5,
+                "action": "BUY",
+                "order_type": "MKT",
+                "status": "PreSubmitted"
+            }
+        }
+
 class AccountEquityInfo(BaseModel):
     total_equity: float
     reserve_percentage: float
@@ -29,6 +49,7 @@ class RebalanceResponse(BaseModel):
     execution_mode: str
     equity_info: AccountEquityInfo
     orders: List[RebalanceOrder]
+    cancelled_orders: List[CancelledOrder]
     status: str
     message: str
     timestamp: datetime
@@ -37,7 +58,7 @@ class RebalanceResponse(BaseModel):
         schema_extra = {
             "example": {
                 "account_id": "DU123456",
-                "execution_mode": "dry_run",
+                "execution_mode": "live",
                 "equity_info": {
                     "total_equity": 100000.00,
                     "reserve_percentage": 1.0,
@@ -52,8 +73,18 @@ class RebalanceResponse(BaseModel):
                         "market_value": 1500.00
                     }
                 ],
+                "cancelled_orders": [
+                    {
+                        "order_id": "12345",
+                        "symbol": "AAPL",
+                        "quantity": 5,
+                        "action": "BUY",
+                        "order_type": "MKT",
+                        "status": "PreSubmitted"
+                    }
+                ],
                 "status": "success",
-                "message": "Rebalancing completed successfully",
+                "message": "Live rebalancing completed successfully",
                 "timestamp": "2023-12-01T10:00:00Z"
             }
         }

@@ -215,7 +215,7 @@ class IBKRClient:
         
         return str(trade.order.orderId)
     
-    async def cancel_all_orders(self, account_id: str) -> int:
+    async def cancel_all_orders(self, account_id: str) -> List[Dict]:
         """Cancel all pending orders for the given account.
         
         This method cancels all pending orders and waits up to 60 seconds for 
@@ -224,7 +224,7 @@ class IBKRClient:
         during rebalancing.
         
         Returns:
-            int: Number of orders that were cancelled
+            List[Dict]: Details of orders that were cancelled
             
         Raises:
             Exception: If orders cannot be cancelled within 60 seconds
@@ -234,21 +234,32 @@ class IBKRClient:
         
         try:
             trades = self.ib.trades()
-            cancelled_count = 0
+            cancelled_orders = []
             
             for trade in trades:
                 if (trade.order.account == account_id and 
                     trade.orderStatus.status in ['PreSubmitted', 'Submitted', 'PendingSubmit']):
+                    
+                    # Capture order details before cancelling
+                    order_details = {
+                        'order_id': str(trade.order.orderId),
+                        'symbol': trade.contract.symbol if trade.contract else 'Unknown',
+                        'quantity': abs(trade.order.totalQuantity),
+                        'action': trade.order.action,
+                        'order_type': trade.order.orderType,
+                        'status': trade.orderStatus.status
+                    }
+                    cancelled_orders.append(order_details)
+                    
                     self.ib.cancelOrder(trade.order)
-                    cancelled_count += 1
-                    logger.info(f"Cancelled order {trade.order.orderId} for {account_id}")
+                    logger.info(f"Cancelled order {trade.order.orderId} for {account_id}: {trade.order.action} {abs(trade.order.totalQuantity)} {order_details['symbol']}")
             
-            if cancelled_count > 0:
+            if cancelled_orders:
                 # Wait for all cancellations to be confirmed
                 await self._wait_for_orders_cancelled(account_id, max_wait_seconds=60)
             
-            logger.info(f"Cancelled {cancelled_count} pending orders for account {account_id}")
-            return cancelled_count
+            logger.info(f"Cancelled {len(cancelled_orders)} pending orders for account {account_id}")
+            return cancelled_orders
             
         except Exception as e:
             logger.error(f"Failed to cancel orders for account {account_id}: {e}")
