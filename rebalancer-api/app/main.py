@@ -2,7 +2,7 @@ import nest_asyncio
 # Apply nest_asyncio BEFORE any other async imports to prevent event loop conflicts
 nest_asyncio.apply()
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Response
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -120,7 +120,7 @@ async def root():
     return {"message": "Portfolio Rebalancer API", "version": "1.0.0"}
 
 @app.get("/health", response_model=HealthResponse)
-async def health_check(client: IBKRClient = Depends(get_ibkr_client)):
+async def health_check(response: Response, client: IBKRClient = Depends(get_ibkr_client)):
     ibkr_connected = False
     message = None
     
@@ -141,11 +141,16 @@ async def health_check(client: IBKRClient = Depends(get_ibkr_client)):
             message = "Unable to establish IBKR connection"
         
         status = "healthy" if ibkr_connected else "unhealthy"
+        
+        # Set HTTP status code based on health
+        if not ibkr_connected:
+            response.status_code = 503  # Service Unavailable
             
     except Exception as e:
         status = "unhealthy"
         ibkr_connected = False
         message = f"Health check failed: {str(e)}"
+        response.status_code = 503  # Service Unavailable
         logger.error(f"Health check error: {e}")
     
     return HealthResponse(
