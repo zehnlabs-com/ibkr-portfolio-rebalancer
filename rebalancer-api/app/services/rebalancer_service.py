@@ -27,10 +27,9 @@ class RebalancerService:
     def __init__(self, ibkr_client: IBKRClient):
         self.ibkr_client = ibkr_client
     
-    async def rebalance_account(self, account_config: AccountConfig, dry_run: bool = True):
-        mode_text = "DRY RUN" if dry_run else "LIVE"
+    async def rebalance_account(self, account_config: AccountConfig):
         try:
-            logger.info(f"Starting {mode_text} rebalance for account {account_config.account_id}")
+            logger.info(f"Starting LIVE rebalance for account {account_config.account_id}")
             
             target_allocations = await AllocationService.get_allocations(account_config)
             
@@ -44,14 +43,14 @@ class RebalancerService:
                 account_config
             )
             
-            await self._execute_orders(account_config.account_id, result.orders, dry_run=dry_run)
+            await self._execute_orders(account_config.account_id, result.orders, dry_run=False)
             
-            logger.info(f"Completed {mode_text} rebalance for account {account_config.account_id}")
+            logger.info(f"Completed LIVE rebalance for account {account_config.account_id}")
             
             return result
             
         except Exception as e:
-            logger.error(f"Error in {mode_text} rebalance for account {account_config.account_id}: {e}")
+            logger.error(f"Error in LIVE rebalance for account {account_config.account_id}: {e}")
             raise
     
     async def _calculate_rebalance_orders(
@@ -143,7 +142,20 @@ class RebalancerService:
         
         return RebalanceResult(orders, equity_info)
     
+    async def _cancel_pending_orders(self, account_id: str):
+        """Cancel all pending orders for the account before rebalancing"""
+        try:
+            cancelled_count = await self.ibkr_client.cancel_all_orders(account_id)
+            if cancelled_count > 0:
+                logger.info(f"Cancelled {cancelled_count} pending orders for account {account_id}")
+        except Exception as e:
+            logger.error(f"Failed to cancel pending orders for account {account_id}: {e}")
+            raise
+
     async def _execute_orders(self, account_id: str, orders: List[RebalanceOrder], dry_run: bool = False):
+        if not dry_run:
+            await self._cancel_pending_orders(account_id)
+        
         if not orders:
             logger.info("No orders to execute")
             return

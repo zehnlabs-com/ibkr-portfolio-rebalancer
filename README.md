@@ -168,10 +168,17 @@ The rebalancer implements a standard portfolio rebalancing algorithm with equity
 
 1. **Fetch Target Allocations**: Calls configured API to get target percentages
 2. **Get Current Positions**: Retrieves current holdings from IBKR
-3. **Calculate Available Equity**: `Available Equity = Total Account Value - (Reserve % × Total Account Value)`
-4. **Calculate Target Positions**: Uses available equity (not total) for allocation calculations
-5. **Generate Orders**: Creates buy/sell orders to reach target allocation within available equity
-6. **Execute Trades**: Submits market orders to IBKR
+3. **Cancel Existing Orders**: Cancels all pending orders to prevent conflicts (waits up to 60 seconds for confirmation)
+4. **Calculate Available Equity**: `Available Equity = Total Account Value - (Reserve % × Total Account Value)`
+5. **Calculate Target Positions**: Uses available equity (not total) for allocation calculations
+6. **Generate Orders**: Creates buy/sell orders to reach target allocation within available equity
+7. **Execute Trades**: Submits market orders to IBKR
+
+### Order Cancellation
+
+Before placing new rebalancing orders, the system automatically cancels all existing pending orders for the account to prevent duplicate or conflicting trades. 
+
+**Important**: If existing orders cannot be cancelled within 60 seconds, the rebalancing process will fail with an error. This prevents the system from placing new orders when old orders are still pending, which could result in overtrading or unintended positions.
 
 ### Equity Reserve System
 

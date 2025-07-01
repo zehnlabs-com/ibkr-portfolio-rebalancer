@@ -215,6 +215,70 @@ class IBKRClient:
         
         return str(trade.order.orderId)
     
+    async def cancel_all_orders(self, account_id: str) -> int:
+        """Cancel all pending orders for the given account.
+        
+        This method cancels all pending orders and waits up to 60 seconds for 
+        confirmation from the brokerage. If any orders remain pending after 
+        the timeout, an exception is raised to prevent conflicting orders 
+        during rebalancing.
+        
+        Returns:
+            int: Number of orders that were cancelled
+            
+        Raises:
+            Exception: If orders cannot be cancelled within 60 seconds
+        """
+        if not await self.ensure_connected():
+            raise Exception("Unable to establish IBKR connection")
+        
+        try:
+            trades = self.ib.trades()
+            cancelled_count = 0
+            
+            for trade in trades:
+                if (trade.order.account == account_id and 
+                    trade.orderStatus.status in ['PreSubmitted', 'Submitted', 'PendingSubmit']):
+                    self.ib.cancelOrder(trade.order)
+                    cancelled_count += 1
+                    logger.info(f"Cancelled order {trade.order.orderId} for {account_id}")
+            
+            if cancelled_count > 0:
+                # Wait for all cancellations to be confirmed
+                await self._wait_for_orders_cancelled(account_id, max_wait_seconds=60)
+            
+            logger.info(f"Cancelled {cancelled_count} pending orders for account {account_id}")
+            return cancelled_count
+            
+        except Exception as e:
+            logger.error(f"Failed to cancel orders for account {account_id}: {e}")
+            raise
+    
+    async def _wait_for_orders_cancelled(self, account_id: str, max_wait_seconds: int = 60):
+        """Wait for all pending orders to be cancelled for the account"""
+        start_time = asyncio.get_event_loop().time()
+        
+        while True:
+            trades = self.ib.trades()
+            pending_orders = [
+                trade for trade in trades 
+                if (trade.order.account == account_id and 
+                    trade.orderStatus.status in ['PreSubmitted', 'Submitted', 'PendingSubmit'])
+            ]
+            
+            if not pending_orders:
+                logger.info(f"All orders successfully cancelled for account {account_id}")
+                return
+            
+            elapsed = asyncio.get_event_loop().time() - start_time
+            if elapsed >= max_wait_seconds:
+                pending_ids = [trade.order.orderId for trade in pending_orders]
+                error_msg = f"Timeout waiting for order cancellations for account {account_id}. Still pending: {pending_ids}"
+                logger.error(error_msg)
+                raise Exception(error_msg)
+            
+            await asyncio.sleep(10)  # Check every 10 seconds
+    
     async def ensure_connected(self) -> bool:
         if not self.ib.isConnected():
             return await self.connect()

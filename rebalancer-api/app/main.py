@@ -178,7 +178,7 @@ async def list_accounts():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/rebalance/{account_id}", response_model=RebalanceResponse)
-async def rebalance_account(account_id: str, request: RebalanceRequest, background_tasks: BackgroundTasks):
+async def rebalance_account(account_id: str):
     try:
         # Find account configuration
         account_config = config.get_account_config(account_id)
@@ -189,11 +189,8 @@ async def rebalance_account(account_id: str, request: RebalanceRequest, backgrou
         if not await ibkr_client.ensure_connected():
             raise HTTPException(status_code=503, detail="Unable to connect to IBKR")
         
-        # Determine execution mode
-        is_dry_run = request.execution_mode != "rebalance"
-        
-        # Execute rebalancing
-        result = await rebalancer_service.rebalance_account(account_config, dry_run=is_dry_run)
+        # Execute live rebalancing
+        result = await rebalancer_service.rebalance_account(account_config)
         
         # Convert orders to response format
         response_orders = []
@@ -213,15 +210,13 @@ async def rebalance_account(account_id: str, request: RebalanceRequest, backgrou
             available_for_trading=result.equity_info['available_for_trading']
         )
         
-        mode_text = "dry_run" if is_dry_run else "live"
-        
         return RebalanceResponse(
             account_id=account_id,
-            execution_mode=mode_text,
+            execution_mode="live",
             equity_info=equity_info,
             orders=response_orders,
             status="success",
-            message=f"Rebalancing completed successfully ({mode_text})",
+            message="Live rebalancing completed successfully",
             timestamp=datetime.utcnow()
         )
         
@@ -231,7 +226,7 @@ async def rebalance_account(account_id: str, request: RebalanceRequest, backgrou
         logger.error(f"Error rebalancing account {account_id}: {e}")
         return RebalanceResponse(
             account_id=account_id,
-            execution_mode=request.execution_mode,
+            execution_mode="live",
             equity_info=AccountEquityInfo(
                 total_equity=0.0,
                 reserve_percentage=0.0,
