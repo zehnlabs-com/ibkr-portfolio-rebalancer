@@ -18,9 +18,16 @@ class RebalanceOrder(BaseModel):
             }
         }
 
+class AccountEquityInfo(BaseModel):
+    total_equity: float
+    reserve_percentage: float
+    reserve_amount: float
+    available_for_trading: float
+
 class RebalanceResponse(BaseModel):
     account_id: str
     execution_mode: str
+    equity_info: AccountEquityInfo
     orders: List[RebalanceOrder]
     status: str
     message: str
@@ -31,6 +38,12 @@ class RebalanceResponse(BaseModel):
             "example": {
                 "account_id": "DU123456",
                 "execution_mode": "dry_run",
+                "equity_info": {
+                    "total_equity": 100000.00,
+                    "reserve_percentage": 1.0,
+                    "reserve_amount": 1000.00,
+                    "available_for_trading": 99000.00
+                },
                 "orders": [
                     {
                         "symbol": "AAPL",

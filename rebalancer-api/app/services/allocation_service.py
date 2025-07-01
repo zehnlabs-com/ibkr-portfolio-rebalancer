@@ -9,8 +9,8 @@ logger = setup_logger(__name__)
 class AllocationService:
     @staticmethod
     async def get_allocations(account_config: AccountConfig) -> List[Dict[str, float]]:
-        if not account_config.allocations.url:
-            raise ValueError(f"No allocations URL configured for account {account_config.account_id}")
+        # Construct allocations URL from base URL and channel
+        allocations_url = f"{config.allocations_base_url}/{account_config.notification.channel}/allocations"
         
         api_key = config.allocations_api_key
         
@@ -22,7 +22,7 @@ class AllocationService:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    account_config.allocations.url,
+                    allocations_url,
                     headers=headers,
                     timeout=aiohttp.ClientTimeout(total=30)
                 ) as response:

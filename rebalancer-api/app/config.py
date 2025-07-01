@@ -10,14 +10,14 @@ class NotificationConfig:
     channel: str
 
 @dataclass
-class AllocationsConfig:
-    url: str
+class RebalancingConfig:
+    equity_reserve_percentage: float
 
 @dataclass
 class AccountConfig:
     account_id: str
     notification: NotificationConfig
-    allocations: AllocationsConfig
+    rebalancing: RebalancingConfig
 
 @dataclass
 class RetryConfig:
@@ -77,6 +77,10 @@ class Config:
         self.startup_max_attempts = app_config["startup_max_attempts"]
         self.startup_delay = app_config["startup_delay"]
         
+        # Allocations API config (from YAML only)
+        allocations_config = config_data["allocations"]  # Required section
+        self.allocations_base_url = allocations_config["base_url"]
+        
         # API keys (secrets from env only)
         self.allocations_api_key = os.getenv("ALLOCATIONS_API_KEY", "")
         
@@ -94,7 +98,7 @@ class Config:
                 raise ValueError(f"Config file {config_file} is empty")
             
             # Validate required sections exist
-            required_sections = ["ibkr", "api", "application"]
+            required_sections = ["ibkr", "api", "application", "allocations"]
             for section in required_sections:
                 if section not in config_data:
                     raise ValueError(f"Required configuration section '{section}' missing from {config_file}")
@@ -135,14 +139,22 @@ class Config:
                         channel=account_data["notification"]["channel"]
                     )
                     
-                    allocations_config = AllocationsConfig(
-                        url=account_data["allocations"]["url"]
+                    # Load rebalancing config with validation
+                    rebalancing_data = account_data.get("rebalancing", {})
+                    reserve_percentage = rebalancing_data.get("equity_reserve_percentage", 1.0)
+                    # Validate reserve percentage: 0-10%, use 1% default for invalid values
+                    if not (0.0 <= reserve_percentage <= 10.0):
+                        logging.warning(f"Invalid equity_reserve_percentage: {reserve_percentage}% for account {account_data['account_id']}. Using default 1%.")
+                        reserve_percentage = 1.0
+                    
+                    rebalancing_config = RebalancingConfig(
+                        equity_reserve_percentage=reserve_percentage
                     )
                     
                     account = AccountConfig(
                         account_id=account_data["account_id"],
                         notification=notification_config,
-                        allocations=allocations_config
+                        rebalancing=rebalancing_config
                     )
                     
                     accounts.append(account)

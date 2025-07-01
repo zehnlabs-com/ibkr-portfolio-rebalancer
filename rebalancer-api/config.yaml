@@ -2,6 +2,10 @@
 # This file contains application configuration parameters
 # Sensitive data (credentials, API keys) should be set via environment variables
 
+# Allocations API Configuration
+allocations:
+  base_url: "https://workers.fintech.zehnlabs.com/api/v1/strategies"
+
 # Interactive Brokers Configuration
 ibkr:
   # Connection settings
@@ -50,17 +54,4 @@ application:
   startup_max_attempts: 10       # max attempts during application startup
   startup_delay: 10              # seconds between startup attempts
 
-# Development/Testing Overrides (optional)
-# Uncomment and modify for different environments
-# development:
-#   ibkr:
-#     host: "localhost"
-#     port: 7497
-#   application:
-#     log_level: "DEBUG"
 
-# production:
-#   api:
-#     workers: 4
-#   application:
-#     log_level: "WARNING"

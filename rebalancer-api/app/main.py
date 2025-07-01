@@ -15,7 +15,7 @@ from app.logger import setup_logger
 from app.models.requests import RebalanceRequest
 from app.models.responses import (
     RebalanceResponse, AccountsResponse, AccountInfo, PositionsResponse, 
-    PositionInfo, AccountValueResponse, HealthResponse, RebalanceOrder
+    PositionInfo, AccountValueResponse, HealthResponse, RebalanceOrder, AccountEquityInfo
 )
 from app.services.ibkr_client import IBKRClient
 from app.services.rebalancer_service import RebalancerService
@@ -193,11 +193,11 @@ async def rebalance_account(account_id: str, request: RebalanceRequest, backgrou
         is_dry_run = request.execution_mode != "rebalance"
         
         # Execute rebalancing
-        orders = await rebalancer_service.rebalance_account(account_config, dry_run=is_dry_run)
+        result = await rebalancer_service.rebalance_account(account_config, dry_run=is_dry_run)
         
         # Convert orders to response format
         response_orders = []
-        for order in orders:
+        for order in result.orders:
             response_orders.append(RebalanceOrder(
                 symbol=order.symbol,
                 quantity=order.quantity,
@@ -205,11 +205,20 @@ async def rebalance_account(account_id: str, request: RebalanceRequest, backgrou
                 market_value=order.market_value
             ))
         
+        # Create equity info response
+        equity_info = AccountEquityInfo(
+            total_equity=result.equity_info['total_equity'],
+            reserve_percentage=result.equity_info['reserve_percentage'],
+            reserve_amount=result.equity_info['reserve_amount'],
+            available_for_trading=result.equity_info['available_for_trading']
+        )
+        
         mode_text = "dry_run" if is_dry_run else "live"
         
         return RebalanceResponse(
             account_id=account_id,
             execution_mode=mode_text,
+            equity_info=equity_info,
             orders=response_orders,
             status="success",
             message=f"Rebalancing completed successfully ({mode_text})",
@@ -223,6 +232,12 @@ async def rebalance_account(account_id: str, request: RebalanceRequest, backgrou
         return RebalanceResponse(
             account_id=account_id,
             execution_mode=request.execution_mode,
+            equity_info=AccountEquityInfo(
+                total_equity=0.0,
+                reserve_percentage=0.0,
+                reserve_amount=0.0,
+                available_for_trading=0.0
+            ),
             orders=[],
             status="error",
             message=str(e),
@@ -257,11 +272,11 @@ async def dry_run_rebalance(
             )
         
         # Execute dry run rebalance
-        orders = await service.dry_run_rebalance(account_config)
+        result = await service.dry_run_rebalance(account_config)
         
         # Convert orders to response format
         response_orders = []
-        for order in orders:
+        for order in result.orders:
             response_orders.append(RebalanceOrder(
                 symbol=order.symbol,
                 quantity=order.quantity,
@@ -269,9 +284,18 @@ async def dry_run_rebalance(
                 market_value=order.market_value
             ))
         
+        # Create equity info response
+        equity_info = AccountEquityInfo(
+            total_equity=result.equity_info['total_equity'],
+            reserve_percentage=result.equity_info['reserve_percentage'],
+            reserve_amount=result.equity_info['reserve_amount'],
+            available_for_trading=result.equity_info['available_for_trading']
+        )
+        
         return RebalanceResponse(
             account_id=account_id,
             execution_mode="dry_run",
+            equity_info=equity_info,
             orders=response_orders,
             status="success",
             message="Dry run rebalancing completed successfully",
@@ -285,6 +309,12 @@ async def dry_run_rebalance(
         return RebalanceResponse(
             account_id=account_id,
             execution_mode="dry_run",
+            equity_info=AccountEquityInfo(
+                total_equity=0.0,
+                reserve_percentage=0.0,
+                reserve_amount=0.0,
+                available_for_trading=0.0
+            ),
             orders=[],
             status="error",
             message=f"Dry run failed: {str(e)}",

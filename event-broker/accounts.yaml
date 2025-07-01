@@ -2,11 +2,11 @@
 - account_id: "U20660659" 
   notification:
     channel: "etf-blend-100-20"
-  allocations:
-    url: "https://workers.fintech.zehnlabs.com/api/v1/strategies/etf-blend-100-20/allocations"
+  rebalancing:
+    equity_reserve_percentage: 1.0  # 1% cash reserve (default)
 
 - account_id: "DU789012"
   notification:
     channel: "etf-blend-200-35"
-  allocations:
-    url: "https://workers.fintech.zehnlabs.com/api/v1/strategies/etf-blend-200-35/allocations"
+  rebalancing:
+    equity_reserve_percentage: 2.5  # 2.5% cash reserve

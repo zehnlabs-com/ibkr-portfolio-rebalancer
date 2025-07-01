@@ -16,6 +16,10 @@ application:
   log_level: "INFO"       # DEBUG, INFO, WARNING, ERROR, CRITICAL
   accounts_file: "accounts.yaml"
 
+# Allocations API Configuration (for consistency with rebalancer-api)
+allocations:
+  base_url: "https://workers.fintech.zehnlabs.com/api/v1"
+
 # Development/Testing Overrides (optional)
 # Uncomment and modify for different environments
 # development:

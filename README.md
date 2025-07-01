@@ -11,6 +11,7 @@ An automated portfolio rebalancing service that integrates with Interactive Brok
 - **Robust Connection Management**: Automatic retry logic and graceful degradation
 - **Modern IBKR Integration**: Uses ib_async (successor to ib_insync) for Interactive Brokers API
 - **Docker Support**: Containerized deployment with existing IBKR gateway
+- **Equity Reserve Management**: Configurable cash reserve to improve order fill rates and handle price movements
 
 ## Architecture
 
@@ -38,16 +39,30 @@ Edit `accounts.yaml` to configure your IBKR accounts:
 ```yaml
 - account_id: "DU123456"
   notification:
-    channel: "rebalance-primary"
-  allocations:
-    url: "https://your-api.com/allocations/primary"
+    channel: "strategy-name-100"
+  rebalancing:
+    equity_reserve_percentage: 1.0  # 1% cash reserve (default)
 
 - account_id: "DU789012"
   notification:
-    channel: "rebalance-secondary"
-  allocations:
-    url: "https://your-api.com/allocations/secondary"
+    channel: "strategy-name-200"
+  rebalancing:
+    equity_reserve_percentage: 2.5  # 2.5% cash reserve
 ```
+
+The allocations URL is automatically constructed as: `{base_url}/{channel}/allocations`
+
+### Application Configuration
+
+Configure the allocations API base URL in `config.yaml`:
+
+```yaml
+# Allocations API Configuration
+allocations:
+  base_url: "https://workers.fintech.zehnlabs.com/api/v1"
+```
+
+This allows all accounts to share the same base URL while having different strategy channels.
 
 ### Environment Variables
 
@@ -149,13 +164,73 @@ docker-compose exec portfolio-rebalancer python -m app.cli list-accounts
 
 ## Rebalancing Algorithm
 
-The rebalancer implements a standard portfolio rebalancing algorithm:
+The rebalancer implements a standard portfolio rebalancing algorithm with equity reserve management:
 
 1. **Fetch Target Allocations**: Calls configured API to get target percentages
 2. **Get Current Positions**: Retrieves current holdings from IBKR
-3. **Calculate Differences**: Compares current vs target allocations
-4. **Generate Orders**: Creates buy/sell orders to reach target allocation
-5. **Execute Trades**: Submits market orders to IBKR
+3. **Calculate Available Equity**: `Available Equity = Total Account Value - (Reserve % × Total Account Value)`
+4. **Calculate Target Positions**: Uses available equity (not total) for allocation calculations
+5. **Generate Orders**: Creates buy/sell orders to reach target allocation within available equity
+6. **Execute Trades**: Submits market orders to IBKR
+
+### Equity Reserve System
+
+The system maintains a configurable cash reserve to improve order fill rates and handle market volatility:
+
+**Purpose:**
+- **Improved Fill Rates**: Market orders are more likely to fill when there's a cash buffer for price movements
+- **Settlement Buffer**: Provides cushion for trade settlement and fees
+- **Risk Management**: Prevents over-leveraging the account
+
+**Configuration:**
+Each account can have its own reserve percentage configured in `accounts.yaml`:
+
+```yaml
+- account_id: "DU123456"
+  rebalancing:
+    equity_reserve_percentage: 1.0  # 1% reserve (default)
+```
+
+**Validation:**
+- **Range**: 0% to 10% (values outside this range default to 1%)
+- **Default**: 1% if not specified or invalid
+- **Logging**: Invalid values are logged with warnings
+
+**Example:**
+- Account Value: $100,000
+- Reserve: 2% 
+- Available for Trading: $98,000
+- Cash Reserve: $2,000
+
+### API Response
+
+The dry run and live rebalancing API responses now include detailed equity information:
+
+```json
+{
+  "account_id": "DU123456",
+  "execution_mode": "dry_run",
+  "equity_info": {
+    "total_equity": 100000.00,
+    "reserve_percentage": 1.0,
+    "reserve_amount": 1000.00,
+    "available_for_trading": 99000.00
+  },
+  "orders": [
+    {
+      "symbol": "AAPL",
+      "quantity": 10,
+      "action": "BUY",
+      "market_value": 1500.00
+    }
+  ],
+  "status": "success",
+  "message": "Dry run rebalancing completed successfully",
+  "timestamp": "2023-12-01T10:00:00Z"
+}
+```
+
+This approach solves the original problem where orders might not fill due to price movements between calculation and execution, by ensuring sufficient cash reserves and using total equity calculations instead of precise share quantities.
 
 ### Key Features:
 - Handles fractional shares by rounding to nearest whole share
