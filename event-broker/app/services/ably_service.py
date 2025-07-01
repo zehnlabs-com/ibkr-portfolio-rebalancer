@@ -126,9 +126,12 @@ class AblyEventSubscriber:
                 channel = self.ably.channels.get(channel_name)
                 
                 # Subscribe to all messages on the channel
-                await channel.subscribe(lambda message, acc=account: asyncio.create_task(
-                    self._handle_rebalance_event(message, acc)
-                ))
+                def create_message_handler(account_config):
+                    def message_handler(message, *args, **kwargs):
+                        asyncio.create_task(self._handle_rebalance_event(message, account_config))
+                    return message_handler
+                
+                await channel.subscribe(create_message_handler(account))
                 
                 # Store channel reference
                 self.channels[channel_name] = channel
@@ -213,22 +216,22 @@ class AblyEventSubscriber:
     
     def _setup_connection_monitoring(self):
         """Set up Ably connection state monitoring"""
-        def on_connected():
+        def on_connected(state_change, *args, **kwargs):
             logger.info("Ably connection established")
         
-        def on_failed():
+        def on_failed(state_change, *args, **kwargs):
             logger.error("Ably connection failed")
         
-        def on_disconnected():
+        def on_disconnected(state_change, *args, **kwargs):
             logger.warning("Ably connection lost")
         
-        def on_suspended():
+        def on_suspended(state_change, *args, **kwargs):
             logger.warning("Ably connection suspended")
         
-        def on_closing():
+        def on_closing(state_change, *args, **kwargs):
             logger.info("Ably connection closing")
         
-        def on_closed():
+        def on_closed(state_change, *args, **kwargs):
             logger.info("Ably connection closed")
         
         # Set up connection event handlers

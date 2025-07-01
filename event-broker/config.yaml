@@ -1,0 +1,29 @@
+# Event Broker Service Configuration
+# This file contains application configuration parameters
+# Sensitive data (if any) should be set via environment variables
+
+# Rebalancer API Configuration
+rebalancer_api:
+  url: "http://rebalancer-api:8000"
+  timeout: 60  # seconds
+
+# Ably Realtime Configuration
+ably:
+  api_key: "5L7t7A.AoDrNg:lXvCmY0oHKP08H_WevDb_ZdgtENDN4x_1LS_NfzvFho"  # This should be the actual non-user-configurable key
+
+# Application Settings
+application:
+  log_level: "INFO"       # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  accounts_file: "accounts.yaml"
+
+# Development/Testing Overrides (optional)
+# Uncomment and modify for different environments
+# development:
+#   rebalancer_api:
+#     url: "http://localhost:8000"
+#   application:
+#     log_level: "DEBUG"
+
+# production:
+#   application:
+#     log_level: "WARNING"

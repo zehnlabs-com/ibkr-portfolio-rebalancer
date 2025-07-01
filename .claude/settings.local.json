@@ -27,7 +27,8 @@
       "Bash(touch:*)",
       "Bash(time curl:*)",
       "WebFetch(domain:interactivebrokers.github.io)",
-      "Bash(pip3 install:*)"
+      "Bash(pip3 install:*)",
+      "Bash(mv:*)"
     ],
     "deny": []
   }

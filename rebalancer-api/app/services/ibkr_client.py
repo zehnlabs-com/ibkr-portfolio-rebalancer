@@ -4,6 +4,7 @@ from typing import List, Dict, Optional
 from ib_async import IB, Stock, Order, MarketOrder, LimitOrder, Contract
 from app.config import config
 from app.logger import setup_logger
+from app.utils.retry import retry_with_config
 
 logger = setup_logger(__name__)
 
@@ -20,36 +21,28 @@ class IBKRClient:
             self.connected = True
             return True
         
-        while self.retry_count < config.ibkr.max_retries:
-            try:
-                logger.info(f"Attempting to connect to IBKR (attempt {self.retry_count + 1})")
-                
-                await self.ib.connectAsync(
-                    host=config.ibkr.host,
-                    port=config.ibkr.port,
-                    clientId=self.client_id
-                )
-                
-                self.connected = True
-                self.retry_count = 0
-                logger.info(f"Connected to IBKR with client ID {self.client_id}")
-                return True
-                
-            except Exception as e:
-                self.retry_count += 1
-                logger.error(f"Failed to connect to IBKR: {e}")
-                
-                if self.retry_count < config.ibkr.max_retries:
-                    delay = config.ibkr.retry_delay * (2 ** (self.retry_count - 1))
-                    logger.info(f"Retrying in {delay} seconds...")
-                    await asyncio.sleep(delay)
-                    
-                    self.client_id = random.randint(1000, 9999)
-                else:
-                    logger.error("Max retries reached. Connection failed.")
-                    return False
-        
-        return False
+        try:
+            await retry_with_config(
+                self._do_connect,
+                config.ibkr.connection_retry,
+                "IBKR Connection"
+            )
+            self.connected = True
+            return True
+        except Exception as e:
+            logger.error(f"Failed to establish IBKR connection: {e}")
+            return False
+    
+    async def _do_connect(self):
+        """Internal connection method for retry logic"""
+        await self.ib.connectAsync(
+            host=config.ibkr.host,
+            port=config.ibkr.port,
+            clientId=self.client_id
+        )
+        logger.info(f"Connected to IBKR with client ID {self.client_id}")
+        # Generate new client ID for potential retries
+        self.client_id = random.randint(1000, 9999)
     
     async def disconnect(self):
         if self.ib.isConnected():
@@ -102,7 +95,7 @@ class IBKRClient:
         return prices[symbol]
     
     async def get_multiple_market_prices(self, symbols: List[str]) -> Dict[str, float]:
-        """Get market prices for multiple symbols in parallel (battle-tested pattern)"""
+        """Get market prices for multiple symbols in parallel with retry logic"""
         if not await self.ensure_connected():
             raise Exception("Unable to establish IBKR connection")
         
@@ -110,23 +103,36 @@ class IBKRClient:
             return {}
         
         try:
-            # Create all contracts
-            contracts = [Stock(symbol, 'SMART', 'USD') for symbol in symbols]
-            
-            # Batch qualify all contracts at once (more efficient)
-            qualified_contracts = self.ib.qualifyContracts(*contracts)
-            if not qualified_contracts:
-                raise Exception("No contracts could be qualified")
-            
-            # Create symbol to contract mapping for qualified contracts only
-            qualified_symbol_map = {contract.symbol: contract for contract in qualified_contracts}
-            failed_symbols = set(symbols) - set(qualified_symbol_map.keys())
-            
-            if failed_symbols:
-                logger.warning(f"Failed to qualify contracts for symbols: {failed_symbols}")
-            
-            tickers = {}
-            
+            return await retry_with_config(
+                self._get_market_prices_internal,
+                config.ibkr.market_data_retry,
+                "Market Data Retrieval",
+                symbols
+            )
+        except Exception as e:
+            logger.error(f"Failed to get market prices after retries: {e}")
+            raise
+    
+    async def _get_market_prices_internal(self, symbols: List[str]) -> Dict[str, float]:
+        """Internal market data retrieval method for retry logic"""
+        # Create all contracts
+        contracts = [Stock(symbol, 'SMART', 'USD') for symbol in symbols]
+        
+        # Batch qualify all contracts at once (more efficient)
+        qualified_contracts = self.ib.qualifyContracts(*contracts)
+        if not qualified_contracts:
+            raise Exception("No contracts could be qualified")
+        
+        # Create symbol to contract mapping for qualified contracts only
+        qualified_symbol_map = {contract.symbol: contract for contract in qualified_contracts}
+        failed_symbols = set(symbols) - set(qualified_symbol_map.keys())
+        
+        if failed_symbols:
+            logger.warning(f"Failed to qualify contracts for symbols: {failed_symbols}")
+        
+        tickers = {}
+        
+        try:
             # Start all subscriptions simultaneously for qualified contracts
             for symbol, contract in qualified_symbol_map.items():
                 ticker = self.ib.reqMktData(contract, '', False, False)
@@ -152,16 +158,8 @@ class IBKRClient:
                         logger.warning(f"No valid price data available for {symbol}")
                         continue
                         
-                    # Cancel market data subscription
-                    self.ib.cancelMktData(ticker.contract)
-                    
                 except Exception as e:
                     logger.error(f"Failed to get price for {symbol}: {e}")
-                    # Still cancel the subscription even if price retrieval failed
-                    try:
-                        self.ib.cancelMktData(ticker.contract)
-                    except:
-                        pass
             
             # Check if we got prices for qualified symbols
             missing_symbols = set(qualified_symbol_map.keys()) - set(prices.keys())
@@ -169,41 +167,53 @@ class IBKRClient:
                 raise Exception(f"Failed to get prices for qualified symbols: {missing_symbols}")
             
             return prices
-                
-        except Exception as e:
-            logger.error(f"Failed to get market prices: {e}")
-            raise
+            
+        finally:
+            # Always cancel all subscriptions
+            for ticker in tickers.values():
+                try:
+                    self.ib.cancelMktData(ticker.contract)
+                except:
+                    pass
     
     async def place_order(self, account_id: str, symbol: str, quantity: int, order_type: str = "MKT") -> Optional[str]:
         if not await self.ensure_connected():
             raise Exception("Unable to establish IBKR connection")
         
         try:
-            contract = Stock(symbol, 'SMART', 'USD')
-            
-            qualified_contracts = self.ib.qualifyContracts(contract)
-            if not qualified_contracts:
-                raise Exception(f"Could not qualify contract for {symbol}")
-            
-            contract = qualified_contracts[0]
-            
-            action = "BUY" if quantity > 0 else "SELL"
-            
-            if order_type == "MKT":
-                order = MarketOrder(action, abs(quantity))
-            else:
-                raise ValueError(f"Unsupported order type: {order_type}")
-            
-            order.account = account_id
-            
-            trade = self.ib.placeOrder(contract, order)
-            logger.info(f"Placed order: {action} {abs(quantity)} shares of {symbol}")
-            
-            return str(trade.order.orderId)
-            
+            return await retry_with_config(
+                self._place_order_internal,
+                config.ibkr.order_retry,
+                "Order Placement",
+                account_id, symbol, quantity, order_type
+            )
         except Exception as e:
-            logger.error(f"Failed to place order: {e}")
+            logger.error(f"Failed to place order after retries: {e}")
             raise
+    
+    async def _place_order_internal(self, account_id: str, symbol: str, quantity: int, order_type: str = "MKT") -> str:
+        """Internal order placement method for retry logic"""
+        contract = Stock(symbol, 'SMART', 'USD')
+        
+        qualified_contracts = self.ib.qualifyContracts(contract)
+        if not qualified_contracts:
+            raise Exception(f"Could not qualify contract for {symbol}")
+        
+        contract = qualified_contracts[0]
+        
+        action = "BUY" if quantity > 0 else "SELL"
+        
+        if order_type == "MKT":
+            order = MarketOrder(action, abs(quantity))
+        else:
+            raise ValueError(f"Unsupported order type: {order_type}")
+        
+        order.account = account_id
+        
+        trade = self.ib.placeOrder(contract, order)
+        logger.info(f"Placed order: {action} {abs(quantity)} shares of {symbol}")
+        
+        return str(trade.order.orderId)
     
     async def ensure_connected(self) -> bool:
         if not self.ib.isConnected():

@@ -71,22 +71,8 @@ class RebalancerService:
         all_symbols.update(current_positions_map.keys())
         
         # Get all market prices in parallel for better performance
-        # Retry logic for market data readiness after startup
-        max_retries = 3
-        retry_delay = 2
-        
-        for attempt in range(max_retries):
-            try:
-                market_prices = await self.ibkr_client.get_multiple_market_prices(list(all_symbols))
-                break
-            except Exception as e:
-                if attempt < max_retries - 1 and "Failed to get prices" in str(e):
-                    logger.warning(f"Market data not ready (attempt {attempt + 1}/{max_retries}), retrying in {retry_delay}s: {e}")
-                    await asyncio.sleep(retry_delay)
-                    continue
-                else:
-                    logger.error(f"Failed to get market prices: {e}")
-                    raise
+        # Retry logic is now handled by IBKRClient with configurable parameters
+        market_prices = await self.ibkr_client.get_multiple_market_prices(list(all_symbols))
         
         for symbol, target_value in target_positions.items():
             if symbol not in market_prices:

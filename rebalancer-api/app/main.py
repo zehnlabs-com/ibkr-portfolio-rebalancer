@@ -36,7 +36,7 @@ async def maintain_ibkr_connection():
                 await ibkr_client.connect()
         except Exception as e:
             logger.error(f"Error in connection maintenance: {e}")
-        await asyncio.sleep(30)  # Check every 30 seconds
+        await asyncio.sleep(config.connection_check_interval)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -52,10 +52,8 @@ async def lifespan(app: FastAPI):
     logger.info("Establishing initial IBKR connection...")
     
     # Give IBKR Gateway more time during startup (it needs time to authenticate)
-    max_startup_attempts = 10
-    startup_delay = 10
-    
-    for attempt in range(max_startup_attempts):
+    # Use configurable startup parameters
+    for attempt in range(config.startup_max_attempts):
         try:
             if await ibkr_client.connect():
                 logger.info("Initial IBKR connection successful")
@@ -71,17 +69,17 @@ async def lifespan(app: FastAPI):
                         raise Exception("Market data test failed - no prices returned")
                 except Exception as md_error:
                     logger.warning(f"Market data not ready yet: {md_error}")
-                    if attempt < max_startup_attempts - 1:
+                    if attempt < config.startup_max_attempts - 1:
                         logger.info("Market data not ready, will retry...")
                         continue
                     else:
                         logger.warning("Market data not ready after all attempts, but basic connection is established")
                         break
         except Exception as e:
-            logger.warning(f"Initial connection attempt {attempt + 1}/{max_startup_attempts} failed: {e}")
-            if attempt < max_startup_attempts - 1:
-                logger.info(f"Waiting {startup_delay} seconds before next attempt...")
-                await asyncio.sleep(startup_delay)
+            logger.warning(f"Initial connection attempt {attempt + 1}/{config.startup_max_attempts} failed: {e}")
+            if attempt < config.startup_max_attempts - 1:
+                logger.info(f"Waiting {config.startup_delay} seconds before next attempt...")
+                await asyncio.sleep(config.startup_delay)
             else:
                 logger.error("Failed to establish initial IBKR connection after all attempts")
                 # Don't fail startup - let endpoints handle connection retries

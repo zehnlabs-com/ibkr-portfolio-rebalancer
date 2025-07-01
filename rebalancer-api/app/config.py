@@ -20,14 +20,23 @@ class AccountConfig:
     allocations: AllocationsConfig
 
 @dataclass
+class RetryConfig:
+    max_retries: int
+    base_delay: int
+    max_delay: int
+    backoff_multiplier: float
+    jitter: bool
+
+@dataclass
 class IBKRConfig:
     host: str
     port: int
     username: str
     password: str
     trading_mode: str
-    max_retries: int
-    retry_delay: int
+    connection_retry: RetryConfig
+    market_data_retry: RetryConfig
+    order_retry: RetryConfig
 
 @dataclass
 class APIConfig:
@@ -36,33 +45,77 @@ class APIConfig:
     workers: int
     
 class Config:
-    def __init__(self, accounts_file: str = "accounts.yaml"):
-        # IBKR config (all from env vars)
+    def __init__(self, accounts_file: str = "accounts.yaml", config_file: str = "config.yaml"):
+        # Load configuration from YAML file (required)
+        config_data = self._load_config_file(config_file)
+        
+        # IBKR config (YAML for app settings, env for secrets only)
+        ibkr_config = config_data["ibkr"]  # Required section
         self.ibkr = IBKRConfig(
-            host=os.getenv("IBKR_HOST", "127.0.0.1"),
-            port=int(os.getenv("IBKR_PORT", "8888")),
-            username=os.getenv("IBKR_USERNAME", ""),
-            password=os.getenv("IBKR_PASSWORD", ""),
-            trading_mode=os.getenv("TRADING_MODE", "paper"),
-            max_retries=int(os.getenv("IBKR_MAX_RETRIES", "3")),
-            retry_delay=int(os.getenv("IBKR_RETRY_DELAY", "5"))
+            host=ibkr_config["host"],
+            port=ibkr_config["port"],
+            username=os.getenv("IBKR_USERNAME", ""),  # Secret from env
+            password=os.getenv("IBKR_PASSWORD", ""),  # Secret from env
+            trading_mode=os.getenv("TRADING_MODE", "paper"),  # Secret from env
+            connection_retry=self._load_retry_config(ibkr_config["connection_retry"]),
+            market_data_retry=self._load_retry_config(ibkr_config["market_data_retry"]),
+            order_retry=self._load_retry_config(ibkr_config["order_retry"])
         )
         
-        # FastAPI config
+        # FastAPI config (from YAML only)
+        api_config = config_data["api"]  # Required section
         self.api = APIConfig(
-            host=os.getenv("API_HOST", "0.0.0.0"),
-            port=int(os.getenv("API_PORT", "8000")),
-            workers=int(os.getenv("API_WORKERS", "1"))
+            host=api_config["host"],
+            port=api_config["port"],
+            workers=api_config["workers"]
         )
         
-        # Application config (all from env vars)
-        self.log_level = os.getenv("LOG_LEVEL", "INFO")
+        # Application config (from YAML only)
+        app_config = config_data["application"]  # Required section
+        self.log_level = app_config["log_level"]
+        self.connection_check_interval = app_config["connection_check_interval"]
+        self.startup_max_attempts = app_config["startup_max_attempts"]
+        self.startup_delay = app_config["startup_delay"]
         
-        # API keys
+        # API keys (secrets from env only)
         self.allocations_api_key = os.getenv("ALLOCATIONS_API_KEY", "")
         
-        # Load accounts from simple YAML file
+        # Load accounts from accounts.yaml file
         self.accounts: List[AccountConfig] = self._load_accounts(accounts_file)
+    
+    def _load_config_file(self, config_file: str) -> Dict:
+        """Load configuration from YAML file - REQUIRED, no fallbacks"""
+        try:
+            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), config_file)
+            with open(config_path, 'r') as f:
+                config_data = yaml.safe_load(f)
+            
+            if not config_data:
+                raise ValueError(f"Config file {config_file} is empty")
+            
+            # Validate required sections exist
+            required_sections = ["ibkr", "api", "application"]
+            for section in required_sections:
+                if section not in config_data:
+                    raise ValueError(f"Required configuration section '{section}' missing from {config_file}")
+            
+            logging.info(f"Loaded configuration from {config_file}")
+            return config_data
+            
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Configuration file {config_file} not found. This file is required.")
+        except Exception as e:
+            raise Exception(f"Error loading config file {config_file}: {e}")
+    
+    def _load_retry_config(self, retry_config: Dict) -> RetryConfig:
+        """Load retry configuration from YAML - no environment overrides"""
+        return RetryConfig(
+            max_retries=retry_config["max_retries"],
+            base_delay=retry_config["base_delay"],
+            max_delay=retry_config["max_delay"],
+            backoff_multiplier=retry_config["backoff_multiplier"],
+            jitter=retry_config["jitter"]
+        )
     
     def _load_accounts(self, accounts_file: str) -> List[AccountConfig]:
         accounts = []

@@ -14,9 +14,10 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy application code and configuration files
 COPY app/ ./app/
 COPY accounts.yaml .
+COPY config.yaml .
 
 # Set Python path
 ENV PYTHONPATH=/app
