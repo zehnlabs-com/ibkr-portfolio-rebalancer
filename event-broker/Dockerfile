@@ -1,4 +1,4 @@
-# Event Subscriber Service Dockerfile
+# Event Broker Service Dockerfile
 FROM python:3.11-slim
 
 # Set working directory

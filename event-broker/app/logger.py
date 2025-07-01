@@ -1,5 +1,5 @@
 """
-Logging configuration for the Event Subscriber Service
+Logging configuration for the Event Broker Service
 """
 import logging
 import sys
@@ -8,7 +8,7 @@ from typing import Optional
 
 def setup_logger(name: Optional[str] = None, level: str = "INFO") -> logging.Logger:
     """
-    Set up structured logging for the Event Subscriber Service
+    Set up structured logging for the Event Broker Service
     
     Args:
         name: Logger name (defaults to __name__)

@@ -60,10 +60,10 @@ class AblyEventSubscriber:
             await self._verify_rebalancer_health()
             
             self.running = True
-            logger.info(f"Started Ably Event Subscriber with {len(self.accounts)} accounts")
+            logger.info(f"Started Ably Event Broker with {len(self.accounts)} accounts")
             
         except Exception as e:
-            logger.error(f"Failed to start Ably Event Subscriber: {e}")
+            logger.error(f"Failed to start Ably Event Broker: {e}")
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             raise
@@ -91,7 +91,7 @@ class AblyEventSubscriber:
         # Close HTTP client
         await self.rebalancer_client.close()
         
-        logger.info("Stopped Ably Event Subscriber")
+        logger.info("Stopped Ably Event Broker")
     
     async def _load_accounts(self):
         """Load account configurations from YAML file"""
@@ -240,7 +240,7 @@ class AblyEventSubscriber:
         self.ably.connection.on('closed', on_closed)
     
     async def get_status(self) -> Dict[str, Any]:
-        """Get current status of the event subscriber"""
+        """Get current status of the event broker"""
         status = {
             "running": self.running,
             "accounts_count": len(self.accounts),

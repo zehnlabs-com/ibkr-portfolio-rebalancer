@@ -1,5 +1,5 @@
 """
-Event Subscriber Service - Main Application Entry Point
+Event Broker Service - Main Application Entry Point
 
 This service subscribes to Ably events and triggers rebalancing operations
 via HTTP calls to the Rebalancer API Service.
@@ -14,44 +14,44 @@ from app.services.ably_service import AblyEventSubscriber
 logger = setup_logger(__name__, level=config.LOG_LEVEL)
 
 
-class EventSubscriberApp:
-    """Main application class for the Event Subscriber Service"""
+class EventBrokerApp:
+    """Main application class for the Event Broker Service"""
     
     def __init__(self):
         self.ably_subscriber = AblyEventSubscriber()
         self.running = False
         
     async def start(self):
-        """Start the Event Subscriber Service"""
+        """Start the Event Broker Service"""
         try:
-            logger.info("Starting Event Subscriber Service...")
+            logger.info("Starting Event Broker Service...")
             
-            # Start the Ably event subscriber
+            # Start the Ably event broker
             await self.ably_subscriber.start()
             
             self.running = True
-            logger.info("Event Subscriber Service started successfully")
+            logger.info("Event Broker Service started successfully")
             
             # Keep the service running
             await self._run_forever()
             
         except Exception as e:
-            logger.error(f"Failed to start Event Subscriber Service: {e}")
+            logger.error(f"Failed to start Event Broker Service: {e}")
             raise
     
     async def stop(self):
-        """Stop the Event Subscriber Service"""
+        """Stop the Event Broker Service"""
         if not self.running:
             return
             
-        logger.info("Stopping Event Subscriber Service...")
+        logger.info("Stopping Event Broker Service...")
         self.running = False
         
         try:
             await self.ably_subscriber.stop()
-            logger.info("Event Subscriber Service stopped successfully")
+            logger.info("Event Broker Service stopped successfully")
         except Exception as e:
-            logger.error(f"Error stopping Event Subscriber Service: {e}")
+            logger.error(f"Error stopping Event Broker Service: {e}")
     
     async def _run_forever(self):
         """Keep the service running and handle graceful shutdown"""
@@ -68,7 +68,7 @@ class EventSubscriberApp:
 
 
 # Global app instance
-app = EventSubscriberApp()
+app = EventBrokerApp()
 
 
 async def shutdown_handler(sig_name):

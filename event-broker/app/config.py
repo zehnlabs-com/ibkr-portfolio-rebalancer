@@ -1,5 +1,5 @@
 """
-Configuration management for the Event Subscriber Service
+Configuration management for the Event Broker Service
 """
 import os
 from typing import Optional

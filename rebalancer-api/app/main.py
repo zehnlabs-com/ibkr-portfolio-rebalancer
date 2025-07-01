@@ -1,3 +1,7 @@
+import nest_asyncio
+# Apply nest_asyncio BEFORE any other async imports to prevent event loop conflicts
+nest_asyncio.apply()
+
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
@@ -5,7 +9,6 @@ from datetime import datetime
 from typing import List, Optional
 import uvicorn
 import asyncio
-import nest_asyncio
 
 from app.config import config
 from app.logger import setup_logger
@@ -25,6 +28,7 @@ rebalancer_service = None
 
 async def maintain_ibkr_connection():
     """Background task to maintain IBKR connection"""
+    global ibkr_client
     while True:
         try:
             if ibkr_client and not ibkr_client.ib.isConnected():
@@ -38,14 +42,49 @@ async def maintain_ibkr_connection():
 async def lifespan(app: FastAPI):
     global ibkr_client, rebalancer_service
     
-    # Apply nest_asyncio to allow nested async loops
-    nest_asyncio.apply()
-    
     logger.info("Starting Rebalancer API service")
     
     # Initialize services
     ibkr_client = IBKRClient()
     rebalancer_service = RebalancerService(ibkr_client)
+    
+    # Connect to IBKR during startup with extended retry for initial connection
+    logger.info("Establishing initial IBKR connection...")
+    
+    # Give IBKR Gateway more time during startup (it needs time to authenticate)
+    max_startup_attempts = 10
+    startup_delay = 10
+    
+    for attempt in range(max_startup_attempts):
+        try:
+            if await ibkr_client.connect():
+                logger.info("Initial IBKR connection successful")
+                
+                # Test market data readiness with a simple symbol
+                logger.info("Testing market data readiness...")
+                try:
+                    test_prices = await ibkr_client.get_multiple_market_prices(['SPY'])
+                    if test_prices:
+                        logger.info("Market data is ready")
+                        break
+                    else:
+                        raise Exception("Market data test failed - no prices returned")
+                except Exception as md_error:
+                    logger.warning(f"Market data not ready yet: {md_error}")
+                    if attempt < max_startup_attempts - 1:
+                        logger.info("Market data not ready, will retry...")
+                        continue
+                    else:
+                        logger.warning("Market data not ready after all attempts, but basic connection is established")
+                        break
+        except Exception as e:
+            logger.warning(f"Initial connection attempt {attempt + 1}/{max_startup_attempts} failed: {e}")
+            if attempt < max_startup_attempts - 1:
+                logger.info(f"Waiting {startup_delay} seconds before next attempt...")
+                await asyncio.sleep(startup_delay)
+            else:
+                logger.error("Failed to establish initial IBKR connection after all attempts")
+                # Don't fail startup - let endpoints handle connection retries
     
     # Start connection maintenance task
     maintenance_task = asyncio.create_task(maintain_ibkr_connection())
@@ -55,6 +94,11 @@ async def lifespan(app: FastAPI):
     # Cleanup
     logger.info("Shutting down Rebalancer API service")
     maintenance_task.cancel()
+    try:
+        await maintenance_task
+    except asyncio.CancelledError:
+        pass
+    
     if ibkr_client:
         await ibkr_client.disconnect()
 
@@ -83,15 +127,26 @@ async def health_check(client: IBKRClient = Depends(get_ibkr_client)):
     message = None
     
     try:
-        if client:
-            ibkr_connected = await client.ensure_connected()
+        if client and await client.ensure_connected():
+            # Test connection with a simple operation (like in research)
+            try:
+                managed_accounts = client.ib.managedAccounts()
+                ibkr_connected = True
+                if managed_accounts:
+                    message = f"Connected to IBKR with accounts: {', '.join(managed_accounts)}"
+                else:
+                    message = "Connected to IBKR but no managed accounts found"
+            except Exception as conn_test_error:
+                ibkr_connected = False
+                message = f"IBKR connection test failed: {str(conn_test_error)}"
+        else:
+            message = "Unable to establish IBKR connection"
         
         status = "healthy" if ibkr_connected else "unhealthy"
-        if not ibkr_connected:
-            message = "IBKR connection failed"
             
     except Exception as e:
         status = "unhealthy"
+        ibkr_connected = False
         message = f"Health check failed: {str(e)}"
         logger.error(f"Health check error: {e}")
     
@@ -178,15 +233,30 @@ async def dry_run_rebalance(
     service: RebalancerService = Depends(get_rebalancer_service)
 ):
     try:
+        # Validate account configuration
         account_config = config.get_account_config(account_id)
         if not account_config:
             raise HTTPException(status_code=404, detail=f"Account {account_id} not found")
         
-        if not await client.ensure_connected():
-            raise HTTPException(status_code=503, detail="Unable to connect to IBKR")
+        # Check IBKR connection with detailed error handling
+        try:
+            connection_success = await client.ensure_connected()
+            if not connection_success:
+                raise HTTPException(
+                    status_code=503, 
+                    detail="Unable to establish connection to IBKR Gateway. Please ensure IB Gateway/TWS is running and configured correctly."
+                )
+        except Exception as conn_error:
+            logger.error(f"IBKR connection error: {conn_error}")
+            raise HTTPException(
+                status_code=503, 
+                detail=f"IBKR connection failed: {str(conn_error)}"
+            )
         
+        # Execute dry run rebalance
         orders = await service.dry_run_rebalance(account_config)
         
+        # Convert orders to response format
         response_orders = []
         for order in orders:
             response_orders.append(RebalanceOrder(
@@ -208,13 +278,13 @@ async def dry_run_rebalance(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in dry run rebalance for account {account_id}: {e}")
+        logger.error(f"Unexpected error in dry run rebalance for account {account_id}: {e}")
         return RebalanceResponse(
             account_id=account_id,
             execution_mode="dry_run",
             orders=[],
             status="error",
-            message=str(e),
+            message=f"Dry run failed: {str(e)}",
             timestamp=datetime.utcnow()
         )
 

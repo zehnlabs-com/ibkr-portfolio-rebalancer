@@ -46,11 +46,11 @@ services:
       - "8000:8000"
     restart: unless-stopped
 
-  event-subscriber:
+  event-broker:
     build:
-      context: ./event-subscriber
+      context: ./event-broker
       dockerfile: Dockerfile
-    container_name: event-subscriber
+    container_name: event-broker
     environment:
       # Service Configuration
       - REBALANCER_API_URL=http://rebalancer-api:8000

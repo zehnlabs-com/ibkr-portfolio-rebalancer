@@ -61,9 +61,8 @@ class IBKRClient:
                 logger.error(f"Error disconnecting from IBKR: {e}")
     
     async def get_account_value(self, account_id: str, tag: str = "NetLiquidation") -> float:
-        if not self.ib.isConnected():
-            if not await self.connect():
-                raise Exception("Not connected to IBKR")
+        if not await self.ensure_connected():
+            raise Exception("Unable to establish IBKR connection")
         
         try:
             account_values = self.ib.accountValues(account_id)
@@ -76,9 +75,8 @@ class IBKRClient:
             raise
     
     async def get_positions(self, account_id: str) -> List[Dict]:
-        if not self.ib.isConnected():
-            if not await self.connect():
-                raise Exception("Not connected to IBKR")
+        if not await self.ensure_connected():
+            raise Exception("Unable to establish IBKR connection")
         
         try:
             positions = self.ib.positions(account_id)
@@ -105,9 +103,8 @@ class IBKRClient:
     
     async def get_multiple_market_prices(self, symbols: List[str]) -> Dict[str, float]:
         """Get market prices for multiple symbols in parallel (battle-tested pattern)"""
-        if not self.ib.isConnected():
-            if not await self.connect():
-                raise Exception("Not connected to IBKR")
+        if not await self.ensure_connected():
+            raise Exception("Unable to establish IBKR connection")
         
         if not symbols:
             return {}
@@ -135,7 +132,7 @@ class IBKRClient:
                 ticker = self.ib.reqMktData(contract, '', False, False)
                 tickers[symbol] = ticker
             
-            # Wait once for all price data to arrive
+            # Wait for market data to arrive
             await asyncio.sleep(2)
             
             # Collect all prices
@@ -178,9 +175,8 @@ class IBKRClient:
             raise
     
     async def place_order(self, account_id: str, symbol: str, quantity: int, order_type: str = "MKT") -> Optional[str]:
-        if not self.ib.isConnected():
-            if not await self.connect():
-                raise Exception("Not connected to IBKR")
+        if not await self.ensure_connected():
+            raise Exception("Unable to establish IBKR connection")
         
         try:
             contract = Stock(symbol, 'SMART', 'USD')
@@ -213,9 +209,6 @@ class IBKRClient:
         if not self.ib.isConnected():
             return await self.connect()
         
-        try:
-            await self.ib.reqCurrentTimeAsync()
-            return True
-        except:
-            self.connected = False
-            return await self.connect()
+        # Simple connection check - if isConnected() returns True, trust it
+        # The reqCurrentTimeAsync() was causing hangs due to event loop issues
+        return True
