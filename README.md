@@ -76,7 +76,7 @@ TRADING_MODE=paper
 
 # Global API Keys (shared across all accounts)
 REALTIME_API_KEY=your_ably_key
-ALLOCATIONS_API_KEY=your_allocation_key
+ZEHNLABS_FINTECH_API_KEY=your_allocation_key
 
 # Application Settings
 LOG_LEVEL=INFO

@@ -82,7 +82,7 @@ class Config:
         self.allocations_base_url = allocations_config["base_url"]
         
         # API keys (secrets from env only)
-        self.allocations_api_key = os.getenv("ALLOCATIONS_API_KEY", "")
+        self.zehnlabs_fintech_api_key = os.getenv("ZEHNLABS_FINTECH_API_KEY", "")
         
         # Load accounts from accounts.yaml file
         self.accounts: List[AccountConfig] = self._load_accounts(accounts_file)

@@ -1,6 +1,6 @@
 ### Test variables
 @baseUrl = http://localhost:8000
-@accountId = U20660659 
+@accountId = DUM959247 
 # SEP=U20660659; INDV=U7794534; PPR=DUM959247
 
 ### Health check
@@ -26,7 +26,7 @@ POST {{baseUrl}}/rebalance/{{accountId}}
 Content-Type: application/json
 
 {
-    "execution_mode": "dry_run"
+    "execution_mode": "rebalance"
 }
 
 ### Live rebalance (DANGER: This will execute real trades!)

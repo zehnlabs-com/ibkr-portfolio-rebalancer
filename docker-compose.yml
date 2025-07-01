@@ -43,7 +43,7 @@ services:
       - IBKR_PASSWORD=${IBKR_PASSWORD}
       - TRADING_MODE=${TRADING_MODE:-paper}
       # API keys
-      - ALLOCATIONS_API_KEY=${ALLOCATIONS_API_KEY}
+      - ZEHNLABS_FINTECH_API_KEY=${ZEHNLABS_FINTECH_API_KEY}
     depends_on:
       ibkr:
         condition: service_healthy
