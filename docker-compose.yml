@@ -2,14 +2,19 @@ services:
   ibkr:
     image: ghcr.io/extrange/ibkr:stable  # Use 'stable' tag or specific version like 'latest'
     container_name: ibkr-gateway
+    # args:
+    #   ibc_version: 3.12.0    
     environment:
       - USERNAME=${IBKR_USERNAME}
       - PASSWORD=${IBKR_PASSWORD}
       - GATEWAY_OR_TWS=${GATEWAY_OR_TWS:-gateway}
+      - TWOFA_TIMEOUT_ACTION=restart
+      - TWS_SETTINGS_PATH=/home/ibkr/settings
       - IBC_TradingMode=${TRADING_MODE:-paper}      
       - IBC_AcceptNonBrokerageAccountWarning=yes
       - IBC_ReadOnlyApi=no
       - IBC_SecondFactorDevice=IB Key
+      #- TZ=Asia/Singapore
     ports:
       - "127.0.0.1:6080:6080"  # noVNC browser access
       - "127.0.0.1:8888:8888"  # API access (paper trading)
@@ -19,7 +24,13 @@ services:
       nofile: 10000
     restart: unless-stopped
     volumes:
-      - ibkr_settings:/home/ibkr/settings
+      - ibkr_settings:/home/ibkr/settings:rw
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 5 bash -c '</dev/tcp/localhost/8888' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
 
   rebalancer-api:
     build:
@@ -41,10 +52,11 @@ services:
       - API_PORT=8000
       - API_WORKERS=1
     depends_on:
-      - ibkr
+      ibkr:
+        condition: service_healthy
     ports:
       - "8000:8000"
-    restart: unless-stopped
+    restart: on-failure
 
   event-broker:
     build:
