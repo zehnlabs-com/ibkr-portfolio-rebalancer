@@ -1,6 +1,8 @@
 import asyncio
 import random
+import time
 from typing import List, Dict, Optional
+from asyncio_throttle import Throttler
 from ib_async import IB, Stock, Order, MarketOrder, LimitOrder, Contract
 from app.config import config
 from app.logger import setup_logger
@@ -20,6 +22,12 @@ class IBKRClient:
         self._connection_lock = asyncio.Lock()
         self._market_data_lock = asyncio.Lock()
         self._order_lock = asyncio.Lock()
+        
+        # Rate limiter for historical data requests (50 requests per 10 minutes)
+        self._historical_throttler = Throttler(rate_limit=50, period=600)
+        
+        # Current market data type (1=live, 2=frozen, 3=delayed, 4=delayed-frozen)
+        self._current_market_data_type = 1
     
     async def connect(self) -> bool:
         if self.ib.isConnected():
@@ -82,11 +90,18 @@ class IBKRClient:
             
             for pos in positions:
                 if pos.position != 0:
+                    # Handle cases where marketValue might not be available
+                    market_value = getattr(pos, 'marketValue', None)
+                    if market_value is None:
+                        # Fall back to calculating market value from position and price
+                        market_value = pos.position * getattr(pos, 'avgCost', 0.0)
+                        logger.warning(f"marketValue not available for {pos.contract.symbol}, calculated from position * avgCost")
+                    
                     result.append({
                         'symbol': pos.contract.symbol,
                         'position': pos.position,
-                        'market_value': pos.marketValue,
-                        'avg_cost': pos.avgCost
+                        'market_value': market_value,
+                        'avg_cost': getattr(pos, 'avgCost', 0.0)
                     })
             
             return result
@@ -94,13 +109,22 @@ class IBKRClient:
             logger.error(f"Failed to get positions: {e}")
             raise
     
+    async def _set_market_data_type(self, data_type: int):
+        """Set market data type (1=live, 2=frozen, 3=delayed, 4=delayed-frozen)"""
+        if self._current_market_data_type != data_type:
+            self.ib.reqMarketDataType(data_type)
+            self._current_market_data_type = data_type
+            await asyncio.sleep(0.1)  # Allow type change to propagate
+            logger.debug(f"Set market data type to {data_type}")
+    
     async def get_market_price(self, symbol: str) -> float:
         """Get market price for a single symbol - use get_multiple_market_prices for better performance"""
         prices = await self.get_multiple_market_prices([symbol])
         return prices[symbol]
     
+    
     async def get_multiple_market_prices(self, symbols: List[str]) -> Dict[str, float]:
-        """Get market prices for multiple symbols in parallel with retry logic"""
+        """Get market prices for multiple symbols with robust fallback strategy"""
         async with self._market_data_lock:
             if not await self.ensure_connected():
                 raise Exception("Unable to establish IBKR connection")
@@ -108,33 +132,78 @@ class IBKRClient:
             if not symbols:
                 return {}
             
+            prices = {}
+            remaining_symbols = symbols.copy()
+            
+            # Phase 1: Try live data first
             try:
-                return await retry_with_config(
-                    self._get_market_prices_internal,
-                    config.ibkr.market_data_retry,
-                    "Market Data Retrieval",
-                    symbols
-                )
+                await self._set_market_data_type(1)  # Live data
+                live_prices = await self._get_market_prices_with_type(remaining_symbols, "live")
+                prices.update(live_prices)
+                remaining_symbols = [s for s in remaining_symbols if s not in live_prices]
+                logger.debug(f"Got {len(live_prices)} prices with live data")
             except Exception as e:
-                logger.error(f"Failed to get market prices after retries: {e}")
-                raise
+                logger.debug(f"Live data failed: {e}")
+            
+            # Phase 2: Try frozen data for remaining symbols
+            if remaining_symbols:
+                try:
+                    await self._set_market_data_type(2)  # Frozen data
+                    frozen_prices = await self._get_market_prices_with_type(remaining_symbols, "frozen")
+                    prices.update(frozen_prices)
+                    remaining_symbols = [s for s in remaining_symbols if s not in frozen_prices]
+                    logger.debug(f"Got {len(frozen_prices)} prices with frozen data")
+                except Exception as e:
+                    logger.debug(f"Frozen data failed: {e}")
+            
+            # Phase 3: Try delayed data for remaining symbols
+            if remaining_symbols:
+                try:
+                    await self._set_market_data_type(3)  # Delayed data
+                    delayed_prices = await self._get_market_prices_with_type(remaining_symbols, "delayed")
+                    prices.update(delayed_prices)
+                    remaining_symbols = [s for s in remaining_symbols if s not in delayed_prices]
+                    logger.debug(f"Got {len(delayed_prices)} prices with delayed data")
+                except Exception as e:
+                    logger.debug(f"Delayed data failed: {e}")
+            
+            # Phase 4: Try historical data fallback for remaining symbols
+            if remaining_symbols:
+                try:
+                    historical_prices = await self._get_historical_prices_batch(remaining_symbols)
+                    prices.update(historical_prices)
+                    remaining_symbols = [s for s in remaining_symbols if s not in historical_prices]
+                    logger.debug(f"Got {len(historical_prices)} prices with historical data")
+                except Exception as e:
+                    logger.debug(f"Historical data failed: {e}")
+            
+            if remaining_symbols:
+                logger.warning(f"Unable to get prices for symbols: {remaining_symbols}")
+            
+            logger.info(f"Successfully retrieved prices for {len(prices)}/{len(symbols)} symbols")
+            return prices
     
     async def _get_market_prices_internal(self, symbols: List[str]) -> Dict[str, float]:
         """Internal market data retrieval method for retry logic"""
+        return await self._get_market_prices_with_type(symbols, "default")
+    
+    async def _get_market_prices_with_type(self, symbols: List[str], data_type_name: str) -> Dict[str, float]:
+        """Get market prices with current market data type setting"""
         # Create all contracts
         contracts = [Stock(symbol, 'SMART', 'USD') for symbol in symbols]
         
         # Batch qualify all contracts at once (more efficient)
         qualified_contracts = self.ib.qualifyContracts(*contracts)
         if not qualified_contracts:
-            raise Exception("No contracts could be qualified")
+            logger.warning(f"No contracts could be qualified for {data_type_name} data")
+            return {}
         
         # Create symbol to contract mapping for qualified contracts only
         qualified_symbol_map = {contract.symbol: contract for contract in qualified_contracts}
         failed_symbols = set(symbols) - set(qualified_symbol_map.keys())
         
         if failed_symbols:
-            logger.warning(f"Failed to qualify contracts for symbols: {failed_symbols}")
+            logger.debug(f"Failed to qualify contracts for symbols: {failed_symbols}")
         
         tickers = {}
         
@@ -144,8 +213,9 @@ class IBKRClient:
                 ticker = self.ib.reqMktData(contract, '', False, False)
                 tickers[symbol] = ticker
             
-            # Wait for market data to arrive
-            await asyncio.sleep(2)
+            # Wait for market data to arrive (increased timeout for frozen/delayed data)
+            timeout = 5 if data_type_name in ["frozen", "delayed"] else 2
+            await asyncio.sleep(timeout)
             
             # Collect all prices
             prices = {}
@@ -160,17 +230,15 @@ class IBKRClient:
                         prices[symbol] = ticker.last
                     elif ticker.close and ticker.close > 0:
                         prices[symbol] = ticker.close
+                    elif ticker.bid and ticker.ask and ticker.bid > 0 and ticker.ask > 0:
+                        # Use mid price as fallback
+                        prices[symbol] = (ticker.bid + ticker.ask) / 2
                     else:
-                        logger.warning(f"No valid price data available for {symbol}")
+                        logger.debug(f"No valid {data_type_name} price data available for {symbol}")
                         continue
                         
                 except Exception as e:
-                    logger.error(f"Failed to get price for {symbol}: {e}")
-            
-            # Check if we got prices for qualified symbols
-            missing_symbols = set(qualified_symbol_map.keys()) - set(prices.keys())
-            if missing_symbols:
-                raise Exception(f"Failed to get prices for qualified symbols: {missing_symbols}")
+                    logger.debug(f"Failed to get {data_type_name} price for {symbol}: {e}")
             
             return prices
             
@@ -308,3 +376,65 @@ class IBKRClient:
             # Simple connection check - if isConnected() returns True, trust it
             # The reqCurrentTimeAsync() was causing hangs due to event loop issues
             return True
+    
+    async def get_historical_price(self, symbol: str, include_extended_hours: bool = True) -> Optional[float]:
+        """Get most recent price from historical data for a single symbol"""
+        prices = await self._get_historical_prices_batch([symbol], include_extended_hours)
+        return prices.get(symbol)
+    
+    async def _get_historical_prices_batch(self, symbols: List[str], include_extended_hours: bool = True) -> Dict[str, float]:
+        """Get historical prices for multiple symbols with rate limiting"""
+        if not symbols:
+            return {}
+        
+        prices = {}
+        
+        for symbol in symbols:
+            try:
+                # Apply rate limiting for historical data requests
+                async with self._historical_throttler:
+                    price = await self._get_single_historical_price(symbol, include_extended_hours)
+                    if price:
+                        prices[symbol] = price
+            except Exception as e:
+                logger.error(f"Failed to get historical price for {symbol}: {e}")
+        
+        return prices
+    
+    async def _get_single_historical_price(self, symbol: str, include_extended_hours: bool = True) -> Optional[float]:
+        """Get most recent historical price for a single symbol"""
+        try:
+            contract = Stock(symbol, 'SMART', 'USD')
+            
+            # Qualify the contract
+            qualified_contracts = self.ib.qualifyContracts(contract)
+            if not qualified_contracts:
+                logger.warning(f"Could not qualify contract for {symbol}")
+                return None
+            
+            contract = qualified_contracts[0]
+            
+            # Request historical data - look back 1 day with 1-minute bars
+            bars = self.ib.reqHistoricalData(
+                contract=contract,
+                endDateTime='',  # Current time
+                durationStr='1 D',  # Look back 1 day
+                barSizeSetting='1 min',
+                whatToShow='TRADES',
+                useRTH=not include_extended_hours,  # False = include extended hours
+                formatDate=1,
+                keepUpToDate=False
+            )
+            
+            if bars:
+                # Return the most recent close price
+                latest_price = bars[-1].close
+                logger.debug(f"Got historical price for {symbol}: {latest_price}")
+                return latest_price
+            else:
+                logger.warning(f"No historical data available for {symbol}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Historical data request failed for {symbol}: {e}")
+            return None

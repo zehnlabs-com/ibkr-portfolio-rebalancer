@@ -14,10 +14,15 @@ class RebalancingConfig:
     equity_reserve_percentage: float
 
 @dataclass
+class AllocationsConfig:
+    url: str
+
+@dataclass
 class AccountConfig:
     account_id: str
     notification: NotificationConfig
     rebalancing: RebalancingConfig
+    allocations: AllocationsConfig
 
 @dataclass
 class RetryConfig:
@@ -151,10 +156,16 @@ class Config:
                         equity_reserve_percentage=reserve_percentage
                     )
                     
+                    # Create allocations config - construct URL dynamically
+                    allocations_config = AllocationsConfig(
+                        url=f"{self.allocations_base_url}/{notification_config.channel}/allocations"
+                    )
+                    
                     account = AccountConfig(
                         account_id=account_data["account_id"],
                         notification=notification_config,
-                        rebalancing=rebalancing_config
+                        rebalancing=rebalancing_config,
+                        allocations=allocations_config
                     )
                     
                     accounts.append(account)
