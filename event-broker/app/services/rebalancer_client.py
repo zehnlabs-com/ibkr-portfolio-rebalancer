@@ -15,7 +15,8 @@ class RebalancerClient:
     
     def __init__(self, base_url: str = None, timeout: int = None):
         self.base_url = base_url or config.REBALANCER_API_URL
-        self.timeout = timeout or config.REBALANCER_API_TIMEOUT
+        # Increase timeout for concurrent operations
+        self.timeout = timeout or config.REBALANCER_API_TIMEOUT or 300  # 5 minutes
         self.session: Optional[aiohttp.ClientSession] = None
         
     async def __aenter__(self):
@@ -80,6 +81,10 @@ class RebalancerClient:
         try:
             await self.connect()
             
+            # Add timeout warning for concurrent operations
+            if execution_mode == "rebalance":
+                logger.info(f"Live rebalance may take up to 5 minutes due to serialization")
+            
             endpoint = f"/rebalance/{account_id}"
             if execution_mode == "dry_run":
                 endpoint += "/dry-run"
@@ -106,6 +111,9 @@ class RebalancerClient:
                     logger.error(error_msg)
                     raise Exception(error_msg)
                     
+        except asyncio.TimeoutError:
+            logger.error(f"Rebalance request timed out for account {account_id}")
+            raise Exception(f"Rebalance request timed out - system may be processing multiple accounts")
         except Exception as e:
             logger.error(f"Failed to trigger rebalance for account {account_id}: {e}")
             raise

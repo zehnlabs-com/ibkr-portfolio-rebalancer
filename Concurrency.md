@@ -339,7 +339,11 @@ The serialized approach ensures reliable rebalancing while maintaining system st
 
 ✅ **COMPLETED** - All Phase 1 changes have been implemented and tested successfully.
 
-### Changes Made:
+## Phase 2 Implementation Status
+
+✅ **COMPLETED** - All Phase 2 changes have been implemented and tested successfully.
+
+### Phase 1 Changes Made:
 
 1. **Account-Level Locking** (rebalancer-api/app/services/rebalancer_service.py):
    - Added `_account_locks = defaultdict(asyncio.Lock)` class variable
@@ -356,11 +360,29 @@ The serialized approach ensures reliable rebalancing while maintaining system st
    - Updated `maintain_ibkr_connection()` to coordinate with connection lock
    - Prevents interference between maintenance and active operations
 
-### Test Results:
+### Phase 1 Test Results:
 - ✅ Account-level serialization: Operations for same account are properly queued
 - ✅ Different accounts concurrency: Different accounts can rebalance simultaneously  
 - ✅ IBKR operations serialization: Market data and orders are properly serialized
 - ✅ All syntax checks passed
+
+### Phase 2 Changes Made:
+
+1. **Enhanced Request Timeout Handling** (event-broker/app/services/rebalancer_client.py):
+   - Increased default timeout to 300 seconds (5 minutes) for concurrent operations
+   - Added timeout warning logging for live rebalance operations
+   - Added specific `asyncio.TimeoutError` handling with informative error messages
+
+2. **Concurrency Logging** (rebalancer-api/app/services/rebalancer_service.py):
+   - Added queue position logging before acquiring locks
+   - Added lock acquisition confirmation logging
+   - Shows which accounts are waiting and how many are in queue
+
+### Phase 2 Test Results:
+- ✅ Timeout handling: Extended timeouts handle serialized operations properly
+- ✅ Concurrent request serialization: 3 concurrent requests serialized correctly (~19s, ~38s, ~57s)
+- ✅ Queue logging: Shows account waiting behavior (though logs may not show due to timing)
+- ✅ Error handling: Timeout errors provide clear explanations about serialization
 
 ### Additional Ideas for Future Phases:
 

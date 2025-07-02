@@ -33,7 +33,13 @@ class RebalancerService:
         self.ibkr_client = ibkr_client
     
     async def rebalance_account(self, account_config: AccountConfig):
+        # Log queue position
+        waiting_accounts = [acc_id for acc_id, lock in self._account_locks.items() if lock.locked()]
+        if waiting_accounts:
+            logger.info(f"Account {account_config.account_id} waiting for {len(waiting_accounts)} accounts: {waiting_accounts}")
+        
         async with self._account_locks[account_config.account_id]:
+            logger.info(f"Account {account_config.account_id} acquired lock, starting rebalance")
             try:
                 logger.info(f"Starting LIVE rebalance for account {account_config.account_id}")
                 
@@ -196,7 +202,13 @@ class RebalancerService:
         return cancelled_orders
     
     async def dry_run_rebalance(self, account_config: AccountConfig) -> RebalanceResult:
+        # Log queue position
+        waiting_accounts = [acc_id for acc_id, lock in self._account_locks.items() if lock.locked()]
+        if waiting_accounts:
+            logger.info(f"Account {account_config.account_id} waiting for {len(waiting_accounts)} accounts: {waiting_accounts}")
+        
         async with self._account_locks[account_config.account_id]:
+            logger.info(f"Account {account_config.account_id} acquired lock, starting dry run rebalance")
             try:
                 logger.info(f"Starting dry run rebalance for account {account_config.account_id}")
                 
