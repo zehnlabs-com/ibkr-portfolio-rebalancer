@@ -15,6 +15,11 @@ class IBKRClient:
         self.client_id = random.randint(1000, 9999)
         self.connected = False
         self.retry_count = 0
+        
+        # Add synchronization locks
+        self._connection_lock = asyncio.Lock()
+        self._market_data_lock = asyncio.Lock()
+        self._order_lock = asyncio.Lock()
     
     async def connect(self) -> bool:
         if self.ib.isConnected():
@@ -96,22 +101,23 @@ class IBKRClient:
     
     async def get_multiple_market_prices(self, symbols: List[str]) -> Dict[str, float]:
         """Get market prices for multiple symbols in parallel with retry logic"""
-        if not await self.ensure_connected():
-            raise Exception("Unable to establish IBKR connection")
-        
-        if not symbols:
-            return {}
-        
-        try:
-            return await retry_with_config(
-                self._get_market_prices_internal,
-                config.ibkr.market_data_retry,
-                "Market Data Retrieval",
-                symbols
-            )
-        except Exception as e:
-            logger.error(f"Failed to get market prices after retries: {e}")
-            raise
+        async with self._market_data_lock:
+            if not await self.ensure_connected():
+                raise Exception("Unable to establish IBKR connection")
+            
+            if not symbols:
+                return {}
+            
+            try:
+                return await retry_with_config(
+                    self._get_market_prices_internal,
+                    config.ibkr.market_data_retry,
+                    "Market Data Retrieval",
+                    symbols
+                )
+            except Exception as e:
+                logger.error(f"Failed to get market prices after retries: {e}")
+                raise
     
     async def _get_market_prices_internal(self, symbols: List[str]) -> Dict[str, float]:
         """Internal market data retrieval method for retry logic"""
@@ -177,19 +183,20 @@ class IBKRClient:
                     pass
     
     async def place_order(self, account_id: str, symbol: str, quantity: int, order_type: str = "MKT") -> Optional[str]:
-        if not await self.ensure_connected():
-            raise Exception("Unable to establish IBKR connection")
-        
-        try:
-            return await retry_with_config(
-                self._place_order_internal,
-                config.ibkr.order_retry,
-                "Order Placement",
-                account_id, symbol, quantity, order_type
-            )
-        except Exception as e:
-            logger.error(f"Failed to place order after retries: {e}")
-            raise
+        async with self._order_lock:
+            if not await self.ensure_connected():
+                raise Exception("Unable to establish IBKR connection")
+            
+            try:
+                return await retry_with_config(
+                    self._place_order_internal,
+                    config.ibkr.order_retry,
+                    "Order Placement",
+                    account_id, symbol, quantity, order_type
+                )
+            except Exception as e:
+                logger.error(f"Failed to place order after retries: {e}")
+                raise
     
     async def _place_order_internal(self, account_id: str, symbol: str, quantity: int, order_type: str = "MKT") -> str:
         """Internal order placement method for retry logic"""
@@ -229,41 +236,44 @@ class IBKRClient:
         Raises:
             Exception: If orders cannot be cancelled within 60 seconds
         """
-        if not await self.ensure_connected():
-            raise Exception("Unable to establish IBKR connection")
-        
-        try:
-            trades = self.ib.trades()
-            cancelled_orders = []
+        async with self._order_lock:
+            if not await self.ensure_connected():
+                raise Exception("Unable to establish IBKR connection")
             
-            for trade in trades:
-                if (trade.order.account == account_id and 
-                    trade.orderStatus.status in ['PreSubmitted', 'Submitted', 'PendingSubmit']):
+                try:
+                    open_orders = self.ib.openOrders()
+                    cancelled_orders = []
                     
-                    # Capture order details before cancelling
-                    order_details = {
-                        'order_id': str(trade.order.orderId),
-                        'symbol': trade.contract.symbol if trade.contract else 'Unknown',
-                        'quantity': abs(trade.order.totalQuantity),
-                        'action': trade.order.action,
-                        'order_type': trade.order.orderType,
-                        'status': trade.orderStatus.status
-                    }
-                    cancelled_orders.append(order_details)
+                    for order in open_orders:
+                        if order.account == account_id:
+                            # Get contract symbol
+                            symbol = 'Unknown'
+                            if hasattr(order, 'contract') and order.contract:
+                                symbol = getattr(order.contract, 'symbol', 'Unknown')
+                            
+                            order_details = {
+                                'order_id': str(order.orderId),
+                                'symbol': symbol,
+                                'quantity': abs(order.totalQuantity),
+                                'action': order.action,
+                                'order_type': order.orderType,
+                                'status': 'OpenOrder'
+                            }
+                            cancelled_orders.append(order_details)
+                            
+                            self.ib.cancelOrder(order)
+                            logger.info(f"Cancelled order {order.orderId} for {account_id}: {order.action} {abs(order.totalQuantity)} {symbol}")
                     
-                    self.ib.cancelOrder(trade.order)
-                    logger.info(f"Cancelled order {trade.order.orderId} for {account_id}: {trade.order.action} {abs(trade.order.totalQuantity)} {order_details['symbol']}")
-            
-            if cancelled_orders:
-                # Wait for all cancellations to be confirmed
-                await self._wait_for_orders_cancelled(account_id, max_wait_seconds=60)
-            
-            logger.info(f"Cancelled {len(cancelled_orders)} pending orders for account {account_id}")
-            return cancelled_orders
-            
-        except Exception as e:
-            logger.error(f"Failed to cancel orders for account {account_id}: {e}")
-            raise
+                    if cancelled_orders:
+                        # Wait for all cancellations to be confirmed
+                        await self._wait_for_orders_cancelled(account_id, max_wait_seconds=60)
+                    
+                    logger.info(f"Cancelled {len(cancelled_orders)} pending orders for account {account_id}")
+                    return cancelled_orders
+                    
+                except Exception as e:
+                    logger.error(f"Failed to cancel orders for account {account_id}: {e}")
+                    raise
     
     async def _wait_for_orders_cancelled(self, account_id: str, max_wait_seconds: int = 60):
         """Wait for all pending orders to be cancelled for the account"""
@@ -291,9 +301,10 @@ class IBKRClient:
             await asyncio.sleep(10)  # Check every 10 seconds
     
     async def ensure_connected(self) -> bool:
-        if not self.ib.isConnected():
-            return await self.connect()
-        
-        # Simple connection check - if isConnected() returns True, trust it
-        # The reqCurrentTimeAsync() was causing hangs due to event loop issues
-        return True
+        async with self._connection_lock:
+            if not self.ib.isConnected():
+                return await self.connect()
+            
+            # Simple connection check - if isConnected() returns True, trust it
+            # The reqCurrentTimeAsync() was causing hangs due to event loop issues
+            return True

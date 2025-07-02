@@ -33,7 +33,9 @@ async def maintain_ibkr_connection():
         try:
             if ibkr_client and not ibkr_client.ib.isConnected():
                 logger.info("IBKR connection lost, attempting to reconnect...")
-                await ibkr_client.connect()
+                # Use the connection lock to coordinate with active operations
+                async with ibkr_client._connection_lock:
+                    await ibkr_client.connect()
         except Exception as e:
             logger.error(f"Error in connection maintenance: {e}")
         await asyncio.sleep(config.connection_check_interval)

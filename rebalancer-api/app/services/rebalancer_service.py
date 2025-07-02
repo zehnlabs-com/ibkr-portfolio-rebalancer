@@ -1,6 +1,7 @@
 import math
 import asyncio
 from typing import List, Dict, Optional, Tuple
+from collections import defaultdict
 from app.config import AccountConfig
 from app.services.ibkr_client import IBKRClient
 from app.services.allocation_service import AllocationService
@@ -25,35 +26,39 @@ class RebalanceResult:
         self.cancelled_orders = cancelled_orders or []
 
 class RebalancerService:
+    # Class-level locks shared across all instances
+    _account_locks = defaultdict(asyncio.Lock)
+    
     def __init__(self, ibkr_client: IBKRClient):
         self.ibkr_client = ibkr_client
     
     async def rebalance_account(self, account_config: AccountConfig):
-        try:
-            logger.info(f"Starting LIVE rebalance for account {account_config.account_id}")
-            
-            target_allocations = await AllocationService.get_allocations(account_config)
-            
-            current_positions = await self.ibkr_client.get_positions(account_config.account_id)
-            account_value = await self.ibkr_client.get_account_value(account_config.account_id)
-            
-            result = await self._calculate_rebalance_orders(
-                target_allocations, 
-                current_positions, 
-                account_value,
-                account_config
-            )
-            
-            cancelled_orders = await self._execute_orders(account_config.account_id, result.orders, dry_run=False)
-            
-            logger.info(f"Completed LIVE rebalance for account {account_config.account_id}")
-            
-            # Include cancelled orders in the result
-            return RebalanceResult(result.orders, result.equity_info, cancelled_orders)
-            
-        except Exception as e:
-            logger.error(f"Error in LIVE rebalance for account {account_config.account_id}: {e}")
-            raise
+        async with self._account_locks[account_config.account_id]:
+            try:
+                logger.info(f"Starting LIVE rebalance for account {account_config.account_id}")
+                
+                target_allocations = await AllocationService.get_allocations(account_config)
+                
+                current_positions = await self.ibkr_client.get_positions(account_config.account_id)
+                account_value = await self.ibkr_client.get_account_value(account_config.account_id)
+                
+                result = await self._calculate_rebalance_orders(
+                    target_allocations, 
+                    current_positions, 
+                    account_value,
+                    account_config
+                )
+                
+                cancelled_orders = await self._execute_orders(account_config.account_id, result.orders, dry_run=False)
+                
+                logger.info(f"Completed LIVE rebalance for account {account_config.account_id}")
+                
+                # Include cancelled orders in the result
+                return RebalanceResult(result.orders, result.equity_info, cancelled_orders)
+                
+            except Exception as e:
+                logger.error(f"Error in LIVE rebalance for account {account_config.account_id}: {e}")
+                raise
     
     async def _calculate_rebalance_orders(
         self, 
@@ -191,25 +196,26 @@ class RebalancerService:
         return cancelled_orders
     
     async def dry_run_rebalance(self, account_config: AccountConfig) -> RebalanceResult:
-        try:
-            logger.info(f"Starting dry run rebalance for account {account_config.account_id}")
-            
-            target_allocations = await AllocationService.get_allocations(account_config)
-            
-            current_positions = await self.ibkr_client.get_positions(account_config.account_id)
-            account_value = await self.ibkr_client.get_account_value(account_config.account_id)
-            
-            result = await self._calculate_rebalance_orders(
-                target_allocations, 
-                current_positions, 
-                account_value,
-                account_config
-            )
-            
-            await self._execute_orders(account_config.account_id, result.orders, dry_run=True)
-            
-            return result
-            
-        except Exception as e:
-            logger.error(f"Error in dry run rebalance for account {account_config.account_id}: {e}")
-            raise
+        async with self._account_locks[account_config.account_id]:
+            try:
+                logger.info(f"Starting dry run rebalance for account {account_config.account_id}")
+                
+                target_allocations = await AllocationService.get_allocations(account_config)
+                
+                current_positions = await self.ibkr_client.get_positions(account_config.account_id)
+                account_value = await self.ibkr_client.get_account_value(account_config.account_id)
+                
+                result = await self._calculate_rebalance_orders(
+                    target_allocations, 
+                    current_positions, 
+                    account_value,
+                    account_config
+                )
+                
+                await self._execute_orders(account_config.account_id, result.orders, dry_run=True)
+                
+                return result
+                
+            except Exception as e:
+                logger.error(f"Error in dry run rebalance for account {account_config.account_id}: {e}")
+                raise
