@@ -12,6 +12,7 @@ ibkr:
   host: "ibkr"  # Docker container name, use "127.0.0.1" for local development
   port: 8888  # 8888 for gateway, 7497 for TWS paper, 7496 for TWS live
   gateway_or_tws: "gateway"  # "gateway" or "tws"
+  default_order_type: "MOC"  # MKT=Market; MOC=Market on Close
   
   # Retry configuration for IBKR connection
   connection_retry:

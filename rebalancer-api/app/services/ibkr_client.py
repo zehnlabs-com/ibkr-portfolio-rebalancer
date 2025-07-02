@@ -280,6 +280,11 @@ class IBKRClient:
         
         if order_type == "MKT":
             order = MarketOrder(action, abs(quantity))
+        elif order_type == "MOC":
+            order = Order()
+            order.orderType = "MOC"
+            order.action = action
+            order.totalQuantity = abs(quantity)
         else:
             raise ValueError(f"Unsupported order type: {order_type}")
         

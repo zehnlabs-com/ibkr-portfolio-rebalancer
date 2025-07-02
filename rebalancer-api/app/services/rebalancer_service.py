@@ -2,7 +2,7 @@ import math
 import asyncio
 from typing import List, Dict, Optional, Tuple
 from collections import defaultdict
-from app.config import AccountConfig
+from app.config import AccountConfig, config
 from app.services.ibkr_client import IBKRClient
 from app.services.allocation_service import AllocationService
 from app.logger import setup_logger
@@ -190,7 +190,7 @@ class RebalancerService:
                         account_id=account_id,
                         symbol=order.symbol,
                         quantity=quantity,
-                        order_type='MKT'
+                        order_type=config.ibkr.default_order_type
                     )
                     
                     logger.info(f"LIVE - Order placed: {order} - Order ID: {order_id}")
