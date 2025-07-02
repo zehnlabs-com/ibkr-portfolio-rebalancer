@@ -40,14 +40,14 @@ class IBKRClient:
     
     async def _do_connect(self):
         """Internal connection method for retry logic"""
+        # Generate new client ID for each connection attempt to avoid conflicts
+        self.client_id = random.randint(1000, 9999)
         await self.ib.connectAsync(
             host=config.ibkr.host,
             port=config.ibkr.port,
             clientId=self.client_id
         )
         logger.info(f"Connected to IBKR with client ID {self.client_id}")
-        # Generate new client ID for potential retries
-        self.client_id = random.randint(1000, 9999)
     
     async def disconnect(self):
         if self.ib.isConnected():
