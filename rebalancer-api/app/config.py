@@ -39,10 +39,10 @@ class IBKRConfig:
     username: str
     password: str
     trading_mode: str
-    default_order_type: str = "MOC"
     connection_retry: RetryConfig
     market_data_retry: RetryConfig
     order_retry: RetryConfig
+    default_order_type: str = "MOC"
 
 @dataclass
 class APIConfig:
