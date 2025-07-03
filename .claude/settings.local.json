@@ -30,7 +30,8 @@
       "Bash(pip3 install:*)",
       "Bash(mv:*)",
       "WebFetch(domain:www.interactivebrokers.com)",
-      "Bash(diff:*)"
+      "Bash(diff:*)",
+      "Bash(timeout:*)"
     ],
     "deny": []
   }

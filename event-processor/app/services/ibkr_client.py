@@ -1,5 +1,4 @@
 import asyncio
-import nest_asyncio
 import random
 import time
 from typing import List, Dict, Optional
@@ -8,9 +7,6 @@ from ib_async import IB, Stock, Order, MarketOrder, LimitOrder, Contract
 from app.config import config
 from app.logger import setup_logger
 from app.utils.retry import retry_with_config
-
-# Enable nested event loops to handle ib_async within async context
-nest_asyncio.apply()
 
 logger = setup_logger(__name__)
 
