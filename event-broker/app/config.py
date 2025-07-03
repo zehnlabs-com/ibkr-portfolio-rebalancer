@@ -9,9 +9,19 @@ from dataclasses import dataclass
 
 
 @dataclass
-class RebalancerAPIConfig:
-    url: str
-    timeout: int
+class RedisConfig:
+    host: str
+    port: int
+    db: int
+
+
+@dataclass
+class PostgreSQLConfig:
+    host: str
+    port: int
+    database: str
+    username: str
+    password: str
 
 
 @dataclass
@@ -30,11 +40,22 @@ class Config:
         # Load configuration from YAML file (required)
         config_data = self._load_config_file(config_file)
         
-        # Rebalancer API config (from YAML only)
-        rebalancer_config = config_data["rebalancer_api"]
-        self.rebalancer_api = RebalancerAPIConfig(
-            url=rebalancer_config["url"],
-            timeout=rebalancer_config["timeout"]
+        # Redis config
+        redis_config = config_data["redis"]
+        self.redis = RedisConfig(
+            host=os.getenv("REDIS_HOST", redis_config["host"]),
+            port=redis_config["port"],
+            db=redis_config["db"]
+        )
+        
+        # PostgreSQL config
+        postgres_config = config_data["postgresql"]
+        self.postgresql = PostgreSQLConfig(
+            host=os.getenv("POSTGRES_HOST", postgres_config["host"]),
+            port=postgres_config["port"],
+            database=postgres_config["database"],
+            username=postgres_config["username"],
+            password=postgres_config["password"]
         )
         
         # Ably config (from YAML only - not user configurable)
@@ -51,8 +72,6 @@ class Config:
         )
         
         # Backwards compatibility properties
-        self.REBALANCER_API_URL = self.rebalancer_api.url
-        self.REBALANCER_API_TIMEOUT = self.rebalancer_api.timeout
         self.REALTIME_API_KEY = self.ably.api_key
         self.LOG_LEVEL = self.application.log_level
         self.ACCOUNTS_FILE = self.application.accounts_file
@@ -68,7 +87,7 @@ class Config:
                 raise ValueError(f"Config file {config_file} is empty")
             
             # Validate required sections exist
-            required_sections = ["rebalancer_api", "ably", "application"]
+            required_sections = ["redis", "postgresql", "ably", "application"]
             for section in required_sections:
                 if section not in config_data:
                     raise ValueError(f"Required configuration section '{section}' missing from {config_file}")

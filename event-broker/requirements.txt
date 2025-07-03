@@ -1,6 +1,7 @@
 ably==2.0.3
-aiohttp==3.9.1
 PyYAML==6.0.1
+redis==5.0.1
+asyncpg==0.29.0
 
 # Testing libraries
 pytest==8.4.1

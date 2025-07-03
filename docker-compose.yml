@@ -1,4 +1,41 @@
 services:
+  # Redis service
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # PostgreSQL service
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_DB: portfolio_rebalancer
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # IBKR Gateway (unchanged)
   ibkr:
     image: ghcr.io/extrange/ibkr:stable  # Use 'stable' tag or specific version like 'latest'
     container_name: ibkr-gateway
@@ -32,11 +69,12 @@ services:
       retries: 3
       start_period: 90s
 
-  rebalancer-api:
+  # Event-Processor service (replaces rebalancer-api)
+  event-processor:
     build:
-      context: ./rebalancer-api
+      context: ./event-processor
       dockerfile: Dockerfile
-    container_name: rebalancer-api
+    container_name: event-processor
     environment:
       # IBKR credentials (sensitive data only)
       - IBKR_USERNAME=${IBKR_USERNAME}
@@ -44,28 +82,48 @@ services:
       - TRADING_MODE=${TRADING_MODE:-paper}
       # API keys
       - ZEHNLABS_FINTECH_API_KEY=${ZEHNLABS_FINTECH_API_KEY}
+      # Service discovery
+      - REDIS_HOST=redis
+      - POSTGRES_HOST=postgres
     depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
       ibkr:
         condition: service_healthy
-    ports:
-      - "8000:8000"
+    volumes:
+      - ./event-processor/logs:/app/logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "365"
     restart: on-failure
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
 
+  # Event-Broker service (modified)
   event-broker:
     build:
       context: ./event-broker
       dockerfile: Dockerfile
     container_name: event-broker
+    environment:
+      # Service discovery
+      - REDIS_HOST=redis
+      - POSTGRES_HOST=postgres
     depends_on:
-      rebalancer-api:
-        condition: service_healthy
+      - redis
+      - postgres
+    volumes:
+      - ./event-broker/logs:/app/logs
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "365"
     restart: unless-stopped
 
 volumes:
   ibkr_settings:
+  redis_data:
+  postgres_data:

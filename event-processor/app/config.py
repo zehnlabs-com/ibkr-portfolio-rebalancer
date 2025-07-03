@@ -40,15 +40,41 @@ class IBKRConfig:
     password: str
     trading_mode: str
     connection_retry: RetryConfig
-    market_data_retry: RetryConfig
     order_retry: RetryConfig
-    default_order_type: str = "MOC"
 
 @dataclass
-class APIConfig:
+class RedisConfig:
     host: str
     port: int
-    workers: int
+    db: int
+    max_connections: int
+
+@dataclass
+class PostgreSQLConfig:
+    host: str
+    port: int
+    database: str
+    username: str
+    password: str
+
+@dataclass
+class ProcessingConfig:
+    max_retry_days: int
+    market_hours_buffer: int
+    queue_timeout: int
+    startup_max_attempts: int
+    startup_delay: int
+
+@dataclass
+class AllocationConfig:
+    api_url: str
+    timeout: int
+
+@dataclass
+class LoggingConfig:
+    level: str
+    format: str
+    retention_days: int
     
 class Config:
     def __init__(self, accounts_file: str = "accounts.yaml", config_file: str = "config.yaml"):
@@ -58,34 +84,61 @@ class Config:
         # IBKR config (YAML for app settings, env for secrets only)
         ibkr_config = config_data["ibkr"]  # Required section
         self.ibkr = IBKRConfig(
-            host=ibkr_config["host"],
+            host=os.getenv("IBKR_HOST", ibkr_config["host"]),
             port=ibkr_config["port"],
             username=os.getenv("IBKR_USERNAME", ""),  # Secret from env
             password=os.getenv("IBKR_PASSWORD", ""),  # Secret from env
             trading_mode=os.getenv("TRADING_MODE", "paper"),  # Secret from env
             connection_retry=self._load_retry_config(ibkr_config["connection_retry"]),
-            market_data_retry=self._load_retry_config(ibkr_config["market_data_retry"]),
             order_retry=self._load_retry_config(ibkr_config["order_retry"])
         )
         
-        # FastAPI config (from YAML only)
-        api_config = config_data["api"]  # Required section
-        self.api = APIConfig(
-            host=api_config["host"],
-            port=api_config["port"],
-            workers=api_config["workers"]
+        # Redis config
+        redis_config = config_data["redis"]  # Required section
+        self.redis = RedisConfig(
+            host=os.getenv("REDIS_HOST", redis_config["host"]),
+            port=redis_config["port"],
+            db=redis_config["db"],
+            max_connections=redis_config["max_connections"]
         )
         
-        # Application config (from YAML only)
-        app_config = config_data["application"]  # Required section
-        self.log_level = app_config["log_level"]
-        self.connection_check_interval = app_config["connection_check_interval"]
-        self.startup_max_attempts = app_config["startup_max_attempts"]
-        self.startup_delay = app_config["startup_delay"]
+        # PostgreSQL config
+        postgres_config = config_data["postgresql"]  # Required section
+        self.postgresql = PostgreSQLConfig(
+            host=os.getenv("POSTGRES_HOST", postgres_config["host"]),
+            port=postgres_config["port"],
+            database=postgres_config["database"],
+            username=postgres_config["username"],
+            password=postgres_config["password"]
+        )
+        
+        # Processing config
+        processing_config = config_data["processing"]  # Required section
+        self.processing = ProcessingConfig(
+            max_retry_days=processing_config["max_retry_days"],
+            market_hours_buffer=processing_config["market_hours_buffer"],
+            queue_timeout=processing_config["queue_timeout"],
+            startup_max_attempts=processing_config["startup_max_attempts"],
+            startup_delay=processing_config["startup_delay"]
+        )
+        
+        # Allocation config
+        allocation_config = config_data["allocation"]  # Required section
+        self.allocation = AllocationConfig(
+            api_url=allocation_config["api_url"],
+            timeout=allocation_config["timeout"]
+        )
+        
+        # Logging config
+        logging_config = config_data["logging"]  # Required section
+        self.logging = LoggingConfig(
+            level=logging_config["level"],
+            format=logging_config["format"],
+            retention_days=logging_config["retention_days"]
+        )
         
         # Allocations API config (from YAML only)
-        allocations_config = config_data["allocations"]  # Required section
-        self.allocations_base_url = allocations_config["base_url"]
+        self.allocations_base_url = self.allocation.api_url
         
         # API keys (secrets from env only)
         self.zehnlabs_fintech_api_key = os.getenv("ZEHNLABS_FINTECH_API_KEY", "")
@@ -104,7 +157,7 @@ class Config:
                 raise ValueError(f"Config file {config_file} is empty")
             
             # Validate required sections exist
-            required_sections = ["ibkr", "api", "application", "allocations"]
+            required_sections = ["ibkr", "redis", "postgresql", "processing", "allocation", "logging"]
             for section in required_sections:
                 if section not in config_data:
                     raise ValueError(f"Required configuration section '{section}' missing from {config_file}")

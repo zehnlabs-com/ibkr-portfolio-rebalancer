@@ -1,0 +1,44 @@
+redis:
+  host: redis
+  port: 6379
+  db: 0
+  max_connections: 10
+
+postgresql:
+  host: postgres
+  port: 5432
+  database: portfolio_rebalancer
+  username: postgres
+  password: postgres
+
+ibkr:
+  host: ibkr
+  port: 8888
+  connection_retry:
+    max_retries: 3
+    base_delay: 5
+    max_delay: 60
+    backoff_multiplier: 2.0
+    jitter: true
+  order_retry:
+    max_retries: 3
+    base_delay: 2
+    max_delay: 30
+    backoff_multiplier: 2.0
+    jitter: true
+
+processing:
+  max_retry_days: 7
+  market_hours_buffer: 60  # minutes before market close for MOC orders
+  queue_timeout: 30        # seconds for redis.brpop
+  startup_max_attempts: 10  # max attempts during application startup
+  startup_delay: 10         # seconds between startup attempts
+
+allocation:
+  api_url: "https://api.zehnlabs.com/v1/allocation"
+  timeout: 30
+
+logging:
+  level: INFO
+  format: json
+  retention_days: 365
