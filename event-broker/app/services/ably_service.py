@@ -133,7 +133,7 @@ class AblyEventSubscriber:
                 # Subscribe to all messages on the channel
                 def create_message_handler(account_config):
                     def message_handler(message, *args, **kwargs):
-                        asyncio.create_task(self._handle_rebalance_event(message, account_config))
+                        asyncio.create_task(self._handle_event(message, account_config))
                     return message_handler
                 
                 await channel.subscribe(create_message_handler(account))
@@ -146,9 +146,9 @@ class AblyEventSubscriber:
             except Exception as e:
                 logger.error(f"Failed to subscribe to channel {account.notification_channel}: {e}")
     
-    async def _handle_rebalance_event(self, message, account: AccountConfig):
+    async def _handle_event(self, message, account: AccountConfig):
         """
-        Handle incoming rebalance events by enqueuing to Redis and tracking in PostgreSQL
+        Handle incoming events by enqueuing to Redis and tracking in PostgreSQL
         
         Args:
             message: Ably message object
@@ -156,7 +156,7 @@ class AblyEventSubscriber:
         """
         event_id = None
         try:
-            logger.info(f"Received rebalance event for account {account.account_id}: {message.data}")
+            logger.info(f"Received event for account {account.account_id}: {message.data}")
             
             # Parse the message payload
             payload = {}
@@ -167,21 +167,18 @@ class AblyEventSubscriber:
                     elif isinstance(message.data, dict):
                         payload = message.data
                 except (json.JSONDecodeError, TypeError):
-                    logger.warning(f"Invalid JSON payload, using default: {message.data}")
-                    payload = {"execution": "dry_run", "raw_data": str(message.data)}
+                    logger.warning(f"Invalid JSON payload, using empty payload: {message.data}")
+                    payload = {"raw_data": str(message.data)}
             
-            # Determine execution mode from payload
-            execution_mode = payload.get("execution", "dry_run")
+            # Get the action from payload
+            action = payload.get("exec")
             
-            # Validate execution mode
-            if execution_mode not in ["dry_run", "rebalance"]:
-                logger.warning(f"Invalid execution mode '{execution_mode}', defaulting to dry_run")
-                execution_mode = "dry_run"
-                payload["execution"] = execution_mode
+            if not action:
+                logger.error(f"No action specified in payload for account {account.account_id}: {payload}")
+                return
             
             # Log the action being taken
-            action_type = "Live rebalance" if execution_mode == "rebalance" else "Dry run rebalance"
-            logger.info(f"{action_type} event received for account {account.account_id}")
+            logger.info(f"Exec '{action}' event received for account {account.account_id}")
             
             # Enqueue to Redis (with deduplication)
             event_id = await self.queue_service.enqueue_event(account.account_id, payload)
@@ -193,13 +190,13 @@ class AblyEventSubscriber:
                 logger.info(f"Event enqueued successfully", extra={
                     'event_id': event_id,
                     'account_id': account.account_id,
-                    'execution_mode': execution_mode
+                    'exec': action
                 })
             else:
                 logger.info(f"Event not enqueued - account {account.account_id} already queued")
             
         except Exception as e:
-            logger.error(f"Error handling rebalance event for account {account.account_id}: {e}")
+            logger.error(f"Error handling event for account {account.account_id}: {e}")
             if event_id:
                 try:
                     await self.event_service.update_event_status(event_id, 'failed', str(e))

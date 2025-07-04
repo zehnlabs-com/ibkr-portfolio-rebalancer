@@ -135,12 +135,17 @@ class EventProcessor:
         """Process a single event"""
         event_id = event_data.get('event_id')
         account_id = event_data.get('account_id')
+        payload = event_data.get('payload', {})
+        action = payload.get('exec')
+        
+        if not action:
+            raise ValueError("No exec specified in payload.")
         start_time = time.time()
         
         try:
             log_with_event(logger, 'info', 
-                          f"Processing event for account {account_id}",
-                          event_id=event_id, account_id=account_id)
+                          f"Processing event for account {account_id}, action: {action}",
+                          event_id=event_id, account_id=account_id, action=action)
             
             # Update event status to processing
             await self.event_service.update_status(event_id, 'processing')
@@ -153,18 +158,8 @@ class EventProcessor:
             if not account_config:
                 raise ValueError(f"No configuration found for account {account_id}")
             
-            # Determine order type based on market timing
-            order_type = await self.market_hours_service.get_order_type()
-            
-            log_with_event(logger, 'info',
-                          f"Using order type: {order_type}",
-                          event_id=event_id, account_id=account_id)
-            
-            # Execute rebalancing
-            result = await self.rebalancer_service.rebalance_account(
-                account_config, 
-                order_type
-            )
+            # Route to appropriate handler based on action
+            result = await self.handle_action(action, account_config, event_id, account_id)
             
             # Update event status to completed
             await self.event_service.update_status(event_id, 'completed')
@@ -172,9 +167,9 @@ class EventProcessor:
             processing_time = time.time() - start_time
             
             log_with_event(logger, 'info',
-                          f"Event processed successfully - orders: {len(result.orders)}, time: {processing_time:.2f}s",
+                          f"Event processed successfully - action: {action}, time: {processing_time:.2f}s",
                           event_id=event_id, account_id=account_id,
-                          orders_placed=len(result.orders), processing_time=processing_time)
+                          action=action, processing_time=processing_time)
             
         except Exception as e:
             processing_time = time.time() - start_time
@@ -187,6 +182,230 @@ class EventProcessor:
             
             # Handle retry logic
             await self.handle_failed_event(event_id, account_id, event_data, error_message)
+    
+    async def handle_action(self, action: str, account_config, event_id: str, account_id: str):
+        """Route to appropriate handler based on action type"""
+        if action == 'rebalance':
+            return await self.handle_rebalance(account_config, event_id, account_id)
+        elif action == 'print-positions':
+            return await self.handle_print_positions(account_config, event_id, account_id)
+        elif action == 'cancel-orders':
+            return await self.handle_cancel_orders(account_config, event_id, account_id)
+        elif action == 'health':
+            return await self.handle_health(account_config, event_id, account_id)
+        elif action == 'print-equity':
+            return await self.handle_print_equity(account_config, event_id, account_id)
+        elif action == 'print-orders':
+            return await self.handle_print_orders(account_config, event_id, account_id)
+        elif action == 'print-rebalance':
+            return await self.handle_print_rebalance(account_config, event_id, account_id)
+        else:
+            raise ValueError(f"Unknown action: {action}")
+    
+    async def handle_rebalance(self, account_config, event_id: str, account_id: str):
+        """Handle rebalance action - full rebalance with orders sent to broker"""
+        # Determine order type based on market timing
+        order_type = await self.market_hours_service.get_order_type()
+        
+        log_with_event(logger, 'info',
+                      f"Using order type: {order_type}",
+                      event_id=event_id, account_id=account_id)
+        
+        # Execute rebalancing
+        result = await self.rebalancer_service.rebalance_account(
+            account_config, 
+            order_type
+        )
+        
+        log_with_event(logger, 'info',
+                      f"Rebalance completed - orders: {len(result.orders)}",
+                      event_id=event_id, account_id=account_id,
+                      orders_placed=len(result.orders))
+        
+        return result
+    
+    async def handle_print_positions(self, account_config, event_id: str, account_id: str):
+        """Handle print-positions action - log all current positions"""
+        log_with_event(logger, 'info',
+                      f"Printing positions for account {account_id}",
+                      event_id=event_id, account_id=account_id)
+        
+        positions = await self.ibkr_client.get_positions(account_id)
+        
+        if not positions:
+            log_with_event(logger, 'info',
+                          f"No positions found for account {account_id}",
+                          event_id=event_id, account_id=account_id)
+        else:
+            log_with_event(logger, 'info',
+                          f"Current positions for account {account_id}:",
+                          event_id=event_id, account_id=account_id)
+            
+            for position in positions:
+                log_with_event(logger, 'info',
+                              f"  {position['symbol']}: {position['position']} shares, "
+                              f"market value: ${position['market_value']:.2f}, "
+                              f"avg cost: ${position['avg_cost']:.2f}",
+                              event_id=event_id, account_id=account_id,
+                              symbol=position['symbol'], position=position['position'],
+                              market_value=position['market_value'], avg_cost=position['avg_cost'])
+        
+        return {"action": "print-positions", "positions": positions}
+    
+    async def handle_cancel_orders(self, account_config, event_id: str, account_id: str):
+        """Handle cancel-orders action - cancel all pending orders"""
+        log_with_event(logger, 'info',
+                      f"Cancelling all pending orders for account {account_id}",
+                      event_id=event_id, account_id=account_id)
+        
+        cancelled_orders = await self.ibkr_client.cancel_all_orders(account_id)
+        
+        if not cancelled_orders:
+            log_with_event(logger, 'info',
+                          f"No pending orders found for account {account_id}",
+                          event_id=event_id, account_id=account_id)
+        else:
+            log_with_event(logger, 'info',
+                          f"Cancelled {len(cancelled_orders)} orders for account {account_id}",
+                          event_id=event_id, account_id=account_id,
+                          cancelled_orders_count=len(cancelled_orders))
+        
+        return {"action": "cancel-orders", "cancelled_orders": cancelled_orders}
+    
+    async def handle_health(self, account_config, event_id: str, account_id: str):
+        """Handle health action - log health status including IBKR connection"""
+        log_with_event(logger, 'info',
+                      f"Checking health status for account {account_id}",
+                      event_id=event_id, account_id=account_id)
+        
+        # Check IBKR connection
+        ibkr_connected = await self.ibkr_client.ensure_connected()
+        
+        # Check database connection
+        db_connected = await self.event_service.is_connected()
+        
+        # Get some basic metrics
+        try:
+            account_value = await self.ibkr_client.get_account_value(account_id)
+            account_accessible = True
+        except Exception as e:
+            account_value = None
+            account_accessible = False
+            log_with_event(logger, 'warning',
+                          f"Cannot access account {account_id}: {e}",
+                          event_id=event_id, account_id=account_id)
+        
+        health_status = {
+            "ibkr_connected": ibkr_connected,
+            "database_connected": db_connected,
+            "account_accessible": account_accessible,
+            "account_value": account_value
+        }
+        
+        log_with_event(logger, 'info',
+                      f"Health status for account {account_id}: "
+                      f"IBKR connected: {ibkr_connected}, "
+                      f"DB connected: {db_connected}, "
+                      f"Account accessible: {account_accessible}, "
+                      f"Account value: ${account_value:.2f}" if account_value else "Account value: N/A",
+                      event_id=event_id, account_id=account_id,
+                      **health_status)
+        
+        return {"action": "health", "status": health_status}
+    
+    async def handle_print_equity(self, account_config, event_id: str, account_id: str):
+        """Handle print-equity action - log total account value"""
+        log_with_event(logger, 'info',
+                      f"Printing equity for account {account_id}",
+                      event_id=event_id, account_id=account_id)
+        
+        account_value = await self.ibkr_client.get_account_value(account_id)
+        
+        log_with_event(logger, 'info',
+                      f"Total account value for {account_id}: ${account_value:.2f}",
+                      event_id=event_id, account_id=account_id,
+                      account_value=account_value)
+        
+        return {"action": "print-equity", "account_value": account_value}
+    
+    async def handle_print_orders(self, account_config, event_id: str, account_id: str):
+        """Handle print-orders action - log all pending orders"""
+        log_with_event(logger, 'info',
+                      f"Printing pending orders for account {account_id}",
+                      event_id=event_id, account_id=account_id)
+        
+        # Get open orders by trying to cancel them without actually cancelling
+        # We'll need to access the IBKR client's open orders method directly
+        open_orders = self.ibkr_client.ib.openOrders()
+        account_orders = [order for order in open_orders if order.account == account_id]
+        
+        if not account_orders:
+            log_with_event(logger, 'info',
+                          f"No pending orders found for account {account_id}",
+                          event_id=event_id, account_id=account_id)
+        else:
+            log_with_event(logger, 'info',
+                          f"Pending orders for account {account_id}:",
+                          event_id=event_id, account_id=account_id)
+            
+            for order in account_orders:
+                symbol = 'Unknown'
+                if hasattr(order, 'contract') and order.contract:
+                    symbol = getattr(order.contract, 'symbol', 'Unknown')
+                
+                log_with_event(logger, 'info',
+                              f"  Order {order.orderId}: {order.action} {abs(order.totalQuantity)} "
+                              f"{symbol} ({order.orderType})",
+                              event_id=event_id, account_id=account_id,
+                              order_id=order.orderId, action=order.action,
+                              quantity=abs(order.totalQuantity), symbol=symbol,
+                              order_type=order.orderType)
+        
+        # Format order details for return
+        order_details = []
+        for order in account_orders:
+            symbol = 'Unknown'
+            if hasattr(order, 'contract') and order.contract:
+                symbol = getattr(order.contract, 'symbol', 'Unknown')
+            
+            order_details.append({
+                'order_id': str(order.orderId),
+                'symbol': symbol,
+                'quantity': abs(order.totalQuantity),
+                'action': order.action,
+                'order_type': order.orderType
+            })
+        
+        return {"action": "print-orders", "orders": order_details}
+    
+    async def handle_print_rebalance(self, account_config, event_id: str, account_id: str):
+        """Handle print-rebalance action - calculate and log rebalance orders without executing"""
+        log_with_event(logger, 'info',
+                      f"Printing rebalance orders for account {account_id} (dry run)",
+                      event_id=event_id, account_id=account_id)
+        
+        # Execute dry run rebalancing
+        result = await self.rebalancer_service.dry_run_rebalance(account_config)
+        
+        if not result.orders:
+            log_with_event(logger, 'info',
+                          f"No rebalance orders needed for account {account_id}",
+                          event_id=event_id, account_id=account_id)
+        else:
+            log_with_event(logger, 'info',
+                          f"Rebalance orders for account {account_id} (would execute {len(result.orders)} orders):",
+                          event_id=event_id, account_id=account_id,
+                          orders_count=len(result.orders))
+            
+            for order in result.orders:
+                log_with_event(logger, 'info',
+                              f"  Would {order.action} {order.quantity} shares of {order.symbol} "
+                              f"(${order.market_value:.2f})",
+                              event_id=event_id, account_id=account_id,
+                              action=order.action, quantity=order.quantity,
+                              symbol=order.symbol, market_value=order.market_value)
+        
+        return {"action": "print-rebalance", "orders": result.orders, "equity_info": result.equity_info}
     
     async def handle_failed_event(self, event_id: str, account_id: str, 
                                  event_data: Dict[str, Any], error_message: str):

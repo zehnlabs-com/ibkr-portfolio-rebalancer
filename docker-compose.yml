@@ -123,17 +123,6 @@ services:
         max-file: "365"
     restart: unless-stopped
 
-  # IBKR Test service - minimal connection test
-  ibkr-test:
-    build:
-      context: ./ibkr-test
-      dockerfile: Dockerfile
-    container_name: ibkr-test
-    depends_on:
-      ibkr:
-        condition: service_healthy
-    restart: "no"
-
 volumes:
   ibkr_settings:
   redis_data:
