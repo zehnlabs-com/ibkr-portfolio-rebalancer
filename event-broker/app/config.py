@@ -35,6 +35,11 @@ class ApplicationConfig:
     accounts_file: str
 
 
+@dataclass
+class AllocationsConfig:
+    base_url: str
+
+
 class Config:
     def __init__(self, config_file: str = "config.yaml"):
         # Load configuration from YAML file (required)
@@ -71,6 +76,12 @@ class Config:
             accounts_file=app_config["accounts_file"]
         )
         
+        # Allocations config (from YAML only)
+        allocations_config = config_data["allocations"]
+        self.allocations = AllocationsConfig(
+            base_url=allocations_config["base_url"]
+        )
+        
         # Backwards compatibility properties
         self.REALTIME_API_KEY = self.ably.api_key
         self.LOG_LEVEL = self.application.log_level
@@ -87,7 +98,7 @@ class Config:
                 raise ValueError(f"Config file {config_file} is empty")
             
             # Validate required sections exist
-            required_sections = ["redis", "postgresql", "ably", "application"]
+            required_sections = ["redis", "postgresql", "ably", "application", "allocations"]
             for section in required_sections:
                 if section not in config_data:
                     raise ValueError(f"Required configuration section '{section}' missing from {config_file}")

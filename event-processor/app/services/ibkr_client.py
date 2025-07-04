@@ -13,9 +13,17 @@ class IBKRClient:
     def __init__(self):
         self.ib = IB()
         self.ib.RequestTimeout = 10.0  # Match rebalancer-api timeout
-        self.client_id = random.randint(1000, 9999)
+        
+        # Use event-processor specific client ID range to avoid conflicts
+        self.client_id = random.randint(2000, 2999)
         self.connected = False
         self.retry_count = 0
+        self._reconnect_attempts = 0
+        self._max_reconnect_attempts = 5
+        
+        # Add event handlers for connection management
+        self.ib.disconnectedEvent += self._on_disconnected
+        self.ib.errorEvent += self._on_error
         
         # Add synchronization locks
         self._connection_lock = asyncio.Lock()
@@ -46,10 +54,46 @@ class IBKRClient:
             logger.error(f"Failed to establish IBKR connection: {e}")
             return False
     
+    def _on_disconnected(self):
+        """Handle disconnection events"""
+        logger.warning("Connection lost - attempting to reconnect")
+        self.connected = False
+        # Don't block the event loop with reconnection
+        asyncio.create_task(self._handle_reconnection())
+    
+    def _on_error(self, reqId, errorCode, errorString, advancedOrderReject):
+        """Handle specific error codes"""
+        if errorCode == 326:  # Client ID already in use
+            logger.error(f"Client ID conflict: {errorString}")
+            asyncio.create_task(self._handle_client_id_conflict())
+        elif errorCode == 502:  # TWS not running
+            logger.error(f"TWS/Gateway not available: {errorString}")
+        else:
+            logger.error(f"IB Error {errorCode}: {errorString}")
+    
+    async def _handle_reconnection(self):
+        """Handle automatic reconnection with exponential backoff"""
+        while self._reconnect_attempts < self._max_reconnect_attempts:
+            try:
+                await self.ib.sleep(2 ** self._reconnect_attempts)  # Exponential backoff
+                if await self.connect():
+                    logger.info("Successfully reconnected")
+                    self._reconnect_attempts = 0
+                    return
+            except Exception as e:
+                logger.error(f"Reconnection attempt {self._reconnect_attempts + 1} failed: {e}")
+                self._reconnect_attempts += 1
+    
+    async def _handle_client_id_conflict(self):
+        """Handle client ID conflicts by generating new ID and reconnecting"""
+        logger.info("Handling client ID conflict - generating new ID")
+        self.client_id = random.randint(2000, 2999)
+        await self.connect()
+    
     async def _do_connect(self):
         """Internal connection method for retry logic"""
         # Generate new client ID for each connection attempt to avoid conflicts
-        self.client_id = random.randint(1000, 9999)
+        self.client_id = random.randint(2000, 2999)
         await self.ib.connectAsync(
             host=config.ibkr.host,
             port=config.ibkr.port,
@@ -61,6 +105,8 @@ class IBKRClient:
     async def disconnect(self):
         if self.ib.isConnected():
             try:
+                # Allow data to flush before disconnecting
+                await self.ib.sleep(1)
                 self.ib.disconnect()
                 self.connected = False
                 logger.info("Disconnected from IBKR")
@@ -115,7 +161,7 @@ class IBKRClient:
         if self._current_market_data_type != data_type:
             self.ib.reqMarketDataType(data_type)
             self._current_market_data_type = data_type
-            await asyncio.sleep(0.1)  # Allow type change to propagate
+            await self.ib.sleep(0.1)  # Allow type change to propagate
             logger.debug(f"Set market data type to {data_type}")
     
     async def get_market_price(self, symbol: str) -> float:
@@ -216,7 +262,7 @@ class IBKRClient:
             
             # Wait for market data to arrive (increased timeout for frozen/delayed data)
             timeout = 5 if data_type_name in ["frozen", "delayed"] else 2
-            await asyncio.sleep(timeout)
+            await self.ib.sleep(timeout)
             
             # Collect all prices
             prices = {}
@@ -372,7 +418,7 @@ class IBKRClient:
                 logger.error(error_msg)
                 raise Exception(error_msg)
             
-            await asyncio.sleep(10)  # Check every 10 seconds
+            await self.ib.sleep(10)  # Check every 10 seconds
     
     async def ensure_connected(self) -> bool:
         async with self._connection_lock:
@@ -402,7 +448,7 @@ class IBKRClient:
                 current_time = loop.time()
                 time_since_last = current_time - self._last_historical_request
                 if time_since_last < self._min_request_interval:
-                    await asyncio.sleep(self._min_request_interval - time_since_last)
+                    await self.ib.sleep(self._min_request_interval - time_since_last)
                 
                 self._last_historical_request = loop.time()
                 price = await self._get_single_historical_price(symbol, include_extended_hours)

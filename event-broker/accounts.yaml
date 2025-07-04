@@ -1,5 +1,5 @@
 # SEP = U20660659; INDV = U7794534; PAPER = DUM959247
-- account_id: "U20660659" 
+- account_id: "DUM959247" 
   notification:
     channel: "etf-blend-100-20"
   rebalancing:

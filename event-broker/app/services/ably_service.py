@@ -17,10 +17,14 @@ logger = setup_logger(__name__, level=config.LOG_LEVEL)
 class AccountConfig:
     """Account configuration model"""
     
-    def __init__(self, data: Dict[str, Any]):
+    def __init__(self, data: Dict[str, Any], allocations_base_url: str):
         self.account_id = data.get('account_id')
         self.notification_channel = data.get('notification', {}).get('channel')
-        self.allocations_url = data.get('allocations', {}).get('url')
+        # Build full allocations URL
+        self.allocations_url = f"{allocations_base_url}/{self.notification_channel}/allocations"
+        # Add rebalancing configuration
+        rebalancing_data = data.get('rebalancing', {})
+        self.equity_reserve_percentage = rebalancing_data.get('equity_reserve_percentage', 1.0)
 
 
 class AblyEventSubscriber:
@@ -107,7 +111,7 @@ class AblyEventSubscriber:
             self.accounts = []
             # accounts_data is a list of account configurations
             for account_data in accounts_data:
-                account = AccountConfig(account_data)
+                account = AccountConfig(account_data, config.allocations.base_url)
                 if account.account_id and account.notification_channel:
                     self.accounts.append(account)
                     logger.debug(f"Loaded account: {account.account_id} -> {account.notification_channel}")
@@ -180,12 +184,23 @@ class AblyEventSubscriber:
             # Log the action being taken
             logger.info(f"Exec '{action}' event received for account {account.account_id}")
             
+            # Enhance payload with account configuration
+            enhanced_payload = {
+                **payload,
+                "account_config": {
+                    "account_id": account.account_id,
+                    "notification_channel": account.notification_channel,
+                    "allocations_url": account.allocations_url,
+                    "equity_reserve_percentage": account.equity_reserve_percentage
+                }
+            }
+            
             # Enqueue to Redis (with deduplication)
-            event_id = await self.queue_service.enqueue_event(account.account_id, payload)
+            event_id = await self.queue_service.enqueue_event(account.account_id, enhanced_payload)
             
             if event_id:
                 # Track event in PostgreSQL
-                await self.event_service.create_event(event_id, account.account_id, payload)
+                await self.event_service.create_event(event_id, account.account_id, enhanced_payload)
                 
                 logger.info(f"Event enqueued successfully", extra={
                     'event_id': event_id,

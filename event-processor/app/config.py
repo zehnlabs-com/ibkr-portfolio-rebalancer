@@ -1,28 +1,11 @@
 import os
 import yaml
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from dataclasses import dataclass
 import logging
 import re
 
-@dataclass
-class NotificationConfig:
-    channel: str
-
-@dataclass
-class RebalancingConfig:
-    equity_reserve_percentage: float
-
-@dataclass
-class AllocationsConfig:
-    url: str
-
-@dataclass
-class AccountConfig:
-    account_id: str
-    notification: NotificationConfig
-    rebalancing: RebalancingConfig
-    allocations: AllocationsConfig
+    # Note: Account configuration dataclasses removed - account configs now come from event payloads
 
 @dataclass
 class RetryConfig:
@@ -78,7 +61,7 @@ class LoggingConfig:
     retention_days: int
     
 class Config:
-    def __init__(self, accounts_file: str = "accounts.yaml", config_file: str = "config.yaml"):
+    def __init__(self, config_file: str = "config.yaml"):
         # Load configuration from YAML file (required)
         config_data = self._load_config_file(config_file)
         
@@ -145,8 +128,8 @@ class Config:
         # API keys (secrets from env only)
         self.zehnlabs_fintech_api_key = os.getenv("ZEHNLABS_FINTECH_API_KEY", "")
         
-        # Load accounts from accounts.yaml file
-        self.accounts: List[AccountConfig] = self._load_accounts(accounts_file)
+        # Note: Account configurations are now loaded from event payloads
+        # No longer loading accounts from accounts.yaml file
     
     def _load_config_file(self, config_file: str) -> Dict:
         """Load configuration from YAML file - REQUIRED, no fallbacks"""
@@ -182,65 +165,8 @@ class Config:
             jitter=retry_config["jitter"]
         )
     
-    def _load_accounts(self, accounts_file: str) -> List[AccountConfig]:
-        accounts = []
-        
-        try:
-            accounts_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), accounts_file)
-            with open(accounts_path, 'r') as f:
-                accounts_data = yaml.safe_load(f)
-            
-            if not accounts_data:
-                logging.warning(f"No accounts found in {accounts_file}")
-                return []
-            
-            for account_data in accounts_data:
-                try:
-                    notification_config = NotificationConfig(
-                        channel=account_data["notification"]["channel"]
-                    )
-                    
-                    # Load rebalancing config with validation
-                    rebalancing_data = account_data.get("rebalancing", {})
-                    reserve_percentage = rebalancing_data.get("equity_reserve_percentage", 1.0)
-                    # Validate reserve percentage: 0-10%, use 1% default for invalid values
-                    if not (0.0 <= reserve_percentage <= 10.0):
-                        logging.warning(f"Invalid equity_reserve_percentage: {reserve_percentage}% for account {account_data['account_id']}. Using default 1%.")
-                        reserve_percentage = 1.0
-                    
-                    rebalancing_config = RebalancingConfig(
-                        equity_reserve_percentage=reserve_percentage
-                    )
-                    
-                    # Create allocations config - construct URL dynamically
-                    allocations_config = AllocationsConfig(
-                        url=f"{self.allocations_base_url}/{notification_config.channel}/allocations"
-                    )
-                    
-                    account = AccountConfig(
-                        account_id=account_data["account_id"],
-                        notification=notification_config,
-                        rebalancing=rebalancing_config,
-                        allocations=allocations_config
-                    )
-                    
-                    accounts.append(account)
-                    
-                except KeyError as e:
-                    logging.error(f"Missing required field in account config: {e}")
-                    continue
-                    
-        except FileNotFoundError:
-            logging.warning(f"Accounts file {accounts_file} not found")
-        except Exception as e:
-            logging.error(f"Error loading accounts file: {e}")
-        
-        return accounts
+    # Note: _load_accounts method removed - account configs now come from event payloads
     
-    def get_account_config(self, account_id: str) -> Optional[AccountConfig]:
-        for account in self.accounts:
-            if account.account_id == account_id:
-                return account
-        return None
+    # Note: get_account_config method removed - account configs now come from event payloads
 
 config = Config()

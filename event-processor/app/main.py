@@ -149,10 +149,14 @@ class EventProcessor:
             # Remove from queued accounts set
             await self.queue_service.remove_from_queued(account_id)
             
-            # Get account configuration
-            account_config = config.get_account_config(account_id)
-            if not account_config:
-                raise ValueError(f"No configuration found for account {account_id}")
+            # Get account configuration from event payload
+            account_config_data = data_payload.get('account_config') or payload.get('account_config')
+            if not account_config_data:
+                raise ValueError(f"No account configuration found in event payload for account {account_id}")
+            
+            # Create account config object from the event payload
+            from app.models.account_config import EventAccountConfig
+            account_config = EventAccountConfig(account_config_data)
             
             # Route to appropriate handler based on action
             result = await self.handle_action(action, account_config, event_id, account_id)

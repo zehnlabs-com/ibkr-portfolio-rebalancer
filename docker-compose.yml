@@ -112,8 +112,10 @@ services:
       - REDIS_HOST=redis
       - POSTGRES_HOST=postgres
     depends_on:
-      - redis
-      - postgres
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     volumes:
       - ./event-broker/logs:/app/logs
     logging:
