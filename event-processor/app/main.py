@@ -3,6 +3,10 @@ Event Processor - Main Application Entry Point
 
 This service processes rebalance events from Redis queue and executes them via IBKR.
 """
+import nest_asyncio
+# Apply nest_asyncio BEFORE any other async imports to prevent event loop conflicts
+nest_asyncio.apply()
+
 import asyncio
 import signal
 import sys
@@ -35,12 +39,11 @@ class EventProcessor:
     async def start(self):
         """Start the event processor"""
         logger.info("Starting Event Processor...")
+
+        await asyncio.sleep(config.processing.startup_initial_delay); # Initial delay to allow other services to start
         
         try:
-            # Initialize database connection pool
-            await db_manager.init_connection_pool()
-            
-            # Connect to IBKR with robust retry logic
+            # Connect to IBKR with startup retry logic
             connected = False
             for attempt in range(config.processing.startup_max_attempts):
                 try:
@@ -116,7 +119,7 @@ class EventProcessor:
                     continue
                 
                 # Get next event from queue
-                event_data = await self.queue_service.get_next_event()
+                event_data = self.queue_service.get_next_event()
                 
                 if event_data:
                     await self.process_event(event_data)
@@ -143,7 +146,7 @@ class EventProcessor:
             await self.event_service.update_status(event_id, 'processing')
             
             # Remove from queued accounts set
-            await self.queue_service.remove_from_queued(account_id)
+            self.queue_service.remove_from_queued(account_id)
             
             # Get account configuration
             account_config = config.get_account_config(account_id)
@@ -198,7 +201,7 @@ class EventProcessor:
             # Check if should retry
             if await self.event_service.should_retry(event_id, config.processing.max_retry_days):
                 # Put back in queue for retry
-                await self.queue_service.requeue_event(event_data)
+                self.queue_service.requeue_event(event_data)
                 
                 log_with_event(logger, 'info',
                               "Event requeued for retry",

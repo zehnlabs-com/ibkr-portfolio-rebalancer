@@ -2,23 +2,33 @@
 PostgreSQL database connection management for Event Processor
 """
 import asyncio
-import asyncpg
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 from app.config import config
 from app.logger import setup_logger
 
+# Import asyncpg only when needed to avoid event loop conflicts with ib_async
+# This prevents asyncpg from interfering with IBKR connections on import
+if TYPE_CHECKING:
+    import asyncpg
+
 logger = setup_logger(__name__)
 
+
+def _get_asyncpg():
+    """Import asyncpg only when needed to avoid event loop conflicts"""
+    import asyncpg
+    return asyncpg
 
 class DatabaseManager:
     """Database connection manager for PostgreSQL"""
     
     def __init__(self):
-        self._pool: Optional[asyncpg.Pool] = None
+        self._pool: Optional["asyncpg.Pool"] = None
     
     async def init_connection_pool(self):
         """Initialize PostgreSQL connection pool"""
         try:
+            asyncpg = _get_asyncpg()
             self._pool = await asyncpg.create_pool(
                 host=config.postgresql.host,
                 port=config.postgresql.port,

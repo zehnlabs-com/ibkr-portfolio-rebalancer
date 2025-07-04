@@ -21,7 +21,7 @@ class QueueService:
             decode_responses=True
         )
         
-    async def get_next_event(self) -> Optional[Dict[str, Any]]:
+    def get_next_event(self) -> Optional[Dict[str, Any]]:
         """
         Get next event from queue with timeout
         
@@ -49,7 +49,7 @@ class QueueService:
             logger.error(f"Failed to get event from queue: {e}")
             return None
     
-    async def requeue_event(self, event_data: Dict[str, Any]):
+    def requeue_event(self, event_data: Dict[str, Any]):
         """
         Put event back in queue for retry (at front of queue)
         """
@@ -71,7 +71,7 @@ class QueueService:
             logger.error(f"Failed to requeue event: {e}")
             raise
     
-    async def remove_from_queued(self, account_id: str):
+    def remove_from_queued(self, account_id: str):
         """Remove account from queued set"""
         try:
             self.redis.srem("queued_accounts", account_id)

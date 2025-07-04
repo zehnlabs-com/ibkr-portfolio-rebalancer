@@ -2,7 +2,7 @@ import asyncio
 import random
 import time
 from typing import List, Dict, Optional
-from asyncio_throttle import Throttler
+# Removed asyncio_throttle to reduce async conflicts
 from ib_async import IB, Stock, Order, MarketOrder, LimitOrder, Contract
 from app.config import config
 from app.logger import setup_logger
@@ -13,7 +13,7 @@ logger = setup_logger(__name__)
 class IBKRClient:
     def __init__(self):
         self.ib = IB()
-        self.ib.RequestTimeout = 10.0
+        self.ib.RequestTimeout = 10.0  # Match rebalancer-api timeout
         self.client_id = random.randint(1000, 9999)
         self.connected = False
         self.retry_count = 0
@@ -23,8 +23,9 @@ class IBKRClient:
         self._market_data_lock = asyncio.Lock()
         self._order_lock = asyncio.Lock()
         
-        # Rate limiter for historical data requests (50 requests per 10 minutes)
-        self._historical_throttler = Throttler(rate_limit=50, period=600)
+        # Simple rate limiting for historical data requests
+        self._last_historical_request = 0
+        self._min_request_interval = 12  # 12 seconds between requests (5 per minute)
         
         # Current market data type (1=live, 2=frozen, 3=delayed, 4=delayed-frozen)
         self._current_market_data_type = 1
@@ -396,11 +397,16 @@ class IBKRClient:
         
         for symbol in symbols:
             try:
-                # Apply rate limiting for historical data requests
-                async with self._historical_throttler:
-                    price = await self._get_single_historical_price(symbol, include_extended_hours)
-                    if price:
-                        prices[symbol] = price
+                # Apply simple rate limiting for historical data requests
+                current_time = time.time()
+                time_since_last = current_time - self._last_historical_request
+                if time_since_last < self._min_request_interval:
+                    await asyncio.sleep(self._min_request_interval - time_since_last)
+                
+                self._last_historical_request = time.time()
+                price = await self._get_single_historical_price(symbol, include_extended_hours)
+                if price:
+                    prices[symbol] = price
             except Exception as e:
                 logger.error(f"Failed to get historical price for {symbol}: {e}")
         

@@ -64,6 +64,7 @@ class ProcessingConfig:
     queue_timeout: int
     startup_max_attempts: int
     startup_delay: int
+    startup_initial_delay: int
 
 @dataclass
 class AllocationConfig:
@@ -119,7 +120,8 @@ class Config:
             market_hours_buffer=processing_config["market_hours_buffer"],
             queue_timeout=processing_config["queue_timeout"],
             startup_max_attempts=processing_config["startup_max_attempts"],
-            startup_delay=processing_config["startup_delay"]
+            startup_delay=processing_config["startup_delay"],
+            startup_initial_delay=processing_config["startup_initial_delay"]
         )
         
         # Allocation config

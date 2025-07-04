@@ -1,12 +1,10 @@
 pydantic==2.11.7
 ib_async==2.0.1
-aiohttp==3.12.13
-asyncio-throttle==1.0.2
+requests==2.32.3
 PyYAML==6.0.2
 nest-asyncio==1.6.0
 redis==6.2.0
 asyncpg==0.30.0
-structlog==25.4.0
 
 
 
