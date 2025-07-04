@@ -112,14 +112,8 @@ class EventProcessor:
         
         while self.running:
             try:
-                # Check if markets are open
-                if not await self.market_hours_service.is_market_open():
-                    logger.debug("Markets closed, waiting...")
-                    await asyncio.sleep(300)  # Wait 5 minutes
-                    continue
-                
                 # Get next event from queue
-                event_data = self.queue_service.get_next_event()
+                event_data = await self.queue_service.get_next_event()
                 
                 if event_data:
                     await self.process_event(event_data)
@@ -135,8 +129,10 @@ class EventProcessor:
         """Process a single event"""
         event_id = event_data.get('event_id')
         account_id = event_data.get('account_id')
+        # Check both 'data' and 'payload' for backward compatibility
+        data_payload = event_data.get('data', {})
         payload = event_data.get('payload', {})
-        action = payload.get('exec')
+        action = data_payload.get('exec') or payload.get('exec')
         
         if not action:
             raise ValueError("No exec specified in payload.")
@@ -151,7 +147,7 @@ class EventProcessor:
             await self.event_service.update_status(event_id, 'processing')
             
             # Remove from queued accounts set
-            self.queue_service.remove_from_queued(account_id)
+            await self.queue_service.remove_from_queued(account_id)
             
             # Get account configuration
             account_config = config.get_account_config(account_id)
@@ -204,6 +200,14 @@ class EventProcessor:
     
     async def handle_rebalance(self, account_config, event_id: str, account_id: str):
         """Handle rebalance action - full rebalance with orders sent to broker"""
+        
+        # Check if markets are open for rebalance operations
+        if not await self.market_hours_service.is_market_open():
+            error_msg = "Markets are closed - rebalance operations not allowed"
+            log_with_event(logger, 'error', error_msg, 
+                          event_id=event_id, account_id=account_id)
+            raise ValueError(error_msg)
+        
         # Determine order type based on market timing
         order_type = await self.market_hours_service.get_order_type()
         
@@ -420,7 +424,7 @@ class EventProcessor:
             # Check if should retry
             if await self.event_service.should_retry(event_id, config.processing.max_retry_days):
                 # Put back in queue for retry
-                self.queue_service.requeue_event(event_data)
+                await self.queue_service.requeue_event(event_data)
                 
                 log_with_event(logger, 'info',
                               "Event requeued for retry",

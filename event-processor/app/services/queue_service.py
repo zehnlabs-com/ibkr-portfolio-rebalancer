@@ -2,7 +2,7 @@
 Redis Queue Service for Event Processor
 """
 import json
-import redis
+import redis.asyncio as redis
 from typing import Dict, Any, Optional
 from app.config import config
 from app.logger import setup_logger
@@ -14,14 +14,16 @@ class QueueService:
     """Redis queue service for consuming rebalance events"""
     
     def __init__(self):
-        self.redis = redis.Redis(
-            host=config.redis.host,
-            port=config.redis.port,
-            db=config.redis.db,
-            decode_responses=True
-        )
+        self.redis = None
+        self._redis_url = f"redis://{config.redis.host}:{config.redis.port}/{config.redis.db}"
+    
+    async def _get_redis(self):
+        """Get or create Redis connection"""
+        if self.redis is None:
+            self.redis = await redis.from_url(self._redis_url, decode_responses=True)
+        return self.redis
         
-    def get_next_event(self) -> Optional[Dict[str, Any]]:
+    async def get_next_event(self) -> Optional[Dict[str, Any]]:
         """
         Get next event from queue with timeout
         
@@ -29,7 +31,8 @@ class QueueService:
             Dict[str, Any]: Event data if available, None if timeout
         """
         try:
-            result = self.redis.brpop(
+            redis = await self._get_redis()
+            result = await redis.brpop(
                 "rebalance_queue", 
                 timeout=config.processing.queue_timeout
             )
@@ -49,18 +52,19 @@ class QueueService:
             logger.error(f"Failed to get event from queue: {e}")
             return None
     
-    def requeue_event(self, event_data: Dict[str, Any]):
+    async def requeue_event(self, event_data: Dict[str, Any]):
         """
         Put event back in queue for retry (at front of queue)
         """
         try:
+            redis = await self._get_redis()
             account_id = event_data['account_id']
             
             # Add to front of queue and tracking set
-            pipe = self.redis.pipeline()
+            pipe = redis.pipeline()
             pipe.lpush("rebalance_queue", json.dumps(event_data))
             pipe.sadd("queued_accounts", account_id)
-            pipe.execute()
+            await pipe.execute()
             
             logger.info(f"Event requeued for retry", extra={
                 'event_id': event_data.get('event_id'),
@@ -71,34 +75,38 @@ class QueueService:
             logger.error(f"Failed to requeue event: {e}")
             raise
     
-    def remove_from_queued(self, account_id: str):
+    async def remove_from_queued(self, account_id: str):
         """Remove account from queued set"""
         try:
-            self.redis.srem("queued_accounts", account_id)
+            redis = await self._get_redis()
+            await redis.srem("queued_accounts", account_id)
             logger.debug(f"Removed account from queued set", extra={'account_id': account_id})
         except Exception as e:
             logger.error(f"Failed to remove account from queued set: {e}")
     
-    def get_queue_length(self) -> int:
+    async def get_queue_length(self) -> int:
         """Get current queue length"""
         try:
-            return self.redis.llen("rebalance_queue")
+            redis = await self._get_redis()
+            return await redis.llen("rebalance_queue")
         except Exception as e:
             logger.error(f"Failed to get queue length: {e}")
             return 0
     
-    def get_queued_accounts(self) -> set:
+    async def get_queued_accounts(self) -> set:
         """Get set of currently queued account IDs"""
         try:
-            return self.redis.smembers("queued_accounts")
+            redis = await self._get_redis()
+            return await redis.smembers("queued_accounts")
         except Exception as e:
             logger.error(f"Failed to get queued accounts: {e}")
             return set()
     
-    def is_connected(self) -> bool:
+    async def is_connected(self) -> bool:
         """Check if Redis connection is active"""
         try:
-            self.redis.ping()
+            redis = await self._get_redis()
+            await redis.ping()
             return True
         except Exception:
             return False

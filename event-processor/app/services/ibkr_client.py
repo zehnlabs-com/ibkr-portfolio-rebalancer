@@ -1,6 +1,5 @@
 import asyncio
 import random
-import time
 from typing import List, Dict, Optional
 # Removed asyncio_throttle to reduce async conflicts
 from ib_async import IB, Stock, Order, MarketOrder, LimitOrder, Contract
@@ -54,7 +53,8 @@ class IBKRClient:
         await self.ib.connectAsync(
             host=config.ibkr.host,
             port=config.ibkr.port,
-            clientId=self.client_id
+            clientId=self.client_id,
+            timeout=60
         )
         logger.info(f"Connected to IBKR with client ID {self.client_id}")
     
@@ -398,12 +398,13 @@ class IBKRClient:
         for symbol in symbols:
             try:
                 # Apply simple rate limiting for historical data requests
-                current_time = time.time()
+                loop = asyncio.get_event_loop()
+                current_time = loop.time()
                 time_since_last = current_time - self._last_historical_request
                 if time_since_last < self._min_request_interval:
                     await asyncio.sleep(self._min_request_interval - time_since_last)
                 
-                self._last_historical_request = time.time()
+                self._last_historical_request = loop.time()
                 price = await self._get_single_historical_price(symbol, include_extended_hours)
                 if price:
                     prices[symbol] = price

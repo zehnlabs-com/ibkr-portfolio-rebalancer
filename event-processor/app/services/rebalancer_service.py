@@ -43,7 +43,7 @@ class RebalancerService:
             try:
                 logger.info(f"Starting LIVE rebalance for account {account_config.account_id}")
                 
-                target_allocations = AllocationService.get_allocations(account_config)
+                target_allocations = await AllocationService.get_allocations(account_config)
                 
                 current_positions = await self.ibkr_client.get_positions(account_config.account_id)
                 account_value = await self.ibkr_client.get_account_value(account_config.account_id)
@@ -212,7 +212,7 @@ class RebalancerService:
             try:
                 logger.info(f"Starting dry run rebalance for account {account_config.account_id}")
                 
-                target_allocations = AllocationService.get_allocations(account_config)
+                target_allocations = await AllocationService.get_allocations(account_config)
                 
                 current_positions = await self.ibkr_client.get_positions(account_config.account_id)
                 account_value = await self.ibkr_client.get_account_value(account_config.account_id)
