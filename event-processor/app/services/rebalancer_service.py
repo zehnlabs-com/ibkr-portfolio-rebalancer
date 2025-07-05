@@ -2,7 +2,8 @@ import math
 import asyncio
 from typing import List, Dict, Optional, Tuple
 from collections import defaultdict
-from app.config import AccountConfig, config
+from app.config import config
+from app.models.account_config import EventAccountConfig
 from app.services.ibkr_client import IBKRClient
 from app.services.allocation_service import AllocationService
 from app.logger import setup_logger
@@ -32,7 +33,7 @@ class RebalancerService:
     def __init__(self, ibkr_client: IBKRClient):
         self.ibkr_client = ibkr_client
     
-    async def rebalance_account(self, account_config: AccountConfig, order_type: str = "MKT"):
+    async def rebalance_account(self, account_config: EventAccountConfig, order_type: str = "MKT"):
         # Log queue position
         waiting_accounts = [acc_id for acc_id, lock in self._account_locks.items() if lock.locked()]
         if waiting_accounts:
@@ -71,7 +72,7 @@ class RebalancerService:
         target_allocations: List[Dict[str, float]], 
         current_positions: List[Dict], 
         account_value: float,
-        account_config: AccountConfig
+        account_config: EventAccountConfig
     ) -> RebalanceResult:
         
         orders = []
@@ -201,7 +202,7 @@ class RebalancerService:
         
         return cancelled_orders
     
-    async def dry_run_rebalance(self, account_config: AccountConfig) -> RebalanceResult:
+    async def dry_run_rebalance(self, account_config: EventAccountConfig) -> RebalanceResult:
         # Log queue position
         waiting_accounts = [acc_id for acc_id, lock in self._account_locks.items() if lock.locked()]
         if waiting_accounts:

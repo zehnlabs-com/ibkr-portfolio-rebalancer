@@ -55,8 +55,6 @@ services:
     ports:
       - "127.0.0.1:6080:6080"  # noVNC browser access
       - "127.0.0.1:8888:8888"  # API access (paper trading)
-      - "127.0.0.1:7497:7497"  # API access (paper trading - alternative port)
-      - "127.0.0.1:7496:7496"  # API access (live trading)
     ulimits:
       nofile: 10000
     restart: unless-stopped
@@ -79,7 +77,9 @@ services:
       # IBKR credentials (sensitive data only)
       - IBKR_USERNAME=${IBKR_USERNAME}
       - IBKR_PASSWORD=${IBKR_PASSWORD}
-      - TRADING_MODE=${TRADING_MODE:-paper}
+      - IBKR_HOST=ibkr
+      - IBKR_PORT=4002
+      - TRADING_MODE=${TRADING_MODE:-paper}      
       # API keys
       - ZEHNLABS_FINTECH_API_KEY=${ZEHNLABS_FINTECH_API_KEY}
       # Service discovery

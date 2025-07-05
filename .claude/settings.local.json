@@ -31,7 +31,9 @@
       "Bash(mv:*)",
       "WebFetch(domain:www.interactivebrokers.com)",
       "Bash(diff:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(echo:*)",
+      "Bash(printf:*)"
     ],
     "deny": []
   }

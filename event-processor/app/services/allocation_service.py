@@ -1,7 +1,8 @@
 import json
 import aiohttp
 from typing import List, Dict
-from app.config import AccountConfig, config
+from app.config import config
+from app.models.account_config import EventAccountConfig
 from app.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -9,7 +10,7 @@ logger = setup_logger(__name__)
 
 class AllocationService:
     @staticmethod
-    async def get_allocations(account_config: AccountConfig) -> List[Dict[str, float]]:
+    async def get_allocations(account_config: EventAccountConfig) -> List[Dict[str, float]]:
         # Construct allocations URL from base URL and channel
         allocations_url = f"{config.allocations_base_url}/{account_config.notification.channel}/allocations"
         
