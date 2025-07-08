@@ -1,5 +1,5 @@
 """
-Enhanced Ably service for event subscription and HTTP communication
+Enhanced Ably service for event subscription and Redis queue integration
 """
 import asyncio
 import json
@@ -8,27 +8,33 @@ from typing import Dict, List, Optional, Any
 from ably import AblyRealtime
 from app.logger import setup_logger
 from app.config import config
-from app.services.rebalancer_client import RebalancerClient
+from app.services.queue_service import QueueService
+from app.services.event_service import EventService
 
-logger = setup_logger(__name__)
+logger = setup_logger(__name__, level=config.LOG_LEVEL)
 
 
 class AccountConfig:
     """Account configuration model"""
     
-    def __init__(self, data: Dict[str, Any]):
+    def __init__(self, data: Dict[str, Any], allocations_base_url: str):
         self.account_id = data.get('account_id')
         self.notification_channel = data.get('notification', {}).get('channel')
-        self.allocations_url = data.get('allocations', {}).get('url')
+        # Build full allocations URL
+        self.allocations_url = f"{allocations_base_url}/{self.notification_channel}/allocations"
+        # Add rebalancing configuration
+        rebalancing_data = data.get('rebalancing', {})
+        self.equity_reserve_percentage = rebalancing_data.get('equity_reserve_percentage', 1.0)
 
 
 class AblyEventSubscriber:
-    """Enhanced Ably service that subscribes to events and triggers rebalancing via HTTP"""
+    """Enhanced Ably service that subscribes to events and enqueues to Redis"""
     
     def __init__(self):
         self.api_key = config.REALTIME_API_KEY
         self.ably: Optional[AblyRealtime] = None
-        self.rebalancer_client = RebalancerClient()
+        self.queue_service = QueueService()
+        self.event_service = EventService()
         self.accounts: List[AccountConfig] = []
         self.channels: Dict[str, Any] = {}
         self.running = False
@@ -40,6 +46,9 @@ class AblyEventSubscriber:
             return
             
         try:
+            # Initialize database connection pool
+            await self.event_service.init_connection_pool()
+            
             # Load account configurations
             await self._load_accounts()
             
@@ -56,8 +65,8 @@ class AblyEventSubscriber:
             # Subscribe to channels for all accounts
             await self._subscribe_to_channels()
             
-            # Verify rebalancer API is healthy
-            await self._verify_rebalancer_health()
+            # Verify Redis and PostgreSQL connectivity
+            await self._verify_services_health()
             
             self.running = True
             logger.info(f"Started Ably Event Broker with {len(self.accounts)} accounts")
@@ -88,8 +97,8 @@ class AblyEventSubscriber:
             except Exception as e:
                 logger.error(f"Error closing Ably connection: {e}")
         
-        # Close HTTP client
-        await self.rebalancer_client.close()
+        # Close database connection pool
+        await self.event_service.close_connection_pool()
         
         logger.info("Stopped Ably Event Broker")
     
@@ -102,7 +111,7 @@ class AblyEventSubscriber:
             self.accounts = []
             # accounts_data is a list of account configurations
             for account_data in accounts_data:
-                account = AccountConfig(account_data)
+                account = AccountConfig(account_data, config.allocations.base_url)
                 if account.account_id and account.notification_channel:
                     self.accounts.append(account)
                     logger.debug(f"Loaded account: {account.account_id} -> {account.notification_channel}")
@@ -128,7 +137,7 @@ class AblyEventSubscriber:
                 # Subscribe to all messages on the channel
                 def create_message_handler(account_config):
                     def message_handler(message, *args, **kwargs):
-                        asyncio.create_task(self._handle_rebalance_event(message, account_config))
+                        asyncio.create_task(self._handle_event(message, account_config))
                     return message_handler
                 
                 await channel.subscribe(create_message_handler(account))
@@ -141,16 +150,17 @@ class AblyEventSubscriber:
             except Exception as e:
                 logger.error(f"Failed to subscribe to channel {account.notification_channel}: {e}")
     
-    async def _handle_rebalance_event(self, message, account: AccountConfig):
+    async def _handle_event(self, message, account: AccountConfig):
         """
-        Handle incoming rebalance events by triggering HTTP calls to rebalancer API
+        Handle incoming events by enqueuing to Redis and tracking in PostgreSQL
         
         Args:
             message: Ably message object
             account: Account configuration
         """
+        event_id = None
         try:
-            logger.info(f"Received rebalance event for account {account.account_id}: {message.data}")
+            logger.info(f"Received event for account {account.account_id}: {message.data}")
             
             # Parse the message payload
             payload = {}
@@ -161,57 +171,70 @@ class AblyEventSubscriber:
                     elif isinstance(message.data, dict):
                         payload = message.data
                 except (json.JSONDecodeError, TypeError):
-                    logger.warning(f"Invalid JSON payload, defaulting to dry run: {message.data}")
+                    logger.warning(f"Invalid JSON payload, using empty payload: {message.data}")
+                    payload = {"raw_data": str(message.data)}
             
-            # Determine execution mode from payload
-            execution_mode = payload.get("execution", "dry_run")
+            # Get the action from payload
+            action = payload.get("exec")
             
-            # Validate execution mode
-            if execution_mode not in ["dry_run", "rebalance"]:
-                logger.warning(f"Invalid execution mode '{execution_mode}', defaulting to dry_run")
-                execution_mode = "dry_run"
+            if not action:
+                logger.error(f"No action specified in payload for account {account.account_id}: {payload}")
+                return
             
             # Log the action being taken
-            action_type = "Live rebalance" if execution_mode == "rebalance" else "Dry run rebalance"
-            logger.info(f"{action_type} triggered for account {account.account_id}")
+            logger.info(f"Exec '{action}' event received for account {account.account_id}")
             
-            # Make HTTP call to rebalancer API
-            try:
-                response = await self.rebalancer_client.trigger_rebalance(
-                    account_id=account.account_id,
-                    execution_mode=execution_mode
-                )
-                
-                # Log the results
-                orders = response.get('orders', [])
-                status = response.get('status', 'unknown')
-                message_text = response.get('message', '')
-                
-                logger.info(f"Rebalance completed for account {account.account_id}: "
-                          f"status={status}, orders={len(orders)}, message={message_text}")
-                
-                # Log order details in debug mode
-                for order in orders:
-                    logger.debug(f"Order: {order.get('action')} {order.get('quantity')} "
-                                f"{order.get('symbol')} (${order.get('market_value', 0):.2f})")
-                
-            except Exception as e:
-                logger.error(f"Failed to trigger rebalance for account {account.account_id}: {e}")
-                # Don't re-raise here - we want to continue processing other events
+            # Enhance payload with account configuration
+            enhanced_payload = {
+                **payload,
+                "account_config": {
+                    "account_id": account.account_id,
+                    "notification_channel": account.notification_channel,
+                    "allocations_url": account.allocations_url,
+                    "equity_reserve_percentage": account.equity_reserve_percentage
+                }
+            }
             
-        except Exception as e:
-            logger.error(f"Error handling rebalance event for account {account.account_id}: {e}")
-    
-    async def _verify_rebalancer_health(self):
-        """Verify that the rebalancer API is healthy and accessible"""
-        try:
-            is_healthy = await self.rebalancer_client.health_check()
-            if is_healthy:
-                logger.info("Rebalancer API health check passed")
+            # Enqueue to Redis (with deduplication)
+            event_id = await self.queue_service.enqueue_event(account.account_id, enhanced_payload)
+            
+            if event_id:
+                # Track event in PostgreSQL
+                await self.event_service.create_event(event_id, account.account_id, enhanced_payload)
+                
+                logger.info(f"Event enqueued successfully", extra={
+                    'event_id': event_id,
+                    'account_id': account.account_id,
+                    'exec': action
+                })
             else:
-                logger.warning("Rebalancer API health check failed - service may not be ready")
+                logger.info(f"Event not enqueued - account {account.account_id} already queued")
+            
         except Exception as e:
-            logger.error(f"Failed to verify rebalancer API health: {e}")
+            logger.error(f"Error handling event for account {account.account_id}: {e}")
+            if event_id:
+                try:
+                    await self.event_service.update_event_status(event_id, 'failed', str(e))
+                except:
+                    pass  # Don't fail on logging failure
+    
+    async def _verify_services_health(self):
+        """Verify that Redis and PostgreSQL are accessible"""
+        try:
+            # Check Redis connectivity
+            if self.queue_service.is_connected():
+                logger.info("Redis connectivity check passed")
+            else:
+                logger.warning("Redis connectivity check failed")
+                
+            # Check PostgreSQL connectivity
+            if await self.event_service.is_connected():
+                logger.info("PostgreSQL connectivity check passed")
+            else:
+                logger.warning("PostgreSQL connectivity check failed")
+                
+        except Exception as e:
+            logger.error(f"Failed to verify services health: {e}")
             # Don't raise here - we want to continue even if health check fails initially
     
     def _setup_connection_monitoring(self):
@@ -249,11 +272,21 @@ class AblyEventSubscriber:
             "accounts_count": len(self.accounts),
             "channels_count": len(self.channels),
             "ably_connected": self.ably.connection.state == 'connected' if self.ably else False,
-            "rebalancer_healthy": False
+            "redis_connected": False,
+            "postgresql_connected": False,
+            "queue_length": 0,
+            "queued_accounts": 0
         }
         
         try:
-            status["rebalancer_healthy"] = await self.rebalancer_client.health_check()
+            status["redis_connected"] = self.queue_service.is_connected()
+            status["queue_length"] = self.queue_service.get_queue_length()
+            status["queued_accounts"] = len(self.queue_service.get_queued_accounts())
+        except:
+            pass
+            
+        try:
+            status["postgresql_connected"] = await self.event_service.is_connected()
         except:
             pass
         

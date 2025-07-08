@@ -2,7 +2,7 @@ import asyncio
 import random
 import logging
 from typing import Callable, Any, Optional, Union
-from ..config import RetryConfig
+from app.config import RetryConfig
 
 logger = logging.getLogger(__name__)
 

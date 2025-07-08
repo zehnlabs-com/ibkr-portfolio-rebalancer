@@ -1,0 +1,51 @@
+redis:
+  host: redis
+  port: 6379
+  db: 0
+  max_connections: 10
+
+postgresql:
+  host: postgres
+  port: 5432
+  database: portfolio_rebalancer
+  username: postgres
+  password: postgres
+
+ibkr:
+  # Connection settings
+  host: "ibkr"  # Docker container name, use "127.0.0.1" for local development
+  port: 4004  # 4004 for gateway (matches IB_PORT in .env), 7497 for TWS paper, 7496 for TWS live
+  gateway_or_tws: "gateway"  # "gateway" or "tws"  
+  
+  # Retry configuration for IBKR connection
+  connection_retry:
+    max_retries: 3
+    base_delay: 5          # seconds
+    max_delay: 60          # seconds
+    backoff_multiplier: 2.0
+    jitter: true           # add randomization to prevent thundering herd  
+  
+  # Retry configuration for order operations
+  order_retry:
+    max_retries: 2         # fewer retries for orders to avoid duplicates
+    base_delay: 1          # seconds
+    max_delay: 10          # seconds
+    backoff_multiplier: 2.0
+    jitter: false
+
+processing:
+  max_retry_days: 7
+  market_hours_buffer: 60  # minutes before market close for MOC orders
+  queue_timeout: 30        # seconds for redis.brpop
+  startup_max_attempts: 500  # max attempts during application startup
+  startup_delay: 10         # seconds between startup attempts
+  startup_initial_delay: 30 # initial delay (seconds) to allow services to stabilize
+
+allocation:
+  api_url: "https://workers.fintech.zehnlabs.com/api/v1/strategies"
+  timeout: 30
+
+logging:
+  level: INFO
+  format: json
+  retention_days: 365

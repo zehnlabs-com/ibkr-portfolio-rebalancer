@@ -1,71 +1,135 @@
-services:
-  ibkr:
-    image: ghcr.io/extrange/ibkr:stable  # Use 'stable' tag or specific version like 'latest'
-    container_name: ibkr-gateway
-    # args:
-    #   ibc_version: 3.12.0    
-    environment:
-      - USERNAME=${IBKR_USERNAME}
-      - PASSWORD=${IBKR_PASSWORD}
-      - GATEWAY_OR_TWS=${GATEWAY_OR_TWS:-gateway}
-      - TWOFA_TIMEOUT_ACTION=restart
-      - TWS_SETTINGS_PATH=/home/ibkr/settings
-      - IBC_TradingMode=${TRADING_MODE:-paper}      
-      - IBC_AcceptNonBrokerageAccountWarning=yes
-      - IBC_ReadOnlyApi=no
-      - IBC_SecondFactorDevice=IB Key
-      #- TZ=Asia/Singapore
-    ports:
-      - "127.0.0.1:6080:6080"  # noVNC browser access
-      - "127.0.0.1:8888:8888"  # API access (paper trading)
-      - "127.0.0.1:7497:7497"  # API access (paper trading - alternative port)
-      - "127.0.0.1:7496:7496"  # API access (live trading)
-    ulimits:
-      nofile: 10000
-    restart: unless-stopped
-    volumes:
-      - ibkr_settings:/home/ibkr/settings:rw
-    healthcheck:
-      test: ["CMD-SHELL", "timeout 5 bash -c '</dev/tcp/localhost/8888' || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 90s
+volumes:
+  ib_data:
+  redis_data:
+  postgres_data:
 
-  rebalancer-api:
-    build:
-      context: ./rebalancer-api
-      dockerfile: Dockerfile
-    container_name: rebalancer-api
-    environment:
-      # IBKR credentials (sensitive data only)
-      - IBKR_USERNAME=${IBKR_USERNAME}
-      - IBKR_PASSWORD=${IBKR_PASSWORD}
-      - TRADING_MODE=${TRADING_MODE:-paper}
-      # API keys
-      - ZEHNLABS_FINTECH_API_KEY=${ZEHNLABS_FINTECH_API_KEY}
-    depends_on:
-      ibkr:
-        condition: service_healthy
+networks:
+  ibkr-network:
+    driver: bridge
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis
     ports:
-      - "8000:8000"
-    restart: on-failure
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    networks:
+      - ibkr-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_DB: portfolio_rebalancer
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - ibkr-network
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+        
+  ibkr:
+    image: gnzsnz/ib-gateway:latest
+    ports:
+      - "4001:4001"  # TWS API port
+      - "4002:4002"  # TWS API port (backup)
+      - "5900:5900"  # VNC port
+    environment:
+      - TWS_USERID=${IB_USERNAME}
+      - TWS_PASSWORD=${IB_PASSWORD}
+      - TWS_USERID_PAPER=${IB_USERNAME}
+      - TWS_PASSWORD_PAPER=${IB_PASSWORD}
+      - TRADING_MODE=${TRADING_MODE:-paper}
+      - READ_ONLY_API=no
+      - VNC_SERVER_PASSWORD=${VNC_PASSWORD:-password}
+    volumes:
+      - ib_data:/home/ibgateway
+    healthcheck:      
+      test: ["CMD", "sleep", "60"] # wait for 1 minute to fpr gateway to complete login workflow
+      interval: 5s
+      timeout: 70s # must be greater than sleep time
+    networks:
+      - ibkr-network
 
   event-broker:
     build:
       context: ./event-broker
       dockerfile: Dockerfile
     container_name: event-broker
+    environment:      
+      - REDIS_HOST=redis
+      - POSTGRES_HOST=postgres
     depends_on:
-      rebalancer-api:
+      redis:
         condition: service_healthy
-    restart: unless-stopped
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./event-broker/logs:/app/logs
+    networks:
+      - ibkr-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "365"
+    restart: unless-stopped      
 
-volumes:
-  ibkr_settings:
+  event-processor:
+    build: ./event-processor
+    environment:
+      - IB_HOST=ibkr
+      - IB_PORT=${IB_PORT:-4004}      
+      - TRADING_MODE=${TRADING_MODE:-paper}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ZEHNLABS_FINTECH_API_KEY=${ZEHNLABS_FINTECH_API_KEY}
+    volumes:
+      - ./event-processor/config:/app/config
+      - ./event-processor/logs:/app/logs
+    networks:
+      - ibkr-network
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      ibkr:
+        condition: service_healthy        
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "365"
+    restart: on-failure
+
+  novnc:
+    image: dougw/novnc:latest
+    ports:
+      - "6080:8081"  # Web VNC access
+    depends_on:
+      - ibkr
+    networks:
+      - ibkr-network
+    restart: unless-stopped
+    environment:
+      - REMOTE_HOST=ibkr
+      - REMOTE_PORT=5900
+

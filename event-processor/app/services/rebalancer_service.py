@@ -2,7 +2,8 @@ import math
 import asyncio
 from typing import List, Dict, Optional, Tuple
 from collections import defaultdict
-from app.config import AccountConfig, config
+from app.config import config
+from app.models.account_config import EventAccountConfig
 from app.services.ibkr_client import IBKRClient
 from app.services.allocation_service import AllocationService
 from app.logger import setup_logger
@@ -32,14 +33,14 @@ class RebalancerService:
     def __init__(self, ibkr_client: IBKRClient):
         self.ibkr_client = ibkr_client
     
-    async def rebalance_account(self, account_config: AccountConfig):
+    async def rebalance_account(self, account_config: EventAccountConfig, order_type: str = "MKT"):
         # Log queue position
         waiting_accounts = [acc_id for acc_id, lock in self._account_locks.items() if lock.locked()]
         if waiting_accounts:
-            logger.info(f"Account {account_config.account_id} waiting for {len(waiting_accounts)} accounts: {waiting_accounts}")
+            logger.debug(f"Account {account_config.account_id} waiting for {len(waiting_accounts)} accounts: {waiting_accounts}")
         
         async with self._account_locks[account_config.account_id]:
-            logger.info(f"Account {account_config.account_id} acquired lock, starting rebalance")
+            logger.debug(f"Account {account_config.account_id} acquired lock, starting rebalance")
             try:
                 logger.info(f"Starting LIVE rebalance for account {account_config.account_id}")
                 
@@ -55,7 +56,7 @@ class RebalancerService:
                     account_config
                 )
                 
-                cancelled_orders = await self._execute_orders(account_config.account_id, result.orders, dry_run=False)
+                cancelled_orders = await self._execute_orders(account_config.account_id, result.orders, order_type, dry_run=False)
                 
                 logger.info(f"Completed LIVE rebalance for account {account_config.account_id}")
                 
@@ -71,7 +72,7 @@ class RebalancerService:
         target_allocations: List[Dict[str, float]], 
         current_positions: List[Dict], 
         account_value: float,
-        account_config: AccountConfig
+        account_config: EventAccountConfig
     ) -> RebalanceResult:
         
         orders = []
@@ -166,7 +167,7 @@ class RebalancerService:
             logger.error(f"Failed to cancel pending orders for account {account_id}: {e}")
             raise
 
-    async def _execute_orders(self, account_id: str, orders: List[RebalanceOrder], dry_run: bool = False):
+    async def _execute_orders(self, account_id: str, orders: List[RebalanceOrder], order_type: str = "MKT", dry_run: bool = False):
         cancelled_orders = []
         
         if not dry_run:
@@ -177,7 +178,7 @@ class RebalancerService:
             return cancelled_orders
         
         mode_text = "DRY RUN" if dry_run else "LIVE"
-        logger.info(f"{mode_text} - Executing {len(orders)} orders for account {account_id}")
+        logger.info(f"{mode_text} - Executing {len(orders)} orders for account {account_id} with order type {order_type}")
         
         for order in orders:
             try:
@@ -190,7 +191,7 @@ class RebalancerService:
                         account_id=account_id,
                         symbol=order.symbol,
                         quantity=quantity,
-                        order_type=config.ibkr.default_order_type
+                        order_type=order_type
                     )
                     
                     logger.info(f"LIVE - Order placed: {order} - Order ID: {order_id}")
@@ -201,14 +202,14 @@ class RebalancerService:
         
         return cancelled_orders
     
-    async def dry_run_rebalance(self, account_config: AccountConfig) -> RebalanceResult:
+    async def dry_run_rebalance(self, account_config: EventAccountConfig) -> RebalanceResult:
         # Log queue position
         waiting_accounts = [acc_id for acc_id, lock in self._account_locks.items() if lock.locked()]
         if waiting_accounts:
-            logger.info(f"Account {account_config.account_id} waiting for {len(waiting_accounts)} accounts: {waiting_accounts}")
+            logger.debug(f"Account {account_config.account_id} waiting for {len(waiting_accounts)} accounts: {waiting_accounts}")
         
         async with self._account_locks[account_config.account_id]:
-            logger.info(f"Account {account_config.account_id} acquired lock, starting dry run rebalance")
+            logger.debug(f"Account {account_config.account_id} acquired lock, starting dry run rebalance")
             try:
                 logger.info(f"Starting dry run rebalance for account {account_config.account_id}")
                 
@@ -224,7 +225,7 @@ class RebalancerService:
                     account_config
                 )
                 
-                await self._execute_orders(account_config.account_id, result.orders, dry_run=True)
+                await self._execute_orders(account_config.account_id, result.orders, "MKT", dry_run=True)
                 
                 return result
                 

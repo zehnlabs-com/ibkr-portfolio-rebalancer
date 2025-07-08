@@ -1,0 +1,91 @@
+### Test variables
+@baseUrl=https://rest.ably.io/channels
+@channelName=etf-blend-100-20
+@auth=5L7t7A.5-sblw:boStLcCJ1s7uO0e4J6E7zn6UFimIi_OrZrucMlb7KtM
+
+
+### Health Check - Check IBKR connection and system health
+POST {{baseUrl}}/{{channelName}}/messages
+Authorization: Basic {{auth}}
+Content-Type: application/json
+
+{ 
+  "data": { "exec": "health" }
+}
+
+### Print Positions - Log all current positions in the account
+POST {{baseUrl}}/{{channelName}}/messages
+Authorization: Basic {{auth}}
+Content-Type: application/json
+
+{
+  "data": { "exec": "print-positions" }
+}
+
+### Print Equity - Log total account value
+POST {{baseUrl}}/{{channelName}}/messages
+Authorization: Basic {{auth}}
+Content-Type: application/json
+
+{
+  "data": { "exec": "print-equity" }
+}
+
+### Print Orders - Log all pending orders
+POST {{baseUrl}}/{{channelName}}/messages
+Authorization: Basic {{auth}}
+Content-Type: application/json
+
+{
+  "data": { "exec": "print-orders" }
+}
+
+### Print Rebalance - Show what orders would be executed (dry run)
+POST {{baseUrl}}/{{channelName}}/messages
+Authorization: Basic {{auth}}
+Content-Type: application/json
+
+{
+  "data": { "exec": "print-rebalance" }
+}
+
+### Cancel Orders - Cancel all pending orders
+POST {{baseUrl}}/{{channelName}}/messages
+Authorization: Basic {{auth}}
+Content-Type: application/json
+
+{
+  "data": { "exec": "cancel-orders" }
+}
+
+### Rebalance - LIVE TRADING - Execute actual rebalance with real orders
+# WARNING: This will place actual orders in your brokerage account!
+# Only use this when you actually want to rebalance your portfolio
+POST {{baseUrl}}/{{channelName}}/messages
+Authorization: Basic {{auth}}
+Content-Type: application/json
+
+{
+  "data": { "exec": "rebalance" }
+}
+
+### Test Invalid Action - Should trigger an error
+POST {{baseUrl}}/{{channelName}}/messages
+Authorization: Basic {{auth}}
+Content-Type: application/json
+
+{
+  "data": { "exec": "invalid-action" }
+}
+
+### Test Missing exec - Should trigger an error requiring action specification
+POST {{baseUrl}}/{{channelName}}/messages
+Authorization: Basic {{auth}}
+Content-Type: application/json
+
+{
+  "data": { "message": "test without action" }
+}
+
+
+

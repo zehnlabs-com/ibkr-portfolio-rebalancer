@@ -1,9 +1,9 @@
 import asyncio
+import os
 import random
-import time
-from typing import List, Dict, Optional
-from asyncio_throttle import Throttler
-from ib_async import IB, Stock, Order, MarketOrder, LimitOrder, Contract
+from typing import List, Dict, Optional, Any
+# Removed asyncio_throttle to reduce async conflicts
+from ib_insync import IB, Stock, Order, MarketOrder, LimitOrder, Contract
 from app.config import config
 from app.logger import setup_logger
 from app.utils.retry import retry_with_config
@@ -13,58 +13,151 @@ logger = setup_logger(__name__)
 class IBKRClient:
     def __init__(self):
         self.ib = IB()
-        self.ib.RequestTimeout = 10.0
-        self.client_id = random.randint(1000, 9999)
+        self.ib.RequestTimeout = 10.0  # Match rebalancer-api timeout
+        
+        # Use fixed client ID from environment (like the working old code)
+        self.client_id = random.randint(1000, 2999)
         self.connected = False
         self.retry_count = 0
+        self._reconnect_attempts = 0
+        self._max_reconnect_attempts = 5
+        
+        # Add event handlers for connection management - temporarily disabled for debugging
+        # self.ib.disconnectedEvent += self._on_disconnected
+        # self.ib.errorEvent += self._on_error
         
         # Add synchronization locks
         self._connection_lock = asyncio.Lock()
         self._market_data_lock = asyncio.Lock()
         self._order_lock = asyncio.Lock()
         
-        # Rate limiter for historical data requests (50 requests per 10 minutes)
-        self._historical_throttler = Throttler(rate_limit=50, period=600)
+        # Simple rate limiting for historical data requests
+        self._last_historical_request = 0
+        self._min_request_interval = 12  # 12 seconds between requests (5 per minute)
         
         # Current market data type (1=live, 2=frozen, 3=delayed, 4=delayed-frozen)
         self._current_market_data_type = 1
     
     async def connect(self) -> bool:
-        if self.ib.isConnected():
+        if self.ib.isConnected():  # This method is synchronous and safe to use
             self.connected = True
             return True
         
         try:
-            await retry_with_config(
-                self._do_connect,
-                config.ibkr.connection_retry,
-                "IBKR Connection"
+            # Direct connection like the old working code
+            logger.info(f"Attempting to connect to IB Gateway at {config.ibkr.host}:{config.ibkr.port} with client ID {self.client_id}")
+            await self.ib.connectAsync(
+                host=config.ibkr.host,
+                port=config.ibkr.port,
+                clientId=self.client_id,
+                timeout=10  # Use same timeout as old working code
             )
+            logger.info(f"Successfully connected to IB Gateway at {config.ibkr.host}:{config.ibkr.port}")
             self.connected = True
             return True
+        except TimeoutError as e:
+            logger.error(f"Connection timeout to IB Gateway at {config.ibkr.host}:{config.ibkr.port}: {e}")
+            return False
+        except ConnectionRefusedError as e:
+            logger.error(f"Connection refused to IB Gateway at {config.ibkr.host}:{config.ibkr.port}: {e}")
+            return False
         except Exception as e:
-            logger.error(f"Failed to establish IBKR connection: {e}")
+            logger.error(f"Failed to connect to IB Gateway at {config.ibkr.host}:{config.ibkr.port}: {type(e).__name__}: {e}")
             return False
     
-    async def _do_connect(self):
-        """Internal connection method for retry logic"""
-        # Generate new client ID for each connection attempt to avoid conflicts
-        self.client_id = random.randint(1000, 9999)
-        await self.ib.connectAsync(
-            host=config.ibkr.host,
-            port=config.ibkr.port,
-            clientId=self.client_id
-        )
-        logger.info(f"Connected to IBKR with client ID {self.client_id}")
+    def _on_disconnected(self):
+        """Handle disconnection events"""
+        logger.warning("Connection lost - attempting to reconnect")
+        self.connected = False
+        # Don't block the event loop with reconnection
+        asyncio.create_task(self._handle_reconnection())
+    
+    def _on_error(self, reqId, errorCode, errorString, advancedOrderReject):
+        """Handle specific error codes"""
+        if errorCode == 326:  # Client ID already in use
+            logger.error(f"Client ID conflict: {errorString}")
+            asyncio.create_task(self._handle_client_id_conflict())
+        elif errorCode == 502:  # TWS not running
+            logger.error(f"TWS/Gateway not available: {errorString}")
+        else:
+            logger.error(f"IB Error {errorCode}: {errorString}")
+    
+    async def _handle_reconnection(self):
+        """Handle automatic reconnection with exponential backoff"""
+        while self._reconnect_attempts < self._max_reconnect_attempts:
+            try:
+                await asyncio.sleep(2 ** self._reconnect_attempts)  # Exponential backoff
+                if await self.connect():
+                    logger.info("Successfully reconnected")
+                    self._reconnect_attempts = 0
+                    return
+            except Exception as e:
+                logger.error(f"Reconnection attempt {self._reconnect_attempts + 1} failed: {e}")
+                self._reconnect_attempts += 1
+    
+    async def _handle_client_id_conflict(self):
+        """Handle client ID conflicts by incrementing ID and reconnecting"""
+        logger.debug("Handling client ID conflict - trying next client ID")
+        self.client_id = self.client_id + 1
+        await self.connect()
+    
     
     async def disconnect(self):
-        if self.ib.isConnected():
-            try:
+        try:
+            if self.ib.isConnected():
+                # Just disconnect without sleep - keep it simple
                 self.ib.disconnect()
                 self.connected = False
                 logger.info("Disconnected from IBKR")
-            except Exception as e:
-                logger.error(f"Error disconnecting from IBKR: {e}")
+        except Exception as e:
+            # Some ib_insync internal errors during disconnect are expected
+            logger.debug(f"Disconnect error (ignored): {e}")
+            pass
+    
+    async def __aenter__(self):
+        """Async context manager entry - connect to IB"""
+        # Start ib_insync event loop for this connection
+        from ib_insync import util
+        try:
+            # Try to start the loop if not already running
+            util.startLoop()
+        except RuntimeError:
+            # Loop is already running, which is fine
+            pass
+        
+        success = await self.connect()
+        if not success:
+            raise Exception("Failed to connect to IBKR")
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit - disconnect from IB"""
+        try:
+            await self.disconnect()
+        except Exception as e:
+            # Ignore disconnect errors - the connection cleanup will happen anyway
+            logger.debug(f"Disconnect error (ignored): {e}")
+            pass
+    
+    async def health_check(self) -> Dict[str, Any]:
+        """Simple health check that verifies IB connection is working"""
+        try:
+            # Test basic connection by getting managed accounts - use synchronous method
+            accounts = self.ib.managedAccounts()
+            return {
+                "status": "healthy",
+                "connected": True,
+                "accounts": list(accounts),
+                "client_id": self.client_id
+            }
+        except Exception as e:
+            logger.error(f"Health check failed: {e}")
+            return {
+                "status": "unhealthy", 
+                "connected": False,
+                "error": str(e),
+                "client_id": self.client_id
+            }
     
     async def get_account_value(self, account_id: str, tag: str = "NetLiquidation") -> float:
         if not await self.ensure_connected():
@@ -180,7 +273,7 @@ class IBKRClient:
             if remaining_symbols:
                 logger.warning(f"Unable to get prices for symbols: {remaining_symbols}")
             
-            logger.info(f"Successfully retrieved prices for {len(prices)}/{len(symbols)} symbols")
+            logger.debug(f"Successfully retrieved prices for {len(prices)}/{len(symbols)} symbols")
             return prices
     
     async def _get_market_prices_internal(self, symbols: List[str]) -> Dict[str, float]:
@@ -313,40 +406,40 @@ class IBKRClient:
             if not await self.ensure_connected():
                 raise Exception("Unable to establish IBKR connection")
             
-                try:
-                    open_orders = self.ib.openOrders()
-                    cancelled_orders = []
-                    
-                    for order in open_orders:
-                        if order.account == account_id:
-                            # Get contract symbol
-                            symbol = 'Unknown'
-                            if hasattr(order, 'contract') and order.contract:
-                                symbol = getattr(order.contract, 'symbol', 'Unknown')
-                            
-                            order_details = {
-                                'order_id': str(order.orderId),
-                                'symbol': symbol,
-                                'quantity': abs(order.totalQuantity),
-                                'action': order.action,
-                                'order_type': order.orderType,
-                                'status': 'OpenOrder'
-                            }
-                            cancelled_orders.append(order_details)
-                            
-                            self.ib.cancelOrder(order)
-                            logger.info(f"Cancelled order {order.orderId} for {account_id}: {order.action} {abs(order.totalQuantity)} {symbol}")
-                    
-                    if cancelled_orders:
-                        # Wait for all cancellations to be confirmed
-                        await self._wait_for_orders_cancelled(account_id, max_wait_seconds=60)
-                    
-                    logger.info(f"Cancelled {len(cancelled_orders)} pending orders for account {account_id}")
-                    return cancelled_orders
-                    
-                except Exception as e:
-                    logger.error(f"Failed to cancel orders for account {account_id}: {e}")
-                    raise
+            try:
+                open_orders = self.ib.openOrders()
+                cancelled_orders = []
+                
+                for order in open_orders:
+                    if order.account == account_id:
+                        # Get contract symbol
+                        symbol = 'Unknown'
+                        if hasattr(order, 'contract') and order.contract:
+                            symbol = getattr(order.contract, 'symbol', 'Unknown')
+                        
+                        order_details = {
+                            'order_id': str(order.orderId),
+                            'symbol': symbol,
+                            'quantity': abs(order.totalQuantity),
+                            'action': order.action,
+                            'order_type': order.orderType,
+                            'status': 'OpenOrder'
+                        }
+                        cancelled_orders.append(order_details)
+                        
+                        self.ib.cancelOrder(order)
+                        logger.info(f"Cancelled order {order.orderId} for {account_id}: {order.action} {abs(order.totalQuantity)} {symbol}")
+                
+                if cancelled_orders:
+                    # Wait for all cancellations to be confirmed
+                    await self._wait_for_orders_cancelled(account_id, max_wait_seconds=60)
+                
+                logger.info(f"Cancelled {len(cancelled_orders)} pending orders for account {account_id}")
+                return cancelled_orders
+                
+            except Exception as e:
+                logger.error(f"Failed to cancel orders for account {account_id}: {e}")
+                raise
     
     async def _wait_for_orders_cancelled(self, account_id: str, max_wait_seconds: int = 60):
         """Wait for all pending orders to be cancelled for the account"""
@@ -396,11 +489,17 @@ class IBKRClient:
         
         for symbol in symbols:
             try:
-                # Apply rate limiting for historical data requests
-                async with self._historical_throttler:
-                    price = await self._get_single_historical_price(symbol, include_extended_hours)
-                    if price:
-                        prices[symbol] = price
+                # Apply simple rate limiting for historical data requests
+                loop = asyncio.get_event_loop()
+                current_time = loop.time()
+                time_since_last = current_time - self._last_historical_request
+                if time_since_last < self._min_request_interval:
+                    await asyncio.sleep(self._min_request_interval - time_since_last)
+                
+                self._last_historical_request = loop.time()
+                price = await self._get_single_historical_price(symbol, include_extended_hours)
+                if price:
+                    prices[symbol] = price
             except Exception as e:
                 logger.error(f"Failed to get historical price for {symbol}: {e}")
         

@@ -1,23 +1,26 @@
-import aiohttp
 import json
+import aiohttp
 from typing import List, Dict
-from app.config import AccountConfig, config
+from app.config import config
+from app.models.account_config import EventAccountConfig
 from app.logger import setup_logger
 
 logger = setup_logger(__name__)
 
+
 class AllocationService:
     @staticmethod
-    async def get_allocations(account_config: AccountConfig) -> List[Dict[str, float]]:
+    async def get_allocations(account_config: EventAccountConfig) -> List[Dict[str, float]]:
         # Construct allocations URL from base URL and channel
         allocations_url = f"{config.allocations_base_url}/{account_config.notification.channel}/allocations"
         
         api_key = config.zehnlabs_fintech_api_key
         
         headers = {}
-        if api_key:
-            headers['Authorization'] = f'Bearer {api_key}'
+        if api_key:            
             headers['x-telegram-user-id'] = api_key
+
+        logger.debug(f"Retrieving allocations from {allocations_url} with API key {api_key}")
         
         try:
             async with aiohttp.ClientSession() as session:
@@ -28,7 +31,8 @@ class AllocationService:
                 ) as response:
                     
                     if response.status != 200:
-                        raise Exception(f"API returned status {response.status}: {await response.text()}")
+                        response_text = await response.text()
+                        raise Exception(f"API returned status {response.status}: {response_text}")
                     
                     data = await response.json()
                     
@@ -78,11 +82,11 @@ class AllocationService:
                     
                     return allocations
                     
-        except aiohttp.ClientError as e:
-            logger.error(f"HTTP error getting allocations: {e}")
-            raise
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON response from allocation API: {e}")
+            raise
+        except aiohttp.ClientError as e:
+            logger.error(f"HTTP error getting allocations: {e}")
             raise
         except Exception as e:
             logger.error(f"Error getting allocations: {e}")
