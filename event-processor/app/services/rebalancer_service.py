@@ -191,7 +191,9 @@ class RebalancerService:
                         account_id=account_id,
                         symbol=order.symbol,
                         quantity=quantity,
-                        order_type=order_type
+                        order_type=order_type,
+                        time_in_force=config.order.time_in_force,
+                        extended_hours=config.order.extended_hours_enabled
                     )
                     
                     logger.info(f"LIVE - Order placed: {order} - Order ID: {order_id}")

@@ -43,7 +43,6 @@ class PostgreSQLConfig:
 @dataclass
 class ProcessingConfig:
     max_retry_days: int
-    market_hours_buffer: int
     queue_timeout: int
     startup_max_attempts: int
     startup_delay: int
@@ -59,6 +58,12 @@ class LoggingConfig:
     level: str
     format: str
     retention_days: int
+
+@dataclass
+class OrderConfig:
+    order_type: str
+    time_in_force: str
+    extended_hours_enabled: bool
     
 class Config:
     def __init__(self, config_file: str = "config/config.yaml"):
@@ -100,7 +105,6 @@ class Config:
         processing_config = config_data["processing"]  # Required section
         self.processing = ProcessingConfig(
             max_retry_days=processing_config["max_retry_days"],
-            market_hours_buffer=processing_config["market_hours_buffer"],
             queue_timeout=processing_config["queue_timeout"],
             startup_max_attempts=processing_config["startup_max_attempts"],
             startup_delay=processing_config["startup_delay"],
@@ -120,6 +124,13 @@ class Config:
             level=logging_config["level"],
             format=logging_config["format"],
             retention_days=logging_config["retention_days"]
+        )
+        
+        # Order config (from environment variables)
+        self.order = OrderConfig(
+            order_type=os.getenv("ORDER_TYPE", "MKT"),
+            time_in_force=os.getenv("TIME_IN_FORCE", "DAY"),
+            extended_hours_enabled=os.getenv("EXTENDED_HOURS_ENABLED", "false").lower() == "true"
         )
         
         # Allocations API config (from YAML only)

@@ -38,9 +38,7 @@ class ServiceContainer:
         # Import here to avoid circular dependencies
         try:
             from app.services.rebalancer_service import RebalancerService
-            from app.services.market_hours import MarketHoursService
             self._services['rebalancer_service'] = RebalancerService(self._services['ibkr_client'])
-            self._services['market_hours_service'] = MarketHoursService(self._services['ibkr_client'])
             logger.info("Rebalancer services initialized successfully")
         except Exception as e:
             logger.error(f"CRITICAL: Could not initialize rebalancer services: {e}")

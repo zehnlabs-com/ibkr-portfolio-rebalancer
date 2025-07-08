@@ -3,7 +3,7 @@ import os
 import random
 from typing import List, Dict, Optional, Any
 # Removed asyncio_throttle to reduce async conflicts
-from ib_insync import IB, Stock, Order, MarketOrder, LimitOrder, Contract
+from ib_insync import IB, Stock, Order, LimitOrder, Contract
 from app.config import config
 from app.logger import setup_logger
 from app.utils.retry import retry_with_config
@@ -343,7 +343,8 @@ class IBKRClient:
                 except:
                     pass
     
-    async def place_order(self, account_id: str, symbol: str, quantity: int, order_type: str = "MKT") -> Optional[str]:
+    async def place_order(self, account_id: str, symbol: str, quantity: int, order_type: str = "MKT", 
+                         time_in_force: str = "DAY", extended_hours: bool = False) -> Optional[str]:
         async with self._order_lock:
             if not await self.ensure_connected():
                 raise Exception("Unable to establish IBKR connection")
@@ -353,13 +354,14 @@ class IBKRClient:
                     self._place_order_internal,
                     config.ibkr.order_retry,
                     "Order Placement",
-                    account_id, symbol, quantity, order_type
+                    account_id, symbol, quantity, order_type, time_in_force, extended_hours
                 )
             except Exception as e:
                 logger.error(f"Failed to place order after retries: {e}")
                 raise
     
-    async def _place_order_internal(self, account_id: str, symbol: str, quantity: int, order_type: str = "MKT") -> str:
+    async def _place_order_internal(self, account_id: str, symbol: str, quantity: int, order_type: str = "MKT", 
+                                   time_in_force: str = "DAY", extended_hours: bool = False) -> str:
         """Internal order placement method for retry logic"""
         contract = Stock(symbol, 'SMART', 'USD')
         
@@ -371,22 +373,28 @@ class IBKRClient:
         
         action = "BUY" if quantity > 0 else "SELL"
         
-        if order_type == "MKT":
-            order = MarketOrder(action, abs(quantity))
-        elif order_type == "MOC":
-            order = Order()
-            order.orderType = "MOC"
-            order.action = action
-            order.totalQuantity = abs(quantity)
-        else:
+        # Validate order type
+        if order_type not in ["MKT", "MOC"]:
             raise ValueError(f"Unsupported order type: {order_type}")
         
+        # Validate time in force
+        if time_in_force not in ["DAY", "GTC"]:
+            raise ValueError(f"Unsupported time in force: {time_in_force}. Only DAY and GTC are supported.")
+        
+        # Create order with specified type
+        order = Order()
+        order.orderType = order_type
+        order.action = action
+        order.totalQuantity = abs(quantity)
+        order.tif = time_in_force
+        order.outsideRth = extended_hours
         order.account = account_id
         
         trade = self.ib.placeOrder(contract, order)
-        logger.info(f"Placed order: {action} {abs(quantity)} shares of {symbol}")
+        orderId = trade.order.orderId
+        logger.info(f"Placed order: ID={orderId}; {action} {order_type} {abs(quantity)} shares of {symbol} (TIF: {time_in_force}, Extended: {extended_hours})")
         
-        return str(trade.order.orderId)
+        return str(orderId)
     
     async def cancel_all_orders(self, account_id: str) -> List[Dict]:
         """Cancel all pending orders for the given account.
@@ -475,12 +483,12 @@ class IBKRClient:
             # The reqCurrentTimeAsync() was causing hangs due to event loop issues
             return True
     
-    async def get_historical_price(self, symbol: str, include_extended_hours: bool = True) -> Optional[float]:
+    async def get_historical_price(self, symbol: str, include_extended_hours_enabled: bool = True) -> Optional[float]:
         """Get most recent price from historical data for a single symbol"""
-        prices = await self._get_historical_prices_batch([symbol], include_extended_hours)
+        prices = await self._get_historical_prices_batch([symbol], include_extended_hours_enabled)
         return prices.get(symbol)
     
-    async def _get_historical_prices_batch(self, symbols: List[str], include_extended_hours: bool = True) -> Dict[str, float]:
+    async def _get_historical_prices_batch(self, symbols: List[str], include_extended_hours_enabled: bool = True) -> Dict[str, float]:
         """Get historical prices for multiple symbols with rate limiting"""
         if not symbols:
             return {}
@@ -497,7 +505,7 @@ class IBKRClient:
                     await asyncio.sleep(self._min_request_interval - time_since_last)
                 
                 self._last_historical_request = loop.time()
-                price = await self._get_single_historical_price(symbol, include_extended_hours)
+                price = await self._get_single_historical_price(symbol, include_extended_hours_enabled)
                 if price:
                     prices[symbol] = price
             except Exception as e:
@@ -505,7 +513,7 @@ class IBKRClient:
         
         return prices
     
-    async def _get_single_historical_price(self, symbol: str, include_extended_hours: bool = True) -> Optional[float]:
+    async def _get_single_historical_price(self, symbol: str, include_extended_hours_enabled: bool = True) -> Optional[float]:
         """Get most recent historical price for a single symbol"""
         try:
             contract = Stock(symbol, 'SMART', 'USD')
@@ -525,7 +533,7 @@ class IBKRClient:
                 durationStr='1 D',  # Look back 1 day
                 barSizeSetting='1 min',
                 whatToShow='TRADES',
-                useRTH=not include_extended_hours,  # False = include extended hours
+                useRTH=not include_extended_hours_enabled,  # False = include extended hours
                 formatDate=1,
                 keepUpToDate=False
             )

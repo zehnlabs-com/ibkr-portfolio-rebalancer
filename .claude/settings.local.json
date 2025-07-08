@@ -29,7 +29,9 @@
       "WebFetch(domain:interactivebrokers.github.io)",
       "Bash(pip3 install:*)",
       "Bash(mv:*)",
-      "WebFetch(domain:www.interactivebrokers.com)"
+      "WebFetch(domain:www.interactivebrokers.com)",
+      "Bash(TIME_IN_FORCE=GTC python3 -c \"\nfrom app.config import config\nprint(''Order Configuration with GTC:'')\nprint(f''  Order Type: {config.order.order_type}'')\nprint(f''  Time in Force: {config.order.time_in_force}'')\nprint(f''  Extended Hours: {config.order.extended_hours_enabled}'')\n\")",
+      "Bash(EXTENDED_HOURS_ENABLED=true python3 -c \"\nfrom app.config import config\nprint(''Order Configuration with Extended Hours:'')\nprint(f''  Order Type: {config.order.order_type}'')\nprint(f''  Time in Force: {config.order.time_in_force}'')\nprint(f''  Extended Hours: {config.order.extended_hours_enabled}'')\n\")"
     ],
     "deny": []
   }
