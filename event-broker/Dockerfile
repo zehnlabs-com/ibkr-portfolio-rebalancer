@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code and configuration files
 COPY app/ ./app/
-COPY accounts.yaml .
+COPY ../accounts.yaml .
 COPY config.yaml .
 
 # Set Python path
