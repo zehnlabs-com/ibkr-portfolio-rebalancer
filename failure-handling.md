@@ -1,197 +1,180 @@
-# Rebalance Failure Handling Analysis
+# Failure Handling Implementation Plan
 
 ## Overview
-This document analyzes how the event-processor handles rebalance failures, identifies potential failure points, and assesses the robustness of the current implementation.
+This document outlines the systematic implementation of the new failure handling strategy for the event-processor system. The changes focus on indefinite event retention, improved deduplication, simplified retry logic, and a management service for monitoring and queue manipulation.
 
-## Rebalance Flow Summary
+## Phase 1: Queue Event Tracking Enhancement
+**Goal**: Add `times_queued` tracking and improve event deduplication
 
-The rebalance process follows this sequence:
-1. **Event Processing** (`event_processor.py:68-124`) - Receives rebalance events from Redis queue
-2. **Command Execution** (`rebalance.py:20-79`) - Executes rebalance command with error handling
-3. **Service Orchestration** (`rebalancer_service.py:36-68`) - Coordinates allocation retrieval, position fetching, and order execution
-4. **External Dependencies** - Allocation API, IBKR connection, market data, order placement
+### 1.1 Event Structure Updates
+- Add `times_queued` field to event data structure
+- Initialize to 1 when event is first created in event-processor
+- Increment on each requeue operation
 
-## Current Error Handling Mechanisms
+### 1.2 Event Deduplication System (Event Broker)
+- Modify event-broker deduplication from account-level to account+command-level
+- Change deduplication key from `{account_id}` to `{account_id}:{exec_command}`
+- Update Redis set from `queued_accounts` to `active_events`
+- Allow multiple command types per account (e.g., `print-rebalance` + `cancel-orders`)
+- Prevent duplicate commands per account (e.g., `rebalance` + `rebalance`)
 
-### 1. Top-Level Exception Handling
-- **Location**: `rebalance.py:69-79`
-- **Behavior**: Catches all exceptions and returns `CommandStatus.FAILED`
-- **Logging**: Logs error with event_id and account_id context
-- **Recovery**: No automatic retry at command level
+### 1.3 Queue Service Modifications (Event Processor)
+- Update `requeue_event()` to increment `times_queued`
+- Update `remove_from_queued()` to use new deduplication keys
+- Ensure compatibility with new event-broker deduplication system
 
-### 2. IBKR Client Retry Logic
-- **Connection Retries**: `ibkr_client.py:41-66`
-  - Max retries: 3 (configurable)
-  - Exponential backoff: 5s base, 2x multiplier, 60s max
-  - Jitter enabled to prevent thundering herd
-- **Order Placement Retries**: `ibkr_client.py:346-361`
-  - Max retries: 2 (configurable)
-  - Exponential backoff: 1s base, 2x multiplier, 10s max
-  - No jitter for orders to avoid duplicates
-- **Market Data Fallback**: `ibkr_client.py:219-277`
-  - Live → Frozen → Delayed → Historical data
-  - Robust price discovery with multiple data sources
+## Phase 2: IBKR Connection Retry Simplification
+**Goal**: Remove exponential backoff and jitter, use fixed delays
 
-### 3. Allocation Service Error Handling
-- **Location**: `allocation_service.py:25-93`
-- **HTTP Errors**: Proper status code checking and error messages
-- **Timeout**: 30-second timeout for API calls
-- **Validation**: Comprehensive response validation
-- **No Retry**: Single attempt only
+### 2.1 Configuration Updates
+- Simplify retry config structure in `config.py` and `config.yaml`
+- Remove `backoff_multiplier`, `jitter`, and `max_delay` fields
+- Keep `max_retries` and rename `base_delay` to `delay` (fixed delay)
+- Remove unused retry configuration parameters
 
-### 4. Queue-Level Error Handling
-- **Location**: `event_processor.py:118-124`
-- **Behavior**: Errors don't remove event from queue, enabling retry
-- **Logging**: Full error context with event_id and account_id
+### 2.2 Retry Logic Simplification
+- Update `retry_with_config()` in `utils/retry.py` to use fixed delays
+- Remove exponential backoff calculation
+- Remove jitter logic
+- Keep max_retries behavior with simple delay between attempts
 
-## Identified Failure Scenarios
+### 2.3 IBKR Client Updates
+- Update connection retry to use new simplified logic
+- Ensure fast failure when max retries exceeded
+- Remove unused retry configuration options
 
-### 1. Allocation API Failures
-**Current Handling**: ✅ Good
-- HTTP errors caught and logged
-- Proper timeout handling
-- Response validation
+## Phase 3: Management Service Implementation
+**Goal**: Create FastAPI service for queue management and health monitoring
 
-**Gaps**: ⚠️ Minor
-- No retry mechanism for transient failures
-- No circuit breaker for repeated failures
+### 3.1 Service Structure
+- Create new `management-service/` directory
+- Add FastAPI application with endpoints
+- Add Docker configuration
+- Add to docker-compose.yaml
 
-### 2. IBKR Connection Failures
-**Current Handling**: ✅ Excellent
-- Comprehensive retry logic with exponential backoff
-- Multiple connection error types handled
-- Automatic reconnection attempts
-- Connection health checks
+### 3.2 Core Endpoints
+- `GET /health` - Check for events with `times_queued > 1` (healthy if none exist)
+- `GET /queue/status` - Queue length, stats, oldest event info
+- `GET /queue/events` - List events with retry counts and details
+- `DELETE /queue/events/{event_id}` - Remove specific event (API key required)
+- `POST /queue/events` - Add event manually (API key required)
 
-**Gaps**: ✅ None identified
+### 3.3 Security Implementation
+- Add API key authentication for mutation operations (DELETE, POST)
+- Secure DELETE and POST endpoints with header-based API key
+- Add API key configuration via environment variable
 
-### 3. Market Data Failures
-**Current Handling**: ✅ Excellent
-- Multi-tier fallback strategy (live → frozen → delayed → historical)
-- Graceful degradation for missing symbols
-- Rate limiting for historical data requests
+### 3.4 Queue Management Logic
+- Implement Redis queue inspection capabilities
+- Add event manipulation capabilities (add/remove)
+- Add proper error handling and logging
+- Connect to same Redis instance as event-processor
+- Work with new account+command-level deduplication system
 
-**Gaps**: ✅ None identified
+## Phase 4: Event Processing Updates
+**Goal**: Integrate new failure handling with event processor
 
-### 4. Order Placement Failures
-**Current Handling**: ✅ Good
-- Retry logic with appropriate limits
-- Order validation (type, time-in-force)
-- Proper error logging
+### 4.1 Event Processing Flow
+- Update event processing to work with new deduplication system
+- Ensure proper `times_queued` tracking on requeue
+- Update failure handling to use new simplified retry logic
+- Maintain indefinite event retention (no dead letter queue)
 
-**Gaps**: ⚠️ Minor
-- Individual order failures don't stop entire rebalance
-- No partial success handling
+### 4.2 Remove Health Command
+- Remove `health_check.py` command file
+- Update command factory to exclude health command
+- Clean up related imports and references
 
-### 5. Order Cancellation Failures
-**Current Handling**: ✅ Good
-- 60-second timeout for cancellation confirmation
-- Prevents conflicting orders during rebalance
-- Proper error handling
+### 4.3 Integration Updates
+- Ensure event processor works with new queue service methods
+- Update error handling to increment retry counters properly
+- Maintain current account locking mechanism
+- Update queue cleanup to use new deduplication keys
 
-**Gaps**: ✅ None identified
+## Phase 5: Documentation and Configuration
+**Goal**: Update documentation and ensure proper configuration
 
-### 6. Database/Redis Failures
-**Current Handling**: ⚠️ Moderate
-- Queue operations have error handling
-- Connection pooling configured
+### 5.1 README Updates
+- Document new error handling strategy
+- Add management service usage instructions
+- Add troubleshooting guide with common scenarios
+- Document API endpoints and authentication
 
-**Gaps**: ⚠️ Moderate
-- No retry mechanism for Redis operations
-- No circuit breaker patterns
+### 5.2 Configuration Management
+- Update config.yaml with simplified retry settings
+- Add management service configuration section
+- Remove unused configuration parameters
+- Add environment variable documentation for API keys
 
-## Failure Points Not Currently Handled
+### 5.3 Docker and Deployment
+- Update docker-compose.yaml to include management service
+- Add management service container configuration
+- Update health check configurations to use new endpoint
+- Ensure proper service networking
 
-### 1. Partial Order Execution
-**Issue**: If some orders succeed and others fail, the portfolio ends up in an inconsistent state
-**Current Behavior**: Logs errors but doesn't track partial success
-**Risk**: Medium - Could lead to unbalanced portfolios
+## Implementation Files to Modify/Create
 
-### 2. Account Locking Failures
-**Issue**: If the account lock mechanism fails, concurrent rebalances could occur
-**Current Behavior**: Uses asyncio.Lock per account (in-memory only)
-**Risk**: Low - Only affects single instance, distributed locking not implemented
+### Modified Files:
+- `event-broker/app/services/queue_service.py` - Update deduplication to account+command level
+- `event-processor/app/services/queue_service.py` - Add times_queued tracking, update cleanup
+- `event-processor/app/utils/retry.py` - Simplify retry logic, remove exponential backoff
+- `event-processor/app/config.py` - Remove unused retry config fields
+- `event-processor/config/config.yaml` - Simplify retry configuration
+- `event-processor/app/core/event_processor.py` - Update to use new queue methods
+- `event-processor/app/commands/factory.py` - Remove health command
+- `docker-compose.yaml` - Add management service
+- `README.md` - Document new error handling strategy
+- `failure-handling.md` - This implementation plan
 
-### 3. Configuration Validation
-**Issue**: Invalid account configurations could cause failures
-**Current Behavior**: Basic validation in `EventAccountConfig`
-**Risk**: Low - Validated at event creation time
+### New Files:
+- `management-service/` (entire directory structure)
+- `management-service/app/main.py` - FastAPI application
+- `management-service/app/queue_manager.py` - Queue inspection and manipulation
+- `management-service/app/health.py` - Health check logic
+- `management-service/requirements.txt` - Python dependencies
+- `management-service/Dockerfile` - Container configuration
 
-### 4. Resource Exhaustion
-**Issue**: High memory/CPU usage during concurrent rebalances
-**Current Behavior**: Per-account locking limits concurrency
-**Risk**: Low - Built-in rate limiting via locks
+### Removed Files:
+- `event-processor/app/commands/health_check.py` - Health command no longer needed
 
-## Robustness Assessment
+## Configuration Changes
 
-### Strengths
-1. **Comprehensive IBKR Error Handling**: Excellent retry mechanisms and fallback strategies
-2. **Market Data Resilience**: Multi-tier fallback ensures price discovery
-3. **Order Management**: Proper cancellation and conflict prevention
-4. **Event-Driven Architecture**: Failed events remain in queue for retry
-5. **Logging**: Comprehensive error logging with context
-
-### Areas for Improvement
-
-#### 1. Allocation API Resilience
-**Priority**: Medium
-**Recommendation**: Add retry mechanism for allocation API calls
-```python
-# In allocation_service.py
-async def get_allocations(self, account_config: EventAccountConfig) -> List[Dict[str, float]]:
-    return await retry_with_config(
-        self._get_allocations_internal,
-        config.allocation.retry,  # Add retry config
-        "Allocation API",
-        account_config
-    )
+### Simplified Retry Configuration (config.yaml):
+```yaml
+ibkr:
+  connection_retry:
+    max_retries: 3
+    delay: 5  # Fixed delay in seconds
+  order_retry:
+    max_retries: 2
+    delay: 1  # Fixed delay in seconds
 ```
 
-#### 2. Partial Failure Handling
-**Priority**: Medium
-**Recommendation**: Track order execution results and implement rollback or continuation strategies
-```python
-# In rebalancer_service.py
-class OrderExecutionResult:
-    def __init__(self):
-        self.successful_orders = []
-        self.failed_orders = []
-        self.partial_success = False
+### Management Service Configuration:
+```yaml
+management:
+  api_key_header: "X-API-Key"
+  redis_connection: "redis://redis:6379/0"
 ```
 
-#### 3. Circuit Breaker Pattern
-**Priority**: Low
-**Recommendation**: Implement circuit breakers for external dependencies
-- Allocation API circuit breaker
-- IBKR connection circuit breaker
+### Environment Variables:
+- `MANAGEMENT_API_KEY` - API key for queue manipulation endpoints
 
-#### 4. Dead Letter Queue
-**Priority**: Low
-**Recommendation**: Implement dead letter queue for events that fail repeatedly
-- Move events to DLQ after N failures
-- Manual intervention required for DLQ events
+## Deduplication Strategy
+- **Event Broker**: Prevents duplicate `{account_id}:{exec_command}` combinations
+- **Event Processor**: Cleans up deduplication keys on successful completion
+- **Management Service**: Can view and manipulate events by account+command combination
 
-#### 5. Health Check Improvements
-**Priority**: Low
-**Recommendation**: Add end-to-end health checks
-- Allocation API connectivity
-- IBKR market data availability
-- Order placement capability
+## Health Check Strategy
+- External monitoring tools can call `GET /health` on management service
+- Healthy: No events with `times_queued > 1`
+- Unhealthy: One or more events with `times_queued > 1`
+- This provides early warning of systemic issues
 
-## Conclusion
-
-The current failure handling implementation is **robust** with excellent coverage for the most critical failure scenarios. The IBKR client has particularly strong error handling with comprehensive retry mechanisms and fallback strategies.
-
-**Key Strengths**:
-- Comprehensive IBKR error handling
-- Event-driven retry mechanism
-- Proper logging and monitoring
-- Account-level locking prevents conflicts
-
-**Recommended Improvements** (in order of priority):
-1. Add retry mechanism for allocation API calls
-2. Implement partial failure tracking and handling
-3. Add circuit breaker patterns for external dependencies
-4. Implement dead letter queue for persistent failures
-
-The system is **production-ready** with its current error handling, but the recommended improvements would enhance resilience further.
+## Error Handling Philosophy
+1. **No Event Loss**: Events remain in queue indefinitely
+2. **Command-Level Deduplication**: Only one event per account+command combination
+3. **Fast Failure**: IBKR retries fail quickly to keep queue moving
+4. **Visibility**: Management service provides full queue visibility
+5. **Manual Control**: Operators can manipulate queue when needed
+6. **Monitoring**: Health endpoint enables external monitoring integration
