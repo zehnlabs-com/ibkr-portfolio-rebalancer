@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS rebalance_events (
     completed_at TIMESTAMP,
     retry_count INTEGER DEFAULT 0,
     first_failed_date DATE,
+    times_queued INTEGER DEFAULT 1,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
@@ -48,7 +49,8 @@ SELECT
     started_at,
     completed_at,
     (completed_at - started_at) AS processing_duration,
-    retry_count
+    retry_count,
+    times_queued
 FROM rebalance_events 
 WHERE received_at >= NOW() - INTERVAL '7 days'
 ORDER BY received_at DESC;

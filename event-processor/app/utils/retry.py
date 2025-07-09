@@ -1,5 +1,4 @@
 import asyncio
-import random
 import logging
 from typing import Callable, Any, Optional, Union
 from app.config import RetryConfig
@@ -46,10 +45,10 @@ async def retry_with_config(
             last_exception = e
             
             if attempt < retry_config.max_retries:
-                delay = _calculate_delay(attempt, retry_config)
+                delay = retry_config.delay
                 logger.warning(
                     f"{operation_name}: Attempt {attempt + 1} failed: {e}. "
-                    f"Retrying in {delay:.2f} seconds..."
+                    f"Retrying in {delay} seconds..."
                 )
                 await asyncio.sleep(delay)
             else:
@@ -57,27 +56,3 @@ async def retry_with_config(
     
     raise last_exception
 
-def _calculate_delay(attempt: int, retry_config: RetryConfig) -> float:
-    """
-    Calculate delay for next retry attempt using exponential backoff with optional jitter.
-    
-    Args:
-        attempt: Current attempt number (0-based)
-        retry_config: RetryConfig object with delay parameters
-        
-    Returns:
-        Delay in seconds
-    """
-    # Exponential backoff: base_delay * (backoff_multiplier ^ attempt)
-    delay = retry_config.base_delay * (retry_config.backoff_multiplier ** attempt)
-    
-    # Cap at max_delay
-    delay = min(delay, retry_config.max_delay)
-    
-    # Add jitter if enabled (randomize ±20% of delay)
-    if retry_config.jitter:
-        jitter_range = delay * 0.2
-        delay += random.uniform(-jitter_range, jitter_range)
-        delay = max(0.1, delay)  # Ensure minimum delay of 0.1 seconds
-    
-    return delay

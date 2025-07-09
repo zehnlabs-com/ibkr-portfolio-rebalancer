@@ -20,18 +20,12 @@ ibkr:
   # Retry configuration for IBKR connection
   connection_retry:
     max_retries: 3
-    base_delay: 5          # seconds
-    max_delay: 60          # seconds
-    backoff_multiplier: 2.0
-    jitter: true           # add randomization to prevent thundering herd  
+    delay: 5               # Fixed delay in seconds
   
   # Retry configuration for order operations
   order_retry:
     max_retries: 2         # fewer retries for orders to avoid duplicates
-    base_delay: 1          # seconds
-    max_delay: 10          # seconds
-    backoff_multiplier: 2.0
-    jitter: false
+    delay: 1               # Fixed delay in seconds
 
 processing:
   max_retry_days: 7

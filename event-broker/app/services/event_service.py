@@ -5,7 +5,7 @@ import asyncio
 import asyncpg
 import json
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from app.config import config
 from app.logger import setup_logger
 
@@ -58,7 +58,7 @@ class EventService:
                     account_id,
                     'pending',
                     json.dumps(payload),
-                    datetime.utcnow()
+                    datetime.now(timezone.utc)
                 )
                 
             logger.info(f"Event created in database", extra={
@@ -85,7 +85,7 @@ class EventService:
                         WHERE event_id = $3
                         """,
                         status,
-                        datetime.utcnow(),
+                        datetime.now(timezone.utc),
                         event_id
                     )
                 elif status in ['completed', 'failed']:
@@ -96,7 +96,7 @@ class EventService:
                         WHERE event_id = $4
                         """,
                         status,
-                        datetime.utcnow(),
+                        datetime.now(timezone.utc),
                         error_message,
                         event_id
                     )

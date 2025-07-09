@@ -1,5 +1,5 @@
 from typing import Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel
 
 class QueueEvent(BaseModel):
@@ -8,7 +8,8 @@ class QueueEvent(BaseModel):
     data: Dict[str, Any]
     retry_count: int = 0
     first_failed_date: datetime = None
-    created_at: datetime = datetime.utcnow()
+    times_queued: int
+    created_at: datetime
 
 class ProcessingResult(BaseModel):
     event_id: str

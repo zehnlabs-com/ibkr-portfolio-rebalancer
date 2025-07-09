@@ -10,10 +10,7 @@ import re
 @dataclass
 class RetryConfig:
     max_retries: int
-    base_delay: int
-    max_delay: int
-    backoff_multiplier: float
-    jitter: bool
+    delay: int
 
 @dataclass
 class IBKRConfig:
@@ -170,10 +167,7 @@ class Config:
         """Load retry configuration from YAML - no environment overrides"""
         return RetryConfig(
             max_retries=retry_config["max_retries"],
-            base_delay=retry_config["base_delay"],
-            max_delay=retry_config["max_delay"],
-            backoff_multiplier=retry_config["backoff_multiplier"],
-            jitter=retry_config["jitter"]
+            delay=retry_config["delay"]
         )
     
     # Note: _load_accounts method removed - account configs now come from event payloads

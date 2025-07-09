@@ -4,7 +4,6 @@ Command factory for creating and registering event commands.
 
 from typing import Dict, Any, Type, Optional
 from app.commands.base import EventCommand
-from app.commands.health_check import HealthCheckCommand
 from app.commands.print_positions import PrintPositionsCommand
 from app.commands.print_equity import PrintEquityCommand
 from app.commands.print_orders import PrintOrdersCommand
@@ -25,7 +24,6 @@ class CommandFactory:
     
     def _register_default_commands(self):
         """Register default command implementations"""
-        self.register_command("health", HealthCheckCommand)
         self.register_command("print-positions", PrintPositionsCommand)
         self.register_command("print-equity", PrintEquityCommand)
         self.register_command("print-orders", PrintOrdersCommand)

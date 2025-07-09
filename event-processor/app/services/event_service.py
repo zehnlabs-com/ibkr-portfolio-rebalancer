@@ -3,7 +3,7 @@ PostgreSQL Event Service for Event Processor
 """
 import json
 from typing import Dict, Any, Optional
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from app.database import db_manager
 from app.logger import setup_logger
 
@@ -27,7 +27,7 @@ class EventService:
                     WHERE event_id = $3
                     """,
                     status,
-                    datetime.utcnow(),
+                    datetime.now(timezone.utc),
                     event_id
                 )
             elif status in ['completed', 'failed']:
@@ -38,7 +38,7 @@ class EventService:
                     WHERE event_id = $4
                     """,
                     status,
-                    datetime.utcnow(),
+                    datetime.now(timezone.utc),
                     error_message,
                     event_id
                 )
@@ -123,6 +123,34 @@ class EventService:
         except Exception as e:
             logger.error(f"Failed to increment retry count for event {event_id}: {e}")
             raise
+
+    async def update_times_queued(self, event_id: str, times_queued: int) -> None:
+        """
+        Update times_queued field for an event
+        
+        Args:
+            event_id: Event ID
+            times_queued: New times_queued value
+        """
+        try:
+            await self.db.execute_command(
+                """
+                UPDATE rebalance_events 
+                SET times_queued = $1 
+                WHERE event_id = $2
+                """,
+                times_queued,
+                event_id
+            )
+            
+            logger.info(f"Event times_queued updated", extra={
+                'event_id': event_id,
+                'times_queued': times_queued
+            })
+            
+        except Exception as e:
+            logger.error(f"Failed to update times_queued for event {event_id}: {e}")
+            raise
     
     async def should_retry(self, event_id: str, max_retry_days: int) -> bool:
         """
@@ -167,7 +195,7 @@ class EventService:
         """Get event statistics"""
         try:
             # Get counts by status for last 24 hours
-            result = await self.db.execute_query(
+            status_result = await self.db.execute_query(
                 """
                 SELECT 
                     status,
@@ -178,7 +206,19 @@ class EventService:
                 """
             )
             
-            stats = {row['status']: row['count'] for row in result}
+            # Get events with high queue counts
+            retry_result = await self.db.execute_query(
+                """
+                SELECT 
+                    COUNT(*) as count
+                FROM rebalance_events 
+                WHERE times_queued > 1
+                """
+            )
+            
+            stats = {row['status']: row['count'] for row in status_result}
+            stats['events_with_retries'] = retry_result[0]['count'] if retry_result else 0
+            
             return stats
             
         except Exception as e:
