@@ -23,6 +23,11 @@ This document outlines the systematic implementation of the new failure handling
 - Update `remove_from_queued()` to use new deduplication keys
 - Ensure compatibility with new event-broker deduplication system
 
+### 1.4 Database Schema Updates
+- Add `times_queued` column to existing `rebalance_events` table
+- Default value: 1 (initialized when event is first created)
+- Update database queries to handle new field
+
 ## Phase 2: IBKR Connection Retry Simplification
 **Goal**: Remove exponential backoff and jitter, use fixed delays
 
@@ -79,6 +84,8 @@ This document outlines the systematic implementation of the new failure handling
 - Ensure proper `times_queued` tracking on requeue
 - Update failure handling to use new simplified retry logic
 - Maintain indefinite event retention (no dead letter queue)
+- **Implement automatic requeue**: Failed events are automatically requeued by event processor
+- **Queue ordering**: Failed events go to back of queue (FIFO retry behavior)
 
 ### 4.2 Remove Health Command
 - Remove `health_check.py` command file
@@ -116,12 +123,16 @@ This document outlines the systematic implementation of the new failure handling
 
 ### Modified Files:
 - `event-broker/app/services/queue_service.py` - Update deduplication to account+command level
-- `event-processor/app/services/queue_service.py` - Add times_queued tracking, update cleanup
+- `event-processor/app/services/queue_service.py` - Add times_queued tracking, update cleanup, add automatic requeue
 - `event-processor/app/utils/retry.py` - Simplify retry logic, remove exponential backoff
 - `event-processor/app/config.py` - Remove unused retry config fields
 - `event-processor/config/config.yaml` - Simplify retry configuration
-- `event-processor/app/core/event_processor.py` - Update to use new queue methods
+- `event-processor/app/core/event_processor.py` - Update to use new queue methods and automatic requeue
 - `event-processor/app/commands/factory.py` - Remove health command
+- `event-processor/app/models/events.py` - Add times_queued field
+- `event-processor/app/models/queue.py` - Add times_queued field
+- `event-processor/app/services/event_service.py` - Update database queries for times_queued
+- `init.sql` - Add times_queued column to rebalance_events table
 - `docker-compose.yaml` - Add management service
 - `README.md` - Document new error handling strategy
 - `failure-handling.md` - This implementation plan
@@ -172,9 +183,11 @@ management:
 - This provides early warning of systemic issues
 
 ## Error Handling Philosophy
-1. **No Event Loss**: Events remain in queue indefinitely
+1. **No Event Loss**: Events remain in queue indefinitely with automatic requeue
 2. **Command-Level Deduplication**: Only one event per account+command combination
 3. **Fast Failure**: IBKR retries fail quickly to keep queue moving
 4. **Visibility**: Management service provides full queue visibility
 5. **Manual Control**: Operators can manipulate queue when needed
 6. **Monitoring**: Health endpoint enables external monitoring integration
+7. **Indefinite Retry**: No limits on `times_queued` - events retry until successful
+8. **FIFO Retry**: Failed events go to back of queue to maintain fair processing order
