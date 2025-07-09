@@ -2,7 +2,6 @@ ib-insync==0.9.86
 python-dotenv==1.0.0
 loguru==0.7.2
 redis==5.0.1
-asyncpg==0.29.0
 PyYAML==6.0.1
 nest-asyncio==1.5.8
 pydantic==2.5.2

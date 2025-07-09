@@ -8,13 +8,6 @@ redis:
   port: 6379
   db: 0
 
-# PostgreSQL Configuration
-postgresql:
-  host: postgres
-  port: 5432
-  database: portfolio_rebalancer
-  username: postgres
-  password: postgres
 
 # Ably Realtime Configuration
 ably:
@@ -29,14 +22,3 @@ application:
 allocations:
   base_url: "https://workers.fintech.zehnlabs.com/api/v1/strategies"
 
-# Development/Testing Overrides (optional)
-# Uncomment and modify for different environments
-# development:
-#   rebalancer_api:
-#     url: "http://localhost:8000"
-#   application:
-#     log_level: "DEBUG"
-
-# production:
-#   application:
-#     log_level: "WARNING"

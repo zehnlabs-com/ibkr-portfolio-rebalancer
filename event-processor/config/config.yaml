@@ -4,12 +4,7 @@ redis:
   db: 0
   max_connections: 10
 
-postgresql:
-  host: postgres
-  port: 5432
-  database: portfolio_rebalancer
-  username: postgres
-  password: postgres
+# PostgreSQL configuration removed
 
 ibkr:
   # Connection settings

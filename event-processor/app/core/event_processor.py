@@ -89,11 +89,8 @@ class EventProcessor:
         })
         
         queue_service = self.service_container.get_queue_service()
-        event_service = self.service_container.get_event_service()
-        
         try:
-            # Update database with times_queued
-            await event_service.update_times_queued(event_id, times_queued)
+            # Times queued tracking now handled in Redis only
             
             # Get command factory and create command
             command_factory = self.service_container.get_command_factory()
@@ -157,10 +154,7 @@ class EventProcessor:
             return
         
         try:
-            # Update database with failure status
-            event_service = self.service_container.get_event_service()
-            await event_service.update_status(event_id, 'failed', error_message)
-            await event_service.increment_retry(event_id)
+            # Failure tracking now handled in Redis only
             
             # Requeue event automatically (goes to back of queue)
             queue_service = self.service_container.get_queue_service()

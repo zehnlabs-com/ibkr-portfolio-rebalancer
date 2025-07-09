@@ -29,13 +29,7 @@ class RedisConfig:
     db: int
     max_connections: int
 
-@dataclass
-class PostgreSQLConfig:
-    host: str
-    port: int
-    database: str
-    username: str
-    password: str
+# PostgreSQL configuration removed
 
 @dataclass
 class ProcessingConfig:
@@ -88,15 +82,7 @@ class Config:
             max_connections=redis_config["max_connections"]
         )
         
-        # PostgreSQL config
-        postgres_config = config_data["postgresql"]  # Required section
-        self.postgresql = PostgreSQLConfig(
-            host=os.getenv("POSTGRES_HOST", postgres_config["host"]),
-            port=postgres_config["port"],
-            database=postgres_config["database"],
-            username=postgres_config["username"],
-            password=postgres_config["password"]
-        )
+        # PostgreSQL config removed
         
         # Processing config
         processing_config = config_data["processing"]  # Required section
@@ -150,7 +136,7 @@ class Config:
                 raise ValueError(f"Config file {config_file} is empty")
             
             # Validate required sections exist
-            required_sections = ["ibkr", "redis", "postgresql", "processing", "allocation", "logging"]
+            required_sections = ["ibkr", "redis", "processing", "allocation", "logging"]
             for section in required_sections:
                 if section not in config_data:
                     raise ValueError(f"Required configuration section '{section}' missing from {config_file}")

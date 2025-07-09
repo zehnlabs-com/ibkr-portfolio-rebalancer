@@ -4,7 +4,6 @@ Application service for managing application lifecycle.
 
 from app.core.service_container import ServiceContainer
 from app.core.signal_handler import SignalHandler
-from app.database import db_manager
 from app.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -39,18 +38,12 @@ class ApplicationService:
     async def stop(self):
         """Stop the application services"""
         if not self.running:
-            return
-            
-        logger.info("Stopping application services...")
-        self.running = False
+            return            
         
-        try:
-            # Close database connection pool
-            await db_manager.close_connection_pool()
-            
-            logger.info("Application services stopped successfully")
-        except Exception as e:
-            logger.error(f"Error stopping application services: {e}")
+        self.running = False
+
+        logger.info("Application services stopped successfully")
+        
     
     def get_service_container(self) -> ServiceContainer:
         """Get the service container"""

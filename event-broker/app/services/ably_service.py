@@ -9,7 +9,6 @@ from ably import AblyRealtime
 from app.logger import setup_logger
 from app.config import config
 from app.services.queue_service import QueueService
-from app.services.event_service import EventService
 
 logger = setup_logger(__name__, level=config.LOG_LEVEL)
 
@@ -34,7 +33,6 @@ class AblyEventSubscriber:
         self.api_key = config.REALTIME_API_KEY
         self.ably: Optional[AblyRealtime] = None
         self.queue_service = QueueService()
-        self.event_service = EventService()
         self.accounts: List[AccountConfig] = []
         self.channels: Dict[str, Any] = {}
         self.running = False
@@ -46,8 +44,6 @@ class AblyEventSubscriber:
             return
             
         try:
-            # Initialize database connection pool
-            await self.event_service.init_connection_pool()
             
             # Load account configurations
             await self._load_accounts()
@@ -65,7 +61,7 @@ class AblyEventSubscriber:
             # Subscribe to channels for all accounts
             await self._subscribe_to_channels()
             
-            # Verify Redis and PostgreSQL connectivity
+            # Verify Redis connectivity
             await self._verify_services_health()
             
             self.running = True
@@ -97,8 +93,6 @@ class AblyEventSubscriber:
             except Exception as e:
                 logger.error(f"Error closing Ably connection: {e}")
         
-        # Close database connection pool
-        await self.event_service.close_connection_pool()
         
         logger.info("Stopped Ably Event Broker")
     
@@ -152,7 +146,7 @@ class AblyEventSubscriber:
     
     async def _handle_event(self, message, account: AccountConfig):
         """
-        Handle incoming events by enqueuing to Redis and tracking in PostgreSQL
+        Handle incoming events by enqueuing to Redis
         
         Args:
             message: Ably message object
@@ -199,8 +193,6 @@ class AblyEventSubscriber:
             event_id = await self.queue_service.enqueue_event(account.account_id, enhanced_payload)
             
             if event_id:
-                # Track event in PostgreSQL
-                await self.event_service.create_event(event_id, account.account_id, enhanced_payload)
                 
                 logger.info(f"Event enqueued successfully", extra={
                     'event_id': event_id,
@@ -212,14 +204,9 @@ class AblyEventSubscriber:
             
         except Exception as e:
             logger.error(f"Error handling event for account {account.account_id}: {e}")
-            if event_id:
-                try:
-                    await self.event_service.update_event_status(event_id, 'failed', str(e))
-                except:
-                    pass  # Don't fail on logging failure
     
     async def _verify_services_health(self):
-        """Verify that Redis and PostgreSQL are accessible"""
+        """Verify that Redis is accessible"""
         try:
             # Check Redis connectivity
             if self.queue_service.is_connected():
@@ -227,11 +214,8 @@ class AblyEventSubscriber:
             else:
                 logger.warning("Redis connectivity check failed")
                 
-            # Check PostgreSQL connectivity
-            if await self.event_service.is_connected():
-                logger.info("PostgreSQL connectivity check passed")
-            else:
-                logger.warning("PostgreSQL connectivity check failed")
+            # PostgreSQL connectivity check removed
+            logger.info("PostgreSQL audit logging disabled")
                 
         except Exception as e:
             logger.error(f"Failed to verify services health: {e}")
@@ -273,7 +257,6 @@ class AblyEventSubscriber:
             "channels_count": len(self.channels),
             "ably_connected": self.ably.connection.state == 'connected' if self.ably else False,
             "redis_connected": False,
-            "postgresql_connected": False,
             "queue_length": 0,
             "queued_accounts": 0
         }
@@ -285,9 +268,5 @@ class AblyEventSubscriber:
         except:
             pass
             
-        try:
-            status["postgresql_connected"] = await self.event_service.is_connected()
-        except:
-            pass
         
         return status

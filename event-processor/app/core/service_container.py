@@ -4,7 +4,6 @@ Service container for dependency injection.
 
 from typing import Dict, Any, Optional, TypeVar, Type
 from app.services.queue_service import QueueService
-from app.services.event_service import EventService
 from app.services.ibkr_client import IBKRClient
 from app.commands.factory import CommandFactory
 from app.logger import setup_logger
@@ -30,7 +29,6 @@ class ServiceContainer:
         
         # Initialize core services
         self._services['queue_service'] = QueueService()
-        self._services['event_service'] = EventService()
         self._services['ibkr_client'] = IBKRClient()
         self._services['command_factory'] = CommandFactory()
         
@@ -71,9 +69,6 @@ class ServiceContainer:
         """Get the queue service instance"""
         return self.get_service('queue_service')
     
-    def get_event_service(self) -> EventService:
-        """Get the event service instance"""
-        return self.get_service('event_service')
     
     def get_ibkr_client(self) -> IBKRClient:
         """Get the IBKR client instance"""

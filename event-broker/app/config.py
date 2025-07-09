@@ -15,13 +15,6 @@ class RedisConfig:
     db: int
 
 
-@dataclass
-class PostgreSQLConfig:
-    host: str
-    port: int
-    database: str
-    username: str
-    password: str
 
 
 @dataclass
@@ -53,15 +46,7 @@ class Config:
             db=redis_config["db"]
         )
         
-        # PostgreSQL config
-        postgres_config = config_data["postgresql"]
-        self.postgresql = PostgreSQLConfig(
-            host=os.getenv("POSTGRES_HOST", postgres_config["host"]),
-            port=postgres_config["port"],
-            database=postgres_config["database"],
-            username=postgres_config["username"],
-            password=postgres_config["password"]
-        )
+        # PostgreSQL config removed
         
         # Ably config (from YAML only - not user configurable)
         ably_config = config_data["ably"]
@@ -98,7 +83,7 @@ class Config:
                 raise ValueError(f"Config file {config_file} is empty")
             
             # Validate required sections exist
-            required_sections = ["redis", "postgresql", "ably", "application", "allocations"]
+            required_sections = ["redis", "ably", "application", "allocations"]
             for section in required_sections:
                 if section not in config_data:
                     raise ValueError(f"Required configuration section '{section}' missing from {config_file}")
