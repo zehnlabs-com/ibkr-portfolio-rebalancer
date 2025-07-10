@@ -6,6 +6,7 @@ import asyncio
 from typing import Dict, Any
 from app.core.service_container import ServiceContainer
 from app.commands.base import CommandStatus
+from app.config import config
 from app.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -17,6 +18,7 @@ class EventProcessor:
     def __init__(self, service_container: ServiceContainer):
         self.service_container = service_container
         self.running = False
+        self.delayed_processor_task = None
     
     async def start_processing(self):
         """Start the event processing loop"""
@@ -25,6 +27,9 @@ class EventProcessor:
         try:
             self.running = True
             logger.info("Event processing loop started successfully")
+            
+            # Start delayed event processor task
+            self.delayed_processor_task = asyncio.create_task(self._delayed_event_processor())
             
             # Start main processing loop
             await self._main_loop()
@@ -40,6 +45,15 @@ class EventProcessor:
             
         logger.info("Stopping event processing loop...")
         self.running = False
+        
+        # Cancel delayed processor task
+        if self.delayed_processor_task and not self.delayed_processor_task.done():
+            self.delayed_processor_task.cancel()
+            try:
+                await self.delayed_processor_task
+            except asyncio.CancelledError:
+                pass
+        
         logger.info("Event processing loop stopped")
     
     async def _main_loop(self):
@@ -74,11 +88,7 @@ class EventProcessor:
         times_queued = event_data.get('times_queued')
         
         if times_queued is None:
-            logger.error(f"Event missing required 'times_queued' field for account {account_id}, skipping event", extra={
-                'event_id': event_id,
-                'account_id': account_id,
-                'event_data': event_data
-            })
+            await self._handle_permanent_failure(event_data, "Event missing required 'times_queued' field")
             return
         
         logger.info(f"Processing {exec_command} event for account {account_id} (attempt {times_queued})", extra={
@@ -97,8 +107,7 @@ class EventProcessor:
             command = command_factory.create_command(exec_command, event_id, account_id, event_data)
             
             if not command:
-                logger.warning(f"No command handler found for: {exec_command}")
-                await self._handle_failed_event(event_data, f"No command handler found for: {exec_command}")
+                await self._handle_permanent_failure(event_data, f"No command handler found for: {exec_command}")
                 return
             
             # Execute command with services
@@ -158,7 +167,7 @@ class EventProcessor:
             
             # Requeue event automatically (goes to back of queue)
             queue_service = self.service_container.get_queue_service()
-            await queue_service.requeue_event(event_data)
+            await queue_service.requeue_event_delayed(event_data)
             
             logger.info(f"Event requeued after failure", extra={
                 'event_id': event_id,
@@ -174,3 +183,49 @@ class EventProcessor:
                 'account_id': account_id,
                 'requeue_error': str(e)
             })
+    
+    async def _handle_permanent_failure(self, event_data: Dict[str, Any], error_message: str):
+        """Handle permanent failures by discarding event and logging error"""
+        event_id = event_data.get('event_id')
+        account_id = event_data.get('account_id')
+        exec_command = event_data.get('data', {}).get('exec')
+        
+        try:
+            # Remove from active events (no requeue)
+            queue_service = self.service_container.get_queue_service()
+            await queue_service.remove_from_queued(account_id, exec_command)
+            
+            logger.error(f"Permanent failure - event discarded: {error_message}", extra={
+                'event_id': event_id,
+                'account_id': account_id,
+                'exec_command': exec_command,
+                'permanent_failure': True,
+                'error': error_message
+            })
+            
+        except Exception as e:
+            logger.error(f"Failed to handle permanent failure for event {event_id}: {e}", extra={
+                'event_id': event_id,
+                'account_id': account_id,
+                'permanent_failure_error': str(e)
+            })
+    
+    async def _delayed_event_processor(self):
+        """Background task to process delayed events periodically"""
+        logger.info("Starting delayed event processor")
+        queue_service = self.service_container.get_queue_service()
+        
+        while self.running:
+            try:
+                await asyncio.sleep(config.processing.retry_check_interval)
+                if self.running:  # Check again after sleep
+                    await queue_service.process_delayed_events()
+            except asyncio.CancelledError:
+                logger.info("Delayed event processor cancelled")
+                break
+            except Exception as e:
+                logger.error(f"Error in delayed event processor: {e}")
+                # Continue running even if there's an error
+                await asyncio.sleep(10)
+        
+        logger.info("Delayed event processor stopped")

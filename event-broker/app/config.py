@@ -10,27 +10,32 @@ from dataclasses import dataclass
 
 @dataclass
 class RedisConfig:
-    host: str
-    port: int
-    db: int
-
-
-
+    """Redis connection configuration for event queue"""
+    host: str  # Redis server hostname
+    port: int  # Redis server port
+    db: int    # Redis database number
 
 @dataclass
 class AblyConfig:
-    api_key: str
-
+    """Ably realtime messaging configuration"""
+    api_key: str  # Ably API key for service authentication
 
 @dataclass
 class ApplicationConfig:
-    log_level: str
-    accounts_file: str
-
+    """Application runtime configuration"""
+    log_level: str     # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+    accounts_file: str # Path to account configuration file
 
 @dataclass
 class AllocationsConfig:
-    base_url: str
+    """Strategy allocation API configuration"""
+    base_url: str  # Base URL for strategy allocation API
+
+@dataclass
+class RebalancerConfig:
+    """Event processor API configuration"""
+    api_url: str  # Event processor service URL for health checks
+    timeout: int  # HTTP request timeout in seconds
 
 
 class Config:
@@ -67,10 +72,19 @@ class Config:
             base_url=allocations_config["base_url"]
         )
         
+        # Rebalancer config (from YAML only)
+        rebalancer_config = config_data["rebalancer"]
+        self.rebalancer = RebalancerConfig(
+            api_url=rebalancer_config["api_url"],
+            timeout=rebalancer_config["timeout"]
+        )
+        
         # Backwards compatibility properties
         self.REALTIME_API_KEY = self.ably.api_key
         self.LOG_LEVEL = self.application.log_level
         self.ACCOUNTS_FILE = self.application.accounts_file
+        self.REBALANCER_API_URL = self.rebalancer.api_url
+        self.REBALANCER_API_TIMEOUT = self.rebalancer.timeout
     
     def _load_config_file(self, config_file: str) -> Dict:
         """Load configuration from YAML file - REQUIRED, no fallbacks"""
@@ -83,7 +97,7 @@ class Config:
                 raise ValueError(f"Config file {config_file} is empty")
             
             # Validate required sections exist
-            required_sections = ["redis", "ably", "application", "allocations"]
+            required_sections = ["redis", "ably", "application", "allocations", "rebalancer"]
             for section in required_sections:
                 if section not in config_data:
                     raise ValueError(f"Required configuration section '{section}' missing from {config_file}")

@@ -9,51 +9,58 @@ import re
 
 @dataclass
 class RetryConfig:
-    max_retries: int
-    delay: int
+    """Retry behavior configuration for network operations"""
+    max_retries: int  # Number of retry attempts before giving up
+    delay: int        # Seconds to wait between retry attempts
 
 @dataclass
 class IBKRConfig:
-    host: str
-    port: int
-    username: str
-    password: str
-    trading_mode: str
-    connection_retry: RetryConfig
-    order_retry: RetryConfig
+    """Interactive Brokers API connection configuration"""
+    host: str                      # IBKR Gateway/TWS hostname
+    port: int                      # IBKR API port number
+    username: str                  # IBKR account username (from environment)
+    password: str                  # IBKR account password (from environment)
+    trading_mode: str              # Trading mode: 'paper' or 'live'
+    connection_retry: RetryConfig  # Connection retry configuration
+    order_retry: RetryConfig       # Order submission retry configuration
 
 @dataclass
 class RedisConfig:
-    host: str
-    port: int
-    db: int
-    max_connections: int
+    """Redis connection configuration for event queue"""
+    host: str            # Redis server hostname
+    port: int            # Redis server port
+    db: int              # Redis database number
+    max_connections: int # Maximum connection pool size
 
 # PostgreSQL configuration removed
 
 @dataclass
 class ProcessingConfig:
-    max_retry_days: int
-    queue_timeout: int
-    startup_max_attempts: int
-    startup_delay: int
-    startup_initial_delay: int
+    """Event processing behavior configuration"""
+    queue_timeout: int           # Seconds to wait for new events from Redis queue
+    startup_max_attempts: int    # Maximum startup retry attempts before failing
+    startup_delay: int           # Seconds between startup retry attempts
+    startup_initial_delay: int   # Initial delay at startup to allow services to stabilize
+    retry_delay_seconds: int     # Seconds to wait before retrying failed events
+    retry_check_interval: int    # Seconds between checks for ready-to-retry delayed events
 
 @dataclass
 class AllocationConfig:
-    api_url: str
-    timeout: int
+    """Strategy allocation API configuration"""
+    api_url: str  # Base URL for strategy allocation API
+    timeout: int  # HTTP request timeout in seconds
 
 @dataclass
 class LoggingConfig:
-    level: str
-    format: str
-    retention_days: int
+    """Application logging configuration"""
+    level: str    # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+    format: str   # Log format: json or text
 
 @dataclass
 class OrderConfig:
-    time_in_force: str
-    extended_hours_enabled: bool
+    """Order execution configuration (from environment variables)"""
+    time_in_force: str           # Order time-in-force: 'DAY' or 'GTC'
+    extended_hours_enabled: bool # Enable extended hours trading
     
 class Config:
     def __init__(self, config_file: str = "config/config.yaml"):
@@ -86,11 +93,12 @@ class Config:
         # Processing config
         processing_config = config_data["processing"]  # Required section
         self.processing = ProcessingConfig(
-            max_retry_days=processing_config["max_retry_days"],
             queue_timeout=processing_config["queue_timeout"],
             startup_max_attempts=processing_config["startup_max_attempts"],
             startup_delay=processing_config["startup_delay"],
-            startup_initial_delay=processing_config["startup_initial_delay"]
+            startup_initial_delay=processing_config["startup_initial_delay"],
+            retry_delay_seconds=processing_config.get("retry_delay_seconds", 60),
+            retry_check_interval=processing_config.get("retry_check_interval", 60)
         )
         
         # Allocation config
@@ -104,8 +112,7 @@ class Config:
         logging_config = config_data["logging"]  # Required section
         self.logging = LoggingConfig(
             level=logging_config["level"],
-            format=logging_config["format"],
-            retention_days=logging_config["retention_days"]
+            format=logging_config["format"]
         )
         
         # Order config (from environment variables)

@@ -1,24 +1,28 @@
 # Event Broker Service Configuration
-# This file contains application configuration parameters
-# Sensitive data (if any) should be set via environment variables
+# Routes events from Ably realtime messaging to Redis queue for processing
+# Sensitive data should be set via environment variables
 
-# Redis Configuration
+# Redis configuration for event queue
 redis:
-  host: redis
-  port: 6379
-  db: 0
+  host: redis              # Redis server hostname (overridden by REDIS_HOST env var)
+  port: 6379              # Redis server port
+  db: 0                   # Redis database number for event broker
 
-
-# Ably Realtime Configuration
+# Ably realtime messaging configuration
 ably:
-  api_key: "5L7t7A.AoDrNg:lXvCmY0oHKP08H_WevDb_ZdgtENDN4x_1LS_NfzvFho"  # This should be the actual non-user-configurable key
+  api_key: "5L7t7A.AoDrNg:lXvCmY0oHKP08H_WevDb_ZdgtENDN4x_1LS_NfzvFho"  # Fixed API key for service
 
-# Application Settings
+# Application settings
 application:
-  log_level: "INFO"       # DEBUG, INFO, WARNING, ERROR, CRITICAL
-  accounts_file: "/accounts.yaml"
+  log_level: "INFO"             # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+  accounts_file: "/accounts.yaml" # Path to account configuration file
 
-# Allocations API Configuration (for consistency with rebalancer-api)
+# Strategy allocation API configuration
 allocations:
-  base_url: "https://workers.fintech.zehnlabs.com/api/v1/strategies"
+  base_url: "https://workers.fintech.zehnlabs.com/api/v1/strategies"  # Base URL for strategy allocation API
+
+# Event processor API configuration for health checks
+rebalancer:
+  api_url: "http://event-processor:8000"  # Event processor service URL for health checks
+  timeout: 30                             # HTTP request timeout in seconds
 
