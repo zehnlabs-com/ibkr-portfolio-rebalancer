@@ -59,6 +59,7 @@ services:
         condition: service_healthy
     volumes:
       - ./event-broker/logs:/app/logs
+      - ./accounts.yaml:/accounts.yaml
     networks:
       - ibkr-network
     logging:

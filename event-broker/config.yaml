@@ -16,7 +16,7 @@ ably:
 # Application Settings
 application:
   log_level: "INFO"       # DEBUG, INFO, WARNING, ERROR, CRITICAL
-  accounts_file: "../accounts.yaml"
+  accounts_file: "/accounts.yaml"
 
 # Allocations API Configuration (for consistency with rebalancer-api)
 allocations:

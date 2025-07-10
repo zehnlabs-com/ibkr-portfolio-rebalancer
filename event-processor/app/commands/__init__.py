@@ -4,7 +4,6 @@ Command package for event processing commands.
 
 from .base import EventCommand, EventCommandResult, CommandStatus
 from .factory import CommandFactory
-from .health_check import HealthCheckCommand
 from .print_positions import PrintPositionsCommand
 from .print_equity import PrintEquityCommand
 from .print_orders import PrintOrdersCommand
@@ -17,7 +16,6 @@ __all__ = [
     'EventCommandResult', 
     'CommandStatus',
     'CommandFactory',
-    'HealthCheckCommand',
     'PrintPositionsCommand',
     'PrintEquityCommand',
     'PrintOrdersCommand',
