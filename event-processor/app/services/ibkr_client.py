@@ -173,6 +173,28 @@ class IBKRClient:
             logger.error(f"Failed to get account value: {e}")
             raise
     
+    async def get_cash_balance(self, account_id: str) -> float:
+        """Get available cash balance for the account"""
+        if not await self.ensure_connected():
+            raise Exception("Unable to establish IBKR connection")
+        
+        try:
+            account_values = self.ib.accountValues(account_id)
+            # Try TotalCashValue first, fall back to AvailableFunds
+            for av in account_values:
+                if av.tag == "TotalCashValue" and av.currency == "USD":
+                    return float(av.value)
+            
+            # Fallback to AvailableFunds if TotalCashValue not found
+            for av in account_values:
+                if av.tag == "AvailableFunds" and av.currency == "USD":
+                    return float(av.value)
+            
+            return 0.0
+        except Exception as e:
+            logger.error(f"Failed to get cash balance: {e}")
+            raise
+    
     async def get_positions(self, account_id: str) -> List[Dict]:
         if not await self.ensure_connected():
             raise Exception("Unable to establish IBKR connection")
@@ -373,9 +395,9 @@ class IBKRClient:
         
         action = "BUY" if quantity > 0 else "SELL"
         
-        # Validate order type
-        if order_type not in ["MKT", "MOC"]:
-            raise ValueError(f"Unsupported order type: {order_type}")
+        # Validate order type - only MKT supported for sell-first cash reserve logic
+        if order_type != "MKT":
+            raise ValueError(f"Unsupported order type: {order_type}. Only MKT orders are supported.")
         
         # Validate time in force
         if time_in_force not in ["DAY", "GTC"]:
@@ -469,6 +491,32 @@ class IBKRClient:
             if elapsed >= max_wait_seconds:
                 pending_ids = [trade.order.orderId for trade in pending_orders]
                 error_msg = f"Timeout waiting for order cancellations for account {account_id}. Still pending: {pending_ids}"
+                logger.error(error_msg)
+                raise Exception(error_msg)
+            
+            await asyncio.sleep(10)  # Check every 10 seconds
+    
+    async def _wait_for_orders_filled(self, account_id: str, order_ids: List[str], max_wait_seconds: int = 300):
+        """Wait for specific orders to be filled or cancelled for the account"""
+        start_time = asyncio.get_event_loop().time()
+        
+        while True:
+            trades = self.ib.trades()
+            pending_orders = [
+                trade for trade in trades 
+                if (trade.order.account == account_id and 
+                    str(trade.order.orderId) in order_ids and
+                    trade.orderStatus.status in ['PreSubmitted', 'Submitted', 'PendingSubmit'])
+            ]
+            
+            if not pending_orders:
+                logger.info(f"All specified orders completed for account {account_id}")
+                return
+            
+            elapsed = asyncio.get_event_loop().time() - start_time
+            if elapsed >= max_wait_seconds:
+                pending_ids = [trade.order.orderId for trade in pending_orders]
+                error_msg = f"Timeout waiting for order completion for account {account_id}. Still pending: {pending_ids}"
                 logger.error(error_msg)
                 raise Exception(error_msg)
             

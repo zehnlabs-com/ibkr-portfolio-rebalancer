@@ -52,7 +52,6 @@ class LoggingConfig:
 
 @dataclass
 class OrderConfig:
-    order_type: str
     time_in_force: str
     extended_hours_enabled: bool
     
@@ -111,7 +110,6 @@ class Config:
         
         # Order config (from environment variables)
         self.order = OrderConfig(
-            order_type=os.getenv("ORDER_TYPE", "MKT"),
             time_in_force=os.getenv("TIME_IN_FORCE", "DAY"),
             extended_hours_enabled=os.getenv("EXTENDED_HOURS_ENABLED", "false").lower() == "true"
         )

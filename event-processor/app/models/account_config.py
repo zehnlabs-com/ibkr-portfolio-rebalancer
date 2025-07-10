@@ -12,7 +12,7 @@ class NotificationConfig:
 
 @dataclass
 class RebalancingConfig:
-    equity_reserve_percentage: float
+    cash_reserve_percentage: float
 
 
 @dataclass
@@ -28,6 +28,6 @@ class EventAccountConfig:
         self.account_id = data.get('account_id')
         self.notification = NotificationConfig(channel=data.get('notification_channel'))
         self.rebalancing = RebalancingConfig(
-            equity_reserve_percentage=data.get('equity_reserve_percentage', 1.0)
+            cash_reserve_percentage=data.get('cash_reserve_percentage', data.get('equity_reserve_percentage', 1.0))
         )
         self.allocations = AllocationsConfig(url=data.get('allocations_url'))

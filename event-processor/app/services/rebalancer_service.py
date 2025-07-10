@@ -33,7 +33,7 @@ class RebalancerService:
     def __init__(self, ibkr_client: IBKRClient):
         self.ibkr_client = ibkr_client
     
-    async def rebalance_account(self, account_config: EventAccountConfig, order_type: str = "MKT"):
+    async def rebalance_account(self, account_config: EventAccountConfig):
         # Log queue position
         waiting_accounts = [acc_id for acc_id, lock in self._account_locks.items() if lock.locked()]
         if waiting_accounts:
@@ -56,7 +56,20 @@ class RebalancerService:
                     account_config
                 )
                 
-                cancelled_orders = await self._execute_orders(account_config.account_id, result.orders, order_type, dry_run=False)
+                # Execute sell orders first and wait for completion
+                cancelled_orders = await self._execute_sell_orders(account_config.account_id, result.orders, dry_run=False)
+                
+                # Get actual cash balance after sells complete
+                available_cash = await self.ibkr_client.get_cash_balance(account_config.account_id)
+                
+                # Execute buy orders with cash reserve applied
+                executed_buy_orders = await self._execute_buy_orders(
+                    account_config.account_id, 
+                    result.orders, 
+                    available_cash, 
+                    account_config.rebalancing.cash_reserve_percentage,
+                    dry_run=False
+                )
                 
                 logger.info(f"Completed LIVE rebalance for account {account_config.account_id}")
                 
@@ -77,20 +90,8 @@ class RebalancerService:
         
         orders = []
         
-        # Calculate available equity after reserve
-        reserve_percentage = account_config.rebalancing.equity_reserve_percentage / 100.0
-        reserve_amount = account_value * reserve_percentage
-        available_equity = account_value * (1.0 - reserve_percentage)
-        
-        # Create equity info
-        equity_info = {
-            'total_equity': account_value,
-            'reserve_percentage': account_config.rebalancing.equity_reserve_percentage,
-            'reserve_amount': reserve_amount,
-            'available_for_trading': available_equity
-        }
-        
-        logger.info(f"Account {account_config.account_id}: Account value: ${account_value:.2f}, Reserve: {account_config.rebalancing.equity_reserve_percentage}% (${reserve_amount:.2f}), Available for trading: ${available_equity:.2f}")
+        # Use full account value for target calculations (no reserve applied here)
+        logger.info(f"Account {account_config.account_id}: Account value: ${account_value:.2f}, Cash reserve: {account_config.rebalancing.cash_reserve_percentage}% (will be applied to cash after sells)")
         
         current_positions_map = {pos['symbol']: pos for pos in current_positions}
         
@@ -98,8 +99,16 @@ class RebalancerService:
         for allocation in target_allocations:
             symbol = allocation['symbol']
             target_percentage = allocation['allocation']
-            target_value = available_equity * target_percentage
+            target_value = account_value * target_percentage  # Use full account value
             target_positions[symbol] = target_value
+        
+        # Create equity info (reserve info will be updated after sells)
+        equity_info = {
+            'total_equity': account_value,
+            'cash_reserve_percentage': account_config.rebalancing.cash_reserve_percentage,
+            'reserve_amount': 0,  # Will be calculated after sells
+            'available_for_trading': account_value
+        }
         
         all_symbols = set()
         all_symbols.update(target_positions.keys())
@@ -167,42 +176,103 @@ class RebalancerService:
             logger.error(f"Failed to cancel pending orders for account {account_id}: {e}")
             raise
 
-    async def _execute_orders(self, account_id: str, orders: List[RebalanceOrder], order_type: str = "MKT", dry_run: bool = False):
+    async def _execute_sell_orders(self, account_id: str, orders: List[RebalanceOrder], dry_run: bool = False):
+        """Execute sell orders and wait for completion"""
         cancelled_orders = []
         
         if not dry_run:
             cancelled_orders = await self._cancel_pending_orders(account_id)
         
-        if not orders:
-            logger.info("No orders to execute")
+        sell_orders = [order for order in orders if order.action == 'SELL']
+        
+        if not sell_orders:
+            logger.info("No sell orders to execute")
             return cancelled_orders
         
         mode_text = "DRY RUN" if dry_run else "LIVE"
-        logger.info(f"{mode_text} - Executing {len(orders)} orders for account {account_id} with order type {order_type}")
+        logger.info(f"{mode_text} - Executing {len(sell_orders)} sell orders for account {account_id}")
         
-        for order in orders:
+        sell_order_ids = []
+        
+        for order in sell_orders:
             try:
                 if dry_run:
                     logger.info(f"DRY RUN - Would execute: {order}")
                 else:
-                    quantity = order.quantity if order.action == 'BUY' else -order.quantity
+                    quantity = -order.quantity  # Negative for sell
                     
                     order_id = await self.ibkr_client.place_order(
                         account_id=account_id,
                         symbol=order.symbol,
                         quantity=quantity,
-                        order_type=order_type,
+                        order_type="MKT",
                         time_in_force=config.order.time_in_force,
                         extended_hours=config.order.extended_hours_enabled
                     )
                     
-                    logger.info(f"LIVE - Order placed: {order} - Order ID: {order_id}")
+                    sell_order_ids.append(order_id)
+                    logger.info(f"LIVE - Sell order placed: {order} - Order ID: {order_id}")
                 
             except Exception as e:
-                error_text = f"Failed to {'simulate' if dry_run else 'place'} order {order}: {e}"
+                error_text = f"Failed to {'simulate' if dry_run else 'place'} sell order {order}: {e}"
                 logger.error(error_text)
         
+        # Wait for all sell orders to complete
+        if sell_order_ids and not dry_run:
+            logger.info(f"Waiting for {len(sell_order_ids)} sell orders to complete...")
+            await self.ibkr_client._wait_for_orders_filled(account_id, sell_order_ids, max_wait_seconds=300)
+            logger.info("All sell orders completed")
+        
         return cancelled_orders
+    
+    async def _execute_buy_orders(self, account_id: str, orders: List[RebalanceOrder], available_cash: float, reserve_percentage: float, dry_run: bool = False):
+        """Execute buy orders up to available cash after reserve"""
+        buy_orders = [order for order in orders if order.action == 'BUY']
+        
+        if not buy_orders:
+            logger.info("No buy orders to execute")
+            return
+        
+        # Calculate cash available for purchases after reserve
+        cash_after_reserve = available_cash * (1.0 - reserve_percentage / 100.0)
+        
+        # Sort buy orders by market value (largest first) to prioritize important positions
+        buy_orders.sort(key=lambda x: x.market_value, reverse=True)
+        
+        mode_text = "DRY RUN" if dry_run else "LIVE"
+        logger.info(f"{mode_text} - Available cash: ${available_cash:.2f}, Reserve: {reserve_percentage}% (${available_cash * reserve_percentage / 100.0:.2f}), Cash for purchases: ${cash_after_reserve:.2f}")
+        
+        executed_orders = []
+        total_cost = 0.0
+        
+        for order in buy_orders:
+            if total_cost + order.market_value <= cash_after_reserve:
+                try:
+                    if dry_run:
+                        logger.info(f"DRY RUN - Would execute: {order}")
+                    else:
+                        order_id = await self.ibkr_client.place_order(
+                            account_id=account_id,
+                            symbol=order.symbol,
+                            quantity=order.quantity,
+                            order_type="MKT",
+                            time_in_force=config.order.time_in_force,
+                            extended_hours=config.order.extended_hours_enabled
+                        )
+                        
+                        logger.info(f"LIVE - Buy order placed: {order} - Order ID: {order_id}")
+                    
+                    executed_orders.append(order)
+                    total_cost += order.market_value
+                    
+                except Exception as e:
+                    error_text = f"Failed to {'simulate' if dry_run else 'place'} buy order {order}: {e}"
+                    logger.error(error_text)
+            else:
+                logger.info(f"Skipping buy order {order} - insufficient cash (need ${order.market_value:.2f}, have ${cash_after_reserve - total_cost:.2f} remaining)")
+        
+        logger.info(f"{mode_text} - Executed {len(executed_orders)} buy orders totaling ${total_cost:.2f}")
+        return executed_orders
     
     async def dry_run_rebalance(self, account_config: EventAccountConfig) -> RebalanceResult:
         # Log queue position
@@ -227,7 +297,20 @@ class RebalancerService:
                     account_config
                 )
                 
-                await self._execute_orders(account_config.account_id, result.orders, "MKT", dry_run=True)
+                # Simulate sell orders first
+                await self._execute_sell_orders(account_config.account_id, result.orders, dry_run=True)
+                
+                # For dry run, simulate current cash balance (assume some cash from current positions)
+                estimated_cash = sum(pos.get('market_value', 0) for pos in current_positions if pos.get('market_value', 0) > 0) * 0.1  # Rough estimate
+                
+                # Simulate buy orders with cash reserve
+                await self._execute_buy_orders(
+                    account_config.account_id, 
+                    result.orders, 
+                    estimated_cash, 
+                    account_config.rebalancing.cash_reserve_percentage,
+                    dry_run=True
+                )
                 
                 return result
                 

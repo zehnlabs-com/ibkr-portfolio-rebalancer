@@ -13,7 +13,7 @@ An automated portfolio rebalancing service that integrates with Interactive Brok
 - **Command-Level Deduplication**: Multiple command types per account with smart deduplication
 - **Modern IBKR Integration**: Uses ib_async (successor to ib_insync) for Interactive Brokers API
 - **Docker Support**: Containerized deployment with existing IBKR gateway
-- **Equity Reserve Management**: Configurable cash reserve to improve order fill rates and handle price movements
+- **Cash Reserve Management**: Configurable cash reserve applied after sells to improve order fill rates and handle price movements
 
 ## Architecture
 
@@ -187,13 +187,13 @@ Edit `accounts.yaml` to configure your IBKR accounts:
   notification:
     channel: "strategy-name-100"
   rebalancing:
-    equity_reserve_percentage: 1.0  # 1% cash reserve (default)
+    cash_reserve_percentage: 1.0  # 1% cash reserve (default)
 
 - account_id: "DU789012"
   notification:
     channel: "strategy-name-200"
   rebalancing:
-    equity_reserve_percentage: 2.5  # 2.5% cash reserve
+    cash_reserve_percentage: 2.5  # 2.5% cash reserve
 ```
 
 The allocations URL is automatically constructed as: `{base_url}/{channel}/allocations`
@@ -227,7 +227,7 @@ ZEHNLABS_FINTECH_API_KEY=your_allocation_key
 MANAGEMENT_API_KEY=your_management_secret_key
 
 # Order Configuration
-ORDER_TYPE=MKT
+# Note: Only MKT orders are supported (MOC not compatible with sell-first logic)
 TIME_IN_FORCE=GTC
 EXTENDED_HOURS_ENABLED=true
 
@@ -351,15 +351,16 @@ curl -H "Authorization: Bearer $MANAGEMENT_API_KEY" \
 
 ## Rebalancing Algorithm
 
-The rebalancer implements a standard portfolio rebalancing algorithm with equity reserve management:
+The rebalancer implements a sell-first portfolio rebalancing algorithm with cash reserve management:
 
 1. **Fetch Target Allocations**: Calls configured API to get target percentages
 2. **Get Current Positions**: Retrieves current holdings from IBKR
 3. **Cancel Existing Orders**: Cancels all pending orders to prevent conflicts (waits up to 60 seconds for confirmation)
-4. **Calculate Available Equity**: `Available Equity = Total Account Value - (Reserve % × Total Account Value)`
-5. **Calculate Target Positions**: Uses available equity (not total) for allocation calculations
-6. **Generate Orders**: Creates buy/sell orders to reach target allocation within available equity
-7. **Execute Trades**: Submits market orders to IBKR
+4. **Calculate Target Positions**: Uses full account value for allocation calculations
+5. **Generate Orders**: Creates buy/sell orders to reach target allocation
+6. **Execute Sell Orders**: Submits sell orders first and waits for completion
+7. **Get Cash Balance**: Retrieves actual cash balance after sells complete
+8. **Execute Buy Orders**: Submits buy orders up to `Cash Balance × (1 - Reserve %)`
 
 ### Order Cancellation
 
@@ -367,9 +368,9 @@ Before placing new rebalancing orders, the system automatically cancels all exis
 
 **Important**: If existing orders cannot be cancelled within 60 seconds, the rebalancing process will fail with an error. This prevents the system from placing new orders when old orders are still pending, which could result in overtrading or unintended positions.
 
-### Equity Reserve System
+### Cash Reserve System
 
-The system maintains a configurable cash reserve to improve order fill rates and handle market volatility:
+The system maintains a configurable cash reserve applied after sell orders complete to improve order fill rates and handle market volatility:
 
 **Purpose:**
 - **Improved Fill Rates**: Market orders are more likely to fill when there's a cash buffer for price movements
@@ -382,7 +383,7 @@ Each account can have its own reserve percentage configured in `accounts.yaml`:
 ```yaml
 - account_id: "DU123456"
   rebalancing:
-    equity_reserve_percentage: 1.0  # 1% reserve (default)
+    cash_reserve_percentage: 1.0  # 1% reserve (default)
 ```
 
 **Validation:**
@@ -406,7 +407,7 @@ The dry run and live rebalancing API responses now include detailed equity infor
   "execution_mode": "dry_run",
   "equity_info": {
     "total_equity": 100000.00,
-    "reserve_percentage": 1.0,
+    "cash_reserve_percentage": 1.0,
     "reserve_amount": 1000.00,
     "available_for_trading": 99000.00
   },

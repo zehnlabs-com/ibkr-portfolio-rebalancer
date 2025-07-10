@@ -42,18 +42,12 @@ class RebalanceCommand(EventCommand):
             # Create account config object from the event payload
             account_config = EventAccountConfig(account_config_data)
             
-            # Get order type from environment configuration
-            order_type = config.order.order_type
-            
             log_with_event(logger, 'info',
-                          f"Using order type: {order_type}",
+                          "Using MKT order type (only type supported)",
                           event_id=self.event_id, account_id=self.account_id)
             
-            # Execute rebalancing with configured order type
-            result = await rebalancer_service.rebalance_account(
-                account_config, 
-                order_type
-            )
+            # Execute rebalancing (always uses MKT orders)
+            result = await rebalancer_service.rebalance_account(account_config)
             
             log_with_event(logger, 'info',
                           f"Rebalance completed - orders: {len(result.orders)}",

@@ -3,10 +3,10 @@
   notification:
     channel: "etf-blend-100-20"
   rebalancing:
-    equity_reserve_percentage: 1.0  # 1% cash reserve (default)
+    cash_reserve_percentage: 1.0 # 0% to 10% (values outside this range default to 1%)
 
 - account_id: "DU789012"
   notification:
     channel: "etf-blend-200-35"
   rebalancing:
-    equity_reserve_percentage: 2.5  # 2.5% cash reserve
+    cash_reserve_percentage: 2.5  # 0% to 10% (values outside this range default to 1%)

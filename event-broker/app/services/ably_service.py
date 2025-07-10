@@ -23,7 +23,7 @@ class AccountConfig:
         self.allocations_url = f"{allocations_base_url}/{self.notification_channel}/allocations"
         # Add rebalancing configuration
         rebalancing_data = data.get('rebalancing', {})
-        self.equity_reserve_percentage = rebalancing_data.get('equity_reserve_percentage', 1.0)
+        self.cash_reserve_percentage = rebalancing_data.get('cash_reserve_percentage', rebalancing_data.get('equity_reserve_percentage', 1.0))
 
 
 class AblyEventSubscriber:
@@ -185,7 +185,7 @@ class AblyEventSubscriber:
                     "account_id": account.account_id,
                     "notification_channel": account.notification_channel,
                     "allocations_url": account.allocations_url,
-                    "equity_reserve_percentage": account.equity_reserve_percentage
+                    "cash_reserve_percentage": account.cash_reserve_percentage
                 }
             }
             
