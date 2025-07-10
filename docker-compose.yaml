@@ -49,8 +49,8 @@ services:
 
   event-broker:
     build:
-      context: ./event-broker
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./event-broker/Dockerfile
     container_name: event-broker
     environment:      
       - REDIS_HOST=redis

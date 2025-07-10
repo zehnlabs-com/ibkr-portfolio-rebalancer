@@ -9,15 +9,15 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
-COPY requirements.txt .
+COPY event-broker/requirements.txt .
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code and configuration files
-COPY app/ ./app/
-COPY ../accounts.yaml .
-COPY config.yaml .
+COPY event-broker/app/ ./app/
+COPY accounts.yaml .
+COPY event-broker/config.yaml .
 
 # Set Python path
 ENV PYTHONPATH=/app
