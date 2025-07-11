@@ -9,8 +9,7 @@
 
 - Secure management api?
 
-D- Management service root url returns version 1.0.0. Make it configurable.
-- Queues `GET {{baseUrl}}/health` and `GET {{baseUrl}}/health/detailed` are redundant
-- `POST {{baseUrl}}/queue/events` lacks duplicate check
+- Management service root url returns version 1.0.0. Make it configurable. (Completed)
+- `POST {{baseUrl}}/queue/events` lacks duplicate check (Not an issue)
 - INFO logging is too verbose
 - Reformat .env and .env.example
