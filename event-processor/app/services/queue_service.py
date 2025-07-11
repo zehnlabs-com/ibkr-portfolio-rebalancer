@@ -130,6 +130,7 @@ class QueueService:
                     })
         except Exception as e:
             logger.error(f"Failed to remove from active events set: {e}")
+            raise
     
     async def get_queue_length(self) -> int:
         """Get current queue length"""

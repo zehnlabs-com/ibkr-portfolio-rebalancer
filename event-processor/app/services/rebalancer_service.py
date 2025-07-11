@@ -216,6 +216,7 @@ class RebalancerService:
             except Exception as e:
                 error_text = f"Failed to {'simulate' if dry_run else 'place'} sell order {order}: {e}"
                 logger.error(error_text)
+                raise Exception(error_text) from e
         
         # Wait for all sell orders to complete
         if sell_order_ids and not dry_run:
@@ -268,6 +269,7 @@ class RebalancerService:
                 except Exception as e:
                     error_text = f"Failed to {'simulate' if dry_run else 'place'} buy order {order}: {e}"
                     logger.error(error_text)
+                    raise Exception(error_text) from e
             else:
                 logger.info(f"Skipping buy order {order} - insufficient cash (need ${order.market_value:.2f}, have ${cash_after_reserve - total_cost:.2f} remaining)")
         
