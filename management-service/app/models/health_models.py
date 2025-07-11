@@ -10,6 +10,7 @@ class HealthStatus(BaseModel):
     status: str
     healthy: bool
     events_with_retries: int
+    delayed_events: int
     message: str
 
 
@@ -19,6 +20,7 @@ class DetailedHealthStatus(BaseModel):
     healthy: bool
     queue_length: int
     active_events_count: int
+    delayed_events_count: int
     total_events: int
     events_with_retries: int
     max_retry_count: int

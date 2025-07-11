@@ -56,6 +56,9 @@ class RebalancerService:
                     account_config
                 )
                 
+                # Validate all orders before placing any
+                await self._validate_all_orders(account_config.account_id, result.orders)
+                
                 # Execute sell orders first and wait for completion
                 cancelled_orders = await self._execute_sell_orders(account_config.account_id, result.orders, dry_run=False)
                 
@@ -165,6 +168,49 @@ class RebalancerService:
         
         return RebalanceResult(orders, equity_info)
     
+    async def _validate_all_orders(self, account_id: str, orders: List[RebalanceOrder]):
+        """Validate all orders using WhatIf before placing any real orders.
+        
+        This ensures that all orders will be accepted before we start placing them.
+        If any order fails validation, the entire rebalance fails.
+        """
+        if not orders:
+            return
+            
+        logger.info(f"Validating {len(orders)} orders for account {account_id}")
+        
+        # Convert RebalanceOrder objects to validation format
+        order_data = []
+        for order in orders:
+            quantity = order.quantity if order.action == 'BUY' else -order.quantity
+            order_data.append({
+                'symbol': order.symbol,
+                'quantity': quantity,
+                'order_type': 'MKT',
+                'time_in_force': config.order.time_in_force,
+                'extended_hours': config.order.extended_hours_enabled
+            })
+        
+        try:
+            # Validate all orders in batch - this will raise exception if any fail
+            validation_results = await self.ibkr_client.validate_orders_batch(account_id, order_data)
+            
+            # Log validation results
+            total_margin_impact = 0
+            total_commission = 0
+            for i, result in enumerate(validation_results):
+                order = orders[i]
+                total_margin_impact += result['margin_after'] - result['margin_before']
+                total_commission += result['commission']
+                
+                logger.info(f"Order validation passed: {order.symbol} - Margin impact: ${result['margin_after'] - result['margin_before']:.2f}, Commission: ${result['commission']:.2f}")
+            
+            logger.info(f"All orders validated successfully. Total margin impact: ${total_margin_impact:.2f}, Total commission: ${total_commission:.2f}")
+            
+        except Exception as e:
+            logger.error(f"Order validation failed: {e}")
+            raise Exception(f"Order validation failed, rebalance aborted: {e}")
+    
     async def _cancel_pending_orders(self, account_id: str):
         """Cancel all pending orders for the account before rebalancing"""
         try:
@@ -192,8 +238,6 @@ class RebalancerService:
         mode_text = "DRY RUN" if dry_run else "LIVE"
         logger.info(f"{mode_text} - Executing {len(sell_orders)} sell orders for account {account_id}")
         
-        sell_order_ids = []
-        
         for order in sell_orders:
             try:
                 if dry_run:
@@ -210,19 +254,12 @@ class RebalancerService:
                         extended_hours=config.order.extended_hours_enabled
                     )
                     
-                    sell_order_ids.append(order_id)
                     logger.info(f"LIVE - Sell order placed: {order} - Order ID: {order_id}")
                 
             except Exception as e:
                 error_text = f"Failed to {'simulate' if dry_run else 'place'} sell order {order}: {e}"
                 logger.error(error_text)
                 raise Exception(error_text) from e
-        
-        # Wait for all sell orders to complete
-        if sell_order_ids and not dry_run:
-            logger.info(f"Waiting for {len(sell_order_ids)} sell orders to complete...")
-            await self.ibkr_client._wait_for_orders_filled(account_id, sell_order_ids, max_wait_seconds=300)
-            logger.info("All sell orders completed")
         
         return cancelled_orders
     

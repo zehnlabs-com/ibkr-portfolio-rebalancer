@@ -44,7 +44,7 @@ class QueueService:
             deduplication_key = f"{account_id}:{exec_command}"
             
             # Check if account+command already queued
-            if self.redis.sismember("active_events", deduplication_key):
+            if self.redis.sismember("active_events_set", deduplication_key):
                 logger.info(f"Account {account_id} with command {exec_command} already queued, skipping duplicate event")
                 return None
             
@@ -62,7 +62,7 @@ class QueueService:
             
             # Add to queue and tracking set atomically
             pipe = self.redis.pipeline()
-            pipe.sadd("active_events", deduplication_key)
+            pipe.sadd("active_events_set", deduplication_key)
             pipe.lpush("rebalance_queue", json.dumps(queue_event))
             pipe.execute()
             
@@ -90,7 +90,7 @@ class QueueService:
     def get_active_events(self) -> set:
         """Get set of currently active event keys (account_id:exec_command)"""
         try:
-            return self.redis.smembers("active_events")
+            return self.redis.smembers("active_events_set")
         except Exception as e:
             logger.error(f"Failed to get active events: {e}")
             return set()
@@ -98,7 +98,7 @@ class QueueService:
     def get_queued_accounts(self) -> set:
         """Get set of currently queued account IDs (legacy compatibility)"""
         try:
-            active_events = self.redis.smembers("active_events")
+            active_events = self.redis.smembers("active_events_set")
             # Extract account IDs from account_id:exec_command keys
             accounts = set()
             for event_key in active_events:

@@ -47,7 +47,7 @@ class RedisQueueRepository(IQueueRepository):
         """Get count of active events"""
         if not self.redis:
             raise RuntimeError("Redis connection not established")
-        return await self.redis.scard("active_events")
+        return await self.redis.scard("active_events_set")
     
     async def get_queue_events(self, limit: int = 100) -> List[Dict[str, Any]]:
         """Get events from queue"""
@@ -88,15 +88,15 @@ class RedisQueueRepository(IQueueRepository):
             raise
     
     async def remove_event(self, event_id: str) -> bool:
-        """Remove specific event from queue by event ID"""
+        """Remove specific event from queue by event ID (searches both active and delayed queues)"""
         if not self.redis:
             raise RuntimeError("Redis connection not established")
             
         try:
-            # Get all events from queue
+            # First try to remove from active queue
             raw_events = await self.redis.lrange("rebalance_queue", 0, -1)
             
-            # Find and remove the event
+            # Find and remove the event from active queue
             for event_json in raw_events:
                 try:
                     event_data = json.loads(event_json)
@@ -108,9 +108,24 @@ class RedisQueueRepository(IQueueRepository):
                         account_id = event_data.get("account_id", "unknown")
                         exec_command = event_data.get("data", {}).get("exec", "unknown")
                         deduplication_key = f"{account_id}:{exec_command}"
-                        await self.redis.srem("active_events", deduplication_key)
+                        await self.redis.srem("active_events_set", deduplication_key)
                         
-                        logger.info(f"Removed event {event_id} from queue and active events")
+                        logger.info(f"Removed event {event_id} from active queue and active events")
+                        return True
+                except json.JSONDecodeError:
+                    continue
+            
+            # If not found in active queue, try delayed queue
+            delayed_events = await self.redis.zrange("rebalance_delayed_set", 0, -1)
+            
+            for event_json in delayed_events:
+                try:
+                    event_data = json.loads(event_json)
+                    if event_data.get("event_id") == event_id:
+                        # Remove from delayed queue
+                        await self.redis.zrem("rebalance_delayed_set", event_json)
+                        
+                        logger.info(f"Removed event {event_id} from delayed queue")
                         return True
                 except json.JSONDecodeError:
                     continue
@@ -130,7 +145,7 @@ class RedisQueueRepository(IQueueRepository):
             deduplication_key = f"{account_id}:{exec_command}"
             
             # Check if already active
-            if await self.redis.sismember("active_events", deduplication_key):
+            if await self.redis.sismember("active_events_set", deduplication_key):
                 raise ValueError(f"Event {deduplication_key} already active")
             
             # Generate event ID
@@ -150,7 +165,7 @@ class RedisQueueRepository(IQueueRepository):
             
             # Add to queue and active events atomically
             pipe = self.redis.pipeline()
-            pipe.sadd("active_events", deduplication_key)
+            pipe.sadd("active_events_set", deduplication_key)
             pipe.lpush("rebalance_queue", json.dumps(event_data))
             await pipe.execute()
             
@@ -172,7 +187,7 @@ class RedisQueueRepository(IQueueRepository):
             raise RuntimeError("Redis connection not established")
             
         try:
-            return list(await self.redis.smembers("active_events"))
+            return list(await self.redis.smembers("active_events_set"))
         except Exception as e:
             logger.error(f"Failed to get active events: {e}")
             raise
@@ -228,3 +243,60 @@ class RedisQueueRepository(IQueueRepository):
         except Exception as e:
             logger.warning(f"Failed to get oldest event age: {e}")
             return None
+    
+    async def get_delayed_events_count(self) -> int:
+        """Get count of delayed events"""
+        if not self.redis:
+            raise RuntimeError("Redis connection not established")
+            
+        try:
+            return await self.redis.zcard("rebalance_delayed_set")
+        except Exception as e:
+            logger.warning(f"Failed to get delayed events count: {e}")
+            return 0
+    
+    async def get_delayed_events(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get events from delayed queue"""
+        if not self.redis:
+            raise RuntimeError("Redis connection not established")
+            
+        try:
+            # Get events from delayed set (sorted by timestamp)
+            raw_events = await self.redis.zrange("rebalance_delayed_set", 0, limit - 1)
+            
+            events = []
+            for event_json in raw_events:
+                try:
+                    event_data = json.loads(event_json)
+                    
+                    # Extract information
+                    event_id = event_data.get("event_id", "unknown")
+                    account_id = event_data.get("account_id", "unknown")
+                    exec_command = event_data.get("data", {}).get("exec", "unknown")
+                    times_queued = event_data.get("times_queued", 1)
+                    created_at = event_data.get("created_at", "unknown")
+                    
+                    # Get the score (timestamp when added to delayed queue)
+                    score = await self.redis.zscore("rebalance_delayed_set", event_json)
+                    retry_after = None
+                    if score:
+                        # Add retry delay to the score to get when it will be retried
+                        retry_after = datetime.fromtimestamp(score + 300, timezone.utc).isoformat()  # 300 seconds delay
+                    
+                    events.append({
+                        "event_id": event_id,
+                        "account_id": account_id,
+                        "exec_command": exec_command,
+                        "times_queued": times_queued,
+                        "created_at": created_at,
+                        "retry_after": retry_after,
+                        "data": event_data.get("data", {})
+                    })
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Failed to parse delayed event JSON: {e}")
+                    continue
+            
+            return events
+        except Exception as e:
+            logger.error(f"Failed to get delayed events: {e}")
+            raise

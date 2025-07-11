@@ -58,9 +58,12 @@ async def get_queue_status():
     return await container.queue_handlers.get_queue_status()
 
 @app.get("/queue/events", response_model=List[QueueEvent])
-async def get_queue_events(limit: int = Query(100, ge=1, le=1000)):
-    """Get events from queue"""
-    return await container.queue_handlers.get_queue_events(limit=limit)
+async def get_queue_events(
+    limit: int = Query(100, ge=1, le=1000),
+    type: str = Query(None, regex="^(active|delayed)$", description="Filter by event type: 'active' or 'delayed'")
+):
+    """Get events from queue with optional type filtering"""
+    return await container.queue_handlers.get_queue_events(limit=limit, event_type=type)
 
 # Queue management endpoints (require API key)
 @app.delete("/queue/events/{event_id}", response_model=RemoveEventResponse)

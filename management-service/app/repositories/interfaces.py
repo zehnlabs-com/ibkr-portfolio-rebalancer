@@ -57,6 +57,16 @@ class IQueueRepository(ABC):
     async def get_oldest_event_age(self) -> Optional[int]:
         """Get age of oldest event in seconds"""
         pass
+    
+    @abstractmethod
+    async def get_delayed_events_count(self) -> int:
+        """Get count of delayed events"""
+        pass
+    
+    @abstractmethod
+    async def get_delayed_events(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get events from delayed queue"""
+        pass
 
 
 class IHealthRepository(ABC):

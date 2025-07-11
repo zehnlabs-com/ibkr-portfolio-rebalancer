@@ -31,11 +31,19 @@ class QueueHandlers:
                 detail=f"Failed to get queue status: {str(e)}"
             )
     
-    async def get_queue_events(self, limit: int = 100) -> List[QueueEvent]:
-        """Get events from queue"""
+    async def get_queue_events(self, limit: int = 100, event_type: str = None) -> List[QueueEvent]:
+        """Get events from queue with optional type filtering"""
         try:
-            events = await self.queue_service.get_queue_events(limit=limit)
+            if event_type and event_type not in ["active", "delayed"]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid event type. Must be 'active' or 'delayed'"
+                )
+            
+            events = await self.queue_service.get_queue_events(limit=limit, event_type=event_type)
             return [QueueEvent(**event) for event in events]
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Failed to get queue events: {e}")
             raise HTTPException(

@@ -14,8 +14,8 @@ class IQueueService(ABC):
         pass
     
     @abstractmethod
-    async def get_queue_events(self, limit: int = 100) -> List[Dict[str, Any]]:
-        """Get events from queue with details"""
+    async def get_queue_events(self, limit: int = 100, event_type: str = None) -> List[Dict[str, Any]]:
+        """Get events from queue with details and optional type filtering"""
         pass
     
     @abstractmethod

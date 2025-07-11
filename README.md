@@ -70,14 +70,16 @@ The system implements a robust error handling strategy designed for reliability 
 
 ### Queue Management
 
-- **Redis Queue**: `rebalance_queue` stores pending events
+- **Redis Queue**: `rebalance_queue` stores pending events ready for processing
+- **Delayed Queue**: `rebalance_delayed_set` stores failed events waiting for retry
 - **Active Events**: `active_events` set tracks `account_id:command` combinations in progress
 - **Times Queued**: Each event tracks how many times it has been queued for processing
 - **Database Tracking**: PostgreSQL stores event history, status, and retry information
 
 ### Retry Behavior
 
-- **Automatic Requeue**: Failed events are automatically requeued to the back of the queue
+- **Automatic Requeue**: Failed events are automatically moved to the delayed queue
+- **Delayed Retry**: Failed events wait in delayed queue before being retried
 - **Infinite Retries**: No limits on retry attempts - events retry until successful
 - **Fixed Delays**: IBKR connection retries use fixed delays instead of exponential backoff
 - **Queue Ordering**: Failed events don't block processing of other events
@@ -89,12 +91,14 @@ The management service provides a RESTful API for monitoring and controlling the
 ### API Endpoints
 
 **Health Monitoring (Public)**
-- `GET /health` - System health check (healthy if no events with retries)
-- `GET /queue/status` - Queue statistics and metrics
-- `GET /queue/events?limit=100` - List events with retry counts
+- `GET /health` - System health check (healthy if no events with retries or delayed events)
+- `GET /queue/status` - Queue statistics and metrics including delayed events
+- `GET /queue/events?limit=100` - List all events (active and delayed)
+- `GET /queue/events?limit=100&type=active` - List only active events
+- `GET /queue/events?limit=100&type=delayed` - List only delayed events
 
 **Queue Management (Requires API Key)**
-- `DELETE /queue/events/{event_id}` - Remove specific event from queue
+- `DELETE /queue/events/{event_id}` - Remove specific event from queue (searches both active and delayed)
 - `POST /queue/events` - Add event to queue manually
 
 ### Authentication
@@ -113,8 +117,8 @@ curl -H "Authorization: Bearer your-secret-key" \
 ### Health Check Integration
 
 The health endpoint returns:
-- **Healthy**: No events with `times_queued > 1`
-- **Unhealthy**: One or more events are being retried
+- **Healthy**: No events with `times_queued > 1` and no delayed events
+- **Unhealthy**: One or more events are being retried or are in delayed queue
 - **Error**: Service cannot check queue status
 
 Example health response:
@@ -123,6 +127,7 @@ Example health response:
   "status": "healthy",
   "healthy": true,
   "events_with_retries": 0,
+  "delayed_events": 0,
   "message": "No events require retry"
 }
 ```
@@ -133,6 +138,7 @@ Example health response:
 {
   "queue_length": 5,
   "active_events_count": 3,
+  "delayed_events_count": 2,
   "oldest_event_age_seconds": 120,
   "events_with_retries": 1
 }
@@ -148,6 +154,20 @@ Example health response:
     "exec_command": "rebalance",
     "times_queued": 3,
     "created_at": "2023-12-01T10:00:00Z",
+    "type": "active",
+    "data": {
+      "exec": "rebalance",
+      "account_config": {...}
+    }
+  },
+  {
+    "event_id": "550e8400-e29b-41d4-a716-446655440001",
+    "account_id": "DU789012",
+    "exec_command": "rebalance",
+    "times_queued": 5,
+    "created_at": "2023-12-01T09:30:00Z",
+    "type": "delayed",
+    "retry_after": "2023-12-01T10:45:00Z",
     "data": {
       "exec": "rebalance",
       "account_config": {...}
@@ -530,6 +550,7 @@ curl -H "Authorization: Bearer $MANAGEMENT_API_KEY" \
 2. **Events Stuck in Queue**:
    - Check health status: `curl http://localhost:8000/health`
    - View problematic events: `curl http://localhost:8000/queue/events`
+   - Check delayed events: `curl http://localhost:8000/queue/events?type=delayed`
    - Check for IBKR connection issues in logs
 
 3. **Duplicate Events**:
@@ -566,6 +587,9 @@ curl -H "Authorization: Bearer $MANAGEMENT_API_KEY" \
    
    # List events with retry counts
    curl http://localhost:8000/queue/events?limit=50
+   
+   # List only delayed events
+   curl http://localhost:8000/queue/events?type=delayed
    ```
 
 3. **Add Event Manually**:

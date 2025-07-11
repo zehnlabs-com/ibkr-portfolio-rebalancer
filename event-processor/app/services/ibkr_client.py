@@ -366,7 +366,7 @@ class IBKRClient:
                     pass
     
     async def place_order(self, account_id: str, symbol: str, quantity: int, order_type: str = "MKT", 
-                         time_in_force: str = "DAY", extended_hours: bool = False) -> Optional[str]:
+                         time_in_force: str = "DAY", extended_hours: bool = False) -> str:
         async with self._order_lock:
             if not await self.ensure_connected():
                 raise Exception("Unable to establish IBKR connection")
@@ -417,6 +417,153 @@ class IBKRClient:
         logger.info(f"Placed order: ID={orderId}; {action} {order_type} {abs(quantity)} shares of {symbol} (TIF: {time_in_force}, Extended: {extended_hours})")
         
         return str(orderId)
+    
+    async def validate_order(self, account_id: str, symbol: str, quantity: int, order_type: str = "MKT", 
+                           time_in_force: str = "DAY", extended_hours: bool = False) -> Dict[str, Any]:
+        """Validate an order using WhatIf without actually placing it.
+        
+        Args:
+            account_id: Account ID
+            symbol: Stock symbol
+            quantity: Number of shares (positive for buy, negative for sell)
+            order_type: Order type (only MKT supported)
+            time_in_force: Time in force
+            extended_hours: Extended hours trading
+            
+        Returns:
+            Dict containing validation results with keys:
+            - valid: bool - whether order is valid
+            - error: str - error message if invalid
+            - margin_before: float - margin requirement before order
+            - margin_after: float - margin requirement after order
+            - commission: float - estimated commission
+            
+        Raises:
+            Exception: If validation fails due to connection or other errors
+        """
+        async with self._order_lock:
+            if not await self.ensure_connected():
+                raise Exception("Unable to establish IBKR connection")
+            
+            try:
+                # Prepare contract
+                contract = Stock(symbol, 'SMART', 'USD')
+                qualified_contracts = self.ib.qualifyContracts(contract)
+                if not qualified_contracts:
+                    return {
+                        'valid': False,
+                        'error': f"Could not qualify contract for {symbol}",
+                        'margin_before': 0,
+                        'margin_after': 0,
+                        'commission': 0
+                    }
+                
+                contract = qualified_contracts[0]
+                action = "BUY" if quantity > 0 else "SELL"
+                
+                # Validate order type
+                if order_type != "MKT":
+                    return {
+                        'valid': False,
+                        'error': f"Unsupported order type: {order_type}. Only MKT orders are supported.",
+                        'margin_before': 0,
+                        'margin_after': 0,
+                        'commission': 0
+                    }
+                
+                # Create WhatIf order
+                order = Order()
+                order.orderType = order_type
+                order.action = action
+                order.totalQuantity = abs(quantity)
+                order.tif = time_in_force
+                order.outsideRth = extended_hours
+                order.account = account_id
+                order.whatIf = True  # This is the key - enables validation mode
+                
+                # Place WhatIf order
+                trade = self.ib.placeOrder(contract, order)
+                
+                # Wait for order state to be populated
+                # WhatIf orders should return quickly with validation results
+                await asyncio.sleep(1)  # Give time for validation response
+                
+                # Check if we got validation results
+                if trade.orderStatus.status == 'Cancelled':
+                    # WhatIf orders are automatically cancelled after validation
+                    order_state = trade.orderStatus
+                    
+                    # Extract validation results from order state
+                    margin_before = getattr(order_state, 'initMarginBefore', 0)
+                    margin_after = getattr(order_state, 'initMarginAfter', 0)
+                    commission = getattr(order_state, 'commission', 0)
+                    
+                    return {
+                        'valid': True,
+                        'error': None,
+                        'margin_before': float(margin_before) if margin_before else 0,
+                        'margin_after': float(margin_after) if margin_after else 0,
+                        'commission': float(commission) if commission else 0
+                    }
+                else:
+                    # If order is still active, there might be an error
+                    error_msg = "Order validation failed"
+                    if trade.log:
+                        last_log = trade.log[-1]
+                        if last_log.message:
+                            error_msg = last_log.message
+                    
+                    return {
+                        'valid': False,
+                        'error': error_msg,
+                        'margin_before': 0,
+                        'margin_after': 0,
+                        'commission': 0
+                    }
+                
+            except Exception as e:
+                logger.error(f"Order validation failed: {e}")
+                return {
+                    'valid': False,
+                    'error': str(e),
+                    'margin_before': 0,
+                    'margin_after': 0,
+                    'commission': 0
+                }
+    
+    async def validate_orders_batch(self, account_id: str, orders: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Validate multiple orders in batch.
+        
+        Args:
+            account_id: Account ID
+            orders: List of order dicts with keys: symbol, quantity, order_type, time_in_force, extended_hours
+            
+        Returns:
+            List of validation results in same order as input
+            
+        Raises:
+            Exception: If any order validation fails
+        """
+        results = []
+        
+        for order_data in orders:
+            result = await self.validate_order(
+                account_id=account_id,
+                symbol=order_data['symbol'],
+                quantity=order_data['quantity'],
+                order_type=order_data.get('order_type', 'MKT'),
+                time_in_force=order_data.get('time_in_force', 'DAY'),
+                extended_hours=order_data.get('extended_hours', False)
+            )
+            
+            results.append(result)
+            
+            # If any order is invalid, fail the entire batch
+            if not result['valid']:
+                logger.error(f"Order validation failed for {order_data['symbol']}: {result['error']}")
+                raise Exception(f"Order validation failed for {order_data['symbol']}: {result['error']}")
+        
+        return results
     
     async def cancel_all_orders(self, account_id: str) -> List[Dict]:
         """Cancel all pending orders for the given account.
