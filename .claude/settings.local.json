@@ -35,7 +35,10 @@
       "WebFetch(domain:docs.docker.com)",
       "WebFetch(domain:nickjanetakis.com)",
       "WebFetch(domain:medium.com)",
-      "WebFetch(domain:www.howtogeek.com)"
+      "WebFetch(domain:www.howtogeek.com)",
+      "Bash(timeout 60 docker-compose logs event-processor -f)",
+      "Bash(timeout 120 docker-compose logs event-processor -f)",
+      "Bash(timeout 180 docker-compose logs event-processor -f)"
     ],
     "deny": []
   }
