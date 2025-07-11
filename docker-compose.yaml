@@ -1,3 +1,5 @@
+x-system-version: &system-version "0.0.2"
+
 volumes:
   ib_data:
   redis_data:
@@ -31,13 +33,13 @@ services:
       - "4002:4002"  # TWS API port (backup)
       - "5900:5900"  # VNC port
     environment:
-      - TWS_USERID=${IB_USERNAME}
-      - TWS_PASSWORD=${IB_PASSWORD}
-      - TWS_USERID_PAPER=${IB_USERNAME}
-      - TWS_PASSWORD_PAPER=${IB_PASSWORD}
-      - TRADING_MODE=${TRADING_MODE:-paper}
-      - READ_ONLY_API=no
-      - VNC_SERVER_PASSWORD=${VNC_PASSWORD:-password}
+      TWS_USERID: ${IB_USERNAME}
+      TWS_PASSWORD: ${IB_PASSWORD}
+      TWS_USERID_PAPER: ${IB_USERNAME}
+      TWS_PASSWORD_PAPER: ${IB_PASSWORD}
+      TRADING_MODE: ${TRADING_MODE:-paper}
+      READ_ONLY_API: no
+      VNC_SERVER_PASSWORD: ${VNC_PASSWORD:-password}
     volumes:
       - ib_data:/home/ibgateway
     healthcheck:      
@@ -51,9 +53,12 @@ services:
     build:
       context: .
       dockerfile: ./event-broker/Dockerfile
+      args:
+        VERSION: *system-version
     container_name: event-broker
     environment:      
-      - REDIS_HOST=redis
+      REDIS_HOST: redis
+      SERVICE_VERSION: *system-version
     depends_on:
       redis:
         condition: service_healthy
@@ -70,13 +75,17 @@ services:
     restart: unless-stopped      
 
   event-processor:
-    build: ./event-processor
+    build:
+      context: ./event-processor
+      args:
+        VERSION: *system-version
     environment:
-      - IB_HOST=ibkr
-      - IB_PORT=${IB_PORT:-4004}      
-      - TRADING_MODE=${TRADING_MODE:-paper}
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      - ZEHNLABS_FINTECH_API_KEY=${ZEHNLABS_FINTECH_API_KEY}
+      IB_HOST: ibkr
+      IB_PORT: ${IB_PORT:-4004}      
+      TRADING_MODE: ${TRADING_MODE:-paper}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ZEHNLABS_FINTECH_API_KEY: ${ZEHNLABS_FINTECH_API_KEY}
+      SERVICE_VERSION: *system-version
     volumes:
       - ./event-processor/config:/app/config
       - ./event-processor/logs:/app/logs
@@ -98,12 +107,15 @@ services:
     build:
       context: ./management-service
       dockerfile: Dockerfile
+      args:
+        VERSION: *system-version
     container_name: management-service
     ports:
       - "8000:8000"  # Management API port
     environment:
-      - REDIS_URL=redis://redis:6379/0
-      - MANAGEMENT_API_KEY=${MANAGEMENT_API_KEY}
+      REDIS_URL: redis://redis:6379/0
+      MANAGEMENT_API_KEY: ${MANAGEMENT_API_KEY}
+      SERVICE_VERSION: *system-version
     depends_on:
       redis:
         condition: service_healthy
@@ -133,6 +145,6 @@ services:
       - ibkr-network
     restart: unless-stopped
     environment:
-      - REMOTE_HOST=ibkr
-      - REMOTE_PORT=5900
+      REMOTE_HOST: ibkr
+      REMOTE_PORT: 5900
 

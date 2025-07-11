@@ -2,6 +2,7 @@
 Management Service FastAPI Application - SOLID Principles Implementation
 """
 import logging
+import os
 from typing import List
 from fastapi import FastAPI, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,11 +19,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Get version from environment variable (set by Docker)
+VERSION = os.getenv('SERVICE_VERSION', '1.0.0')
+
 # Initialize FastAPI app
 app = FastAPI(
     title="Portfolio Rebalancer Management Service",
     description="Queue management and health monitoring for the portfolio rebalancer system",
-    version="1.0.0"
+    version=VERSION
 )
 
 # Add CORS middleware
@@ -38,7 +42,7 @@ app.add_middleware(
 @app.get("/")
 async def root():
     """Root endpoint"""
-    return {"message": "Portfolio Rebalancer Management Service", "version": "1.0.0"}
+    return {"message": "Portfolio Rebalancer Management Service", "version": VERSION}
 
 # Health endpoints (public)
 @app.get("/health", response_model=HealthStatus)
