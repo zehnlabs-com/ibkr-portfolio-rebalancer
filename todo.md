@@ -8,3 +8,8 @@
 
 
 - Secure management api?
+
+- Management service root url returns version 1.0.0. Make it configurable.
+- Queues `GET {{baseUrl}}/health` and `GET {{baseUrl}}/health/detailed` are redundant
+- `POST {{baseUrl}}/queue/events` lacks duplicate check
+- INFO logging is too verbose

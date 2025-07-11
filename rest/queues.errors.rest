@@ -1,0 +1,44 @@
+###
+# Management Service Queue API Error Tests
+# Base URL: http://localhost:8000
+###
+
+@baseUrl = http://localhost:8000
+@apiKey = 8F3A-7C2D-9B1E-4G5H
+
+###
+# Error Testing
+###
+
+### Test Invalid Event Type
+GET {{baseUrl}}/queue/events?type=invalid
+
+### Test Add Event Without API Key
+POST {{baseUrl}}/queue/events
+Content-Type: application/json
+
+{
+  "account_id": "DU123456",
+  "exec_command": "rebalance",
+  "data": {
+    "exec": "rebalance"
+  }
+}
+
+### Test Remove Event Without API Key
+DELETE {{baseUrl}}/queue/events/some-event-id
+
+### Test Add Event with Invalid Data
+POST {{baseUrl}}/queue/events
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "account_id": "",
+  "exec_command": "",
+  "data": {}
+}
+
+### Test Remove Non-existent Event
+DELETE {{baseUrl}}/queue/events/non-existent-event-id
+Authorization: Bearer {{apiKey}}

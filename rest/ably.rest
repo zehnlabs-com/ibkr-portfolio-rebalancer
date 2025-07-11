@@ -4,15 +4,6 @@
 @auth=5L7t7A.5-sblw:boStLcCJ1s7uO0e4J6E7zn6UFimIi_OrZrucMlb7KtM
 
 
-### Health Check - Check IBKR connection and system health
-POST {{baseUrl}}/{{channelName}}/messages
-Authorization: Basic {{auth}}
-Content-Type: application/json
-
-{ 
-  "data": { "exec": "health" }
-}
-
 ### Print Positions - Log all current positions in the account
 POST {{baseUrl}}/{{channelName}}/messages
 Authorization: Basic {{auth}}
@@ -68,6 +59,10 @@ Content-Type: application/json
 {
   "data": { "exec": "rebalance" }
 }
+
+### ------------------------------------------------- ###
+
+
 
 ### Test Invalid Action - Should trigger an error
 POST {{baseUrl}}/{{channelName}}/messages

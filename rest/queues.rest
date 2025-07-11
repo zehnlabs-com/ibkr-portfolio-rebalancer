@@ -1,0 +1,70 @@
+###
+# Management Service Queue API
+# Base URL: http://localhost:8000
+###
+
+@baseUrl = http://localhost:8000
+@apiKey = 8F3A-7C2D-9B1E-4G5H
+@accountId = DUM959247
+
+###
+# Root Endpoint
+###
+
+### Service Info
+GET {{baseUrl}}/
+
+###
+# Health Check Endpoints (Public)
+###
+
+### Basic Health Check
+GET {{baseUrl}}/health
+
+### Detailed Health Check
+GET {{baseUrl}}/health/detailed
+
+###
+# Queue Status Endpoints
+###
+
+### Get Queue Status
+GET {{baseUrl}}/queue/status
+
+### Get All Queue Events (Active + Delayed)
+GET {{baseUrl}}/queue/events
+
+### Get Queue Events with Limit
+GET {{baseUrl}}/queue/events?limit=50
+
+### Get Active Events Only
+GET {{baseUrl}}/queue/events?type=active
+
+### Get Delayed Events Only
+GET {{baseUrl}}/queue/events?type=delayed
+
+### Get Active Events with Limit
+GET {{baseUrl}}/queue/events?limit=10&type=active
+
+### Get Delayed Events with Limit
+GET {{baseUrl}}/queue/events?limit=10&type=delayed
+
+### Add Event
+POST {{baseUrl}}/queue/events
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "account_id": "{{accountId}}",
+  "exec_command": "rebalance",  
+  "data": {
+    "exec": "rebalance"
+  }
+}
+
+
+### Remove Event by ID (replace with actual event ID)
+DELETE {{baseUrl}}/queue/events/eec31ac2-a3bb-48f2-b3e6-cd678576625a
+Authorization: Bearer {{apiKey}}
+
+
