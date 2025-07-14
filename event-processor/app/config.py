@@ -127,7 +127,7 @@ class Config:
         self.allocations_base_url = self.allocation.api_url
         
         # API keys (secrets from env only)
-        self.zehnlabs_fintech_api_key = os.getenv("ZEHNLABS_FINTECH_API_KEY", "")
+        self.allocations_api_key = os.getenv("ALLOCATIONS_API_KEY", "")
         
         # Note: Account configurations are now loaded from event payloads
         # No longer loading accounts from accounts.yaml file

@@ -14,7 +14,7 @@ class AllocationService:
         # Construct allocations URL from base URL and channel
         allocations_url = f"{config.allocations_base_url}/{account_config.notification.channel}/allocations"
         
-        api_key = config.zehnlabs_fintech_api_key
+        api_key = config.allocations_api_key
         
         headers = {}
         if api_key:            

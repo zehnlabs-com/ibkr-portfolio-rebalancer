@@ -12,8 +12,9 @@
 - (Completed) Management service root url returns version 1.0.0. Make it configurable. 
 - (Not an issue) `POST {{baseUrl}}/queue/events` lacks duplicate check
 - (Completed) Ably key should come from .env (Realtime)
-- Rename ZEHNLABS_FINTECH_API_KEY to ALLOCATIONS_API_KEY.
+- (Completed) Rename ZEHNLABS_FINTECH_API_KEY to ALLOCATIONS_API_KEY.
+- (Completed) Reformat .env and .env.example
+- Management API key to be removed and port only local
 - INFO logging is too verbose
-- Reformat .env and .env.example
 - Search warnings anf fix
 

@@ -241,7 +241,7 @@ IB_PASSWORD=your_password
 TRADING_MODE=paper
 
 # Global API Keys (shared across all accounts)
-ZEHNLABS_FINTECH_API_KEY=your_allocation_key
+ALLOCATIONS_API_KEY=your_allocation_key
 
 # Management Service
 MANAGEMENT_API_KEY=your_management_secret_key
