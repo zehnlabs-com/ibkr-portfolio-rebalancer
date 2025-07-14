@@ -23,6 +23,7 @@ class IBKRConfig:
     trading_mode: str              # Trading mode: 'paper' or 'live'
     connection_retry: RetryConfig  # Connection retry configuration
     order_retry: RetryConfig       # Order submission retry configuration
+    order_completion_timeout: int  # Seconds to wait for sell orders to complete
 
 @dataclass
 class RedisConfig:
@@ -76,7 +77,8 @@ class Config:
             password=os.getenv("IBKR_PASSWORD", ""),  # Secret from env
             trading_mode=os.getenv("TRADING_MODE", "paper"),  # Secret from env
             connection_retry=self._load_retry_config(ibkr_config["connection_retry"]),
-            order_retry=self._load_retry_config(ibkr_config["order_retry"])
+            order_retry=self._load_retry_config(ibkr_config["order_retry"]),
+            order_completion_timeout=ibkr_config.get("order_completion_timeout", 60)
         )
         
         # Redis config

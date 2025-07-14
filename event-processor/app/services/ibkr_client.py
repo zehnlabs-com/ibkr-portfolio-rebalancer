@@ -696,6 +696,17 @@ class IBKRClient:
             
             await asyncio.sleep(10)  # Check every 10 seconds
     
+    async def wait_for_sell_orders_completion(self, account_id: str, order_ids: List[str]) -> None:
+        """Wait for sell orders to complete using configured timeout"""
+        timeout_seconds = config.ibkr.order_completion_timeout
+        logger.info(f"Waiting up to {timeout_seconds} seconds for {len(order_ids)} sell orders to complete for account {account_id}")
+        
+        try:
+            await self._wait_for_orders_filled(account_id, order_ids, timeout_seconds)
+        except Exception as e:
+            # Re-raise with more specific error message for sell orders
+            raise Exception(f"Sell orders did not complete within {timeout_seconds} seconds: {e}")
+
     async def _wait_for_orders_filled(self, account_id: str, order_ids: List[str], max_wait_seconds: int = 300):
         """Wait for specific orders to be filled or cancelled for the account"""
         start_time = asyncio.get_event_loop().time()
@@ -720,7 +731,7 @@ class IBKRClient:
                 logger.error(error_msg)
                 raise Exception(error_msg)
             
-            await asyncio.sleep(10)  # Check every 10 seconds
+            await asyncio.sleep(2)  # Check every 2 seconds for faster response
     
     async def ensure_connected(self) -> bool:
         async with self._connection_lock:

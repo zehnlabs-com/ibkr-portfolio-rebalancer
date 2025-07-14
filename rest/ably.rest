@@ -1,6 +1,6 @@
 ### Test variables
 @baseUrl=https://rest.ably.io/channels
-@channelName=etf-blend-200-35
+@channelName=etf-blend-100-20
 @auth=5L7t7A.5-sblw:boStLcCJ1s7uO0e4J6E7zn6UFimIi_OrZrucMlb7KtM
 
 

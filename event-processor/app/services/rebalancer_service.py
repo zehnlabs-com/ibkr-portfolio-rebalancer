@@ -242,6 +242,8 @@ class RebalancerService:
         mode_text = "DRY RUN" if dry_run else "LIVE"
         logger.info(f"{mode_text} - Executing {len(sell_orders)} sell orders for account {account_id}")
         
+        sell_order_ids = []
+        
         for order in sell_orders:
             try:
                 if dry_run:
@@ -258,12 +260,17 @@ class RebalancerService:
                         extended_hours=config.order.extended_hours_enabled
                     )
                     
+                    sell_order_ids.append(str(order_id))
                     logger.info(f"LIVE - Sell order placed: {order} - Order ID: {order_id}")
                 
             except Exception as e:
                 error_text = f"Failed to {'simulate' if dry_run else 'place'} sell order {order}: {e}"
                 logger.error(error_text)
                 raise Exception(error_text) from e
+        
+        # Wait for sell orders to complete before returning
+        if not dry_run and sell_order_ids:
+            await self.ibkr_client.wait_for_sell_orders_completion(account_id, sell_order_ids)
         
         return cancelled_orders
     
