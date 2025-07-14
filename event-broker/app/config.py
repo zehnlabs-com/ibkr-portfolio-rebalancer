@@ -51,13 +51,11 @@ class Config:
             db=redis_config["db"]
         )
         
-        # PostgreSQL config removed
-        
-        # Ably config (from YAML only - not user configurable)
-        ably_config = config_data["ably"]
-        self.ably = AblyConfig(
-            api_key=ably_config["api_key"]
-        )
+        # Ably config (environment variable required)
+        api_key = os.getenv("REBALANCE_EVENT_SUBSCRIPTION_API_KEY")
+        if not api_key:
+            raise ValueError("REBALANCE_EVENT_SUBSCRIPTION_API_KEY environment variable is required")
+        self.ably = AblyConfig(api_key=api_key)
         
         # Application config (from YAML only)
         app_config = config_data["application"]
@@ -97,7 +95,7 @@ class Config:
                 raise ValueError(f"Config file {config_file} is empty")
             
             # Validate required sections exist
-            required_sections = ["redis", "ably", "application", "allocations", "rebalancer"]
+            required_sections = ["redis", "application", "allocations", "rebalancer"]
             for section in required_sections:
                 if section not in config_data:
                     raise ValueError(f"Required configuration section '{section}' missing from {config_file}")

@@ -8,10 +8,6 @@ redis:
   port: 6379              # Redis server port
   db: 0                   # Redis database number for event broker
 
-# Ably realtime messaging configuration
-ably:
-  api_key: "5L7t7A.AoDrNg:lXvCmY0oHKP08H_WevDb_ZdgtENDN4x_1LS_NfzvFho"  # Fixed API key for service
-
 # Application settings
 application:
   log_level: "INFO"             # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL

@@ -59,6 +59,7 @@ services:
     environment:      
       REDIS_HOST: redis
       SERVICE_VERSION: *system-version
+      REBALANCE_EVENT_SUBSCRIPTION_API_KEY: ${REBALANCE_EVENT_SUBSCRIPTION_API_KEY}
     depends_on:
       redis:
         condition: service_healthy
