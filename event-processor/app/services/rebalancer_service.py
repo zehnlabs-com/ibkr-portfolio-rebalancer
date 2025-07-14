@@ -71,6 +71,7 @@ class RebalancerService:
                     result.orders, 
                     available_cash, 
                     account_config.rebalancing.cash_reserve_percentage,
+                    account_value,
                     dry_run=False
                 )
                 
@@ -93,8 +94,11 @@ class RebalancerService:
         
         orders = []
         
-        # Use full account value for target calculations (no reserve applied here)
-        logger.info(f"Account {account_config.account_id}: Account value: ${account_value:.2f}, Cash reserve: {account_config.rebalancing.cash_reserve_percentage}% (will be applied to cash after sells)")
+        # Calculate investable amount (account value minus reserve)
+        reserve_amount = account_value * (account_config.rebalancing.cash_reserve_percentage / 100.0)
+        investable_amount = account_value - reserve_amount
+        
+        logger.info(f"Account {account_config.account_id}: Account value: ${account_value:.2f}, Cash reserve: {account_config.rebalancing.cash_reserve_percentage}% (${reserve_amount:.2f}), Investable amount: ${investable_amount:.2f}")
         
         current_positions_map = {pos['symbol']: pos for pos in current_positions}
         
@@ -102,7 +106,7 @@ class RebalancerService:
         for allocation in target_allocations:
             symbol = allocation['symbol']
             target_percentage = allocation['allocation']
-            target_value = account_value * target_percentage  # Use full account value
+            target_value = investable_amount * target_percentage  # Use investable amount
             target_positions[symbol] = target_value
         
         # Create equity info (reserve info will be updated after sells)
@@ -263,7 +267,7 @@ class RebalancerService:
         
         return cancelled_orders
     
-    async def _execute_buy_orders(self, account_id: str, orders: List[RebalanceOrder], available_cash: float, reserve_percentage: float, dry_run: bool = False):
+    async def _execute_buy_orders(self, account_id: str, orders: List[RebalanceOrder], available_cash: float, reserve_percentage: float, account_value: float, dry_run: bool = False):
         """Execute buy orders up to available cash after reserve"""
         buy_orders = [order for order in orders if order.action == 'BUY']
         
@@ -271,14 +275,15 @@ class RebalancerService:
             logger.info("No buy orders to execute")
             return
         
-        # Calculate cash available for purchases after reserve
-        cash_after_reserve = available_cash * (1.0 - reserve_percentage / 100.0)
+        # Calculate cash available for purchases after reserve (based on total account value)
+        reserve_amount = account_value * (reserve_percentage / 100.0)
+        cash_after_reserve = available_cash - reserve_amount
         
         # Sort buy orders by market value (largest first) to prioritize important positions
         buy_orders.sort(key=lambda x: x.market_value, reverse=True)
         
         mode_text = "DRY RUN" if dry_run else "LIVE"
-        logger.info(f"{mode_text} - Available cash: ${available_cash:.2f}, Reserve: {reserve_percentage}% (${available_cash * reserve_percentage / 100.0:.2f}), Cash for purchases: ${cash_after_reserve:.2f}")
+        logger.info(f"{mode_text} - Available cash: ${available_cash:.2f}, Reserve: {reserve_percentage}% (${reserve_amount:.2f}), Cash for purchases: ${cash_after_reserve:.2f}")
         
         executed_orders = []
         total_cost = 0.0
@@ -348,6 +353,7 @@ class RebalancerService:
                     result.orders, 
                     estimated_cash, 
                     account_config.rebalancing.cash_reserve_percentage,
+                    account_value,
                     dry_run=True
                 )
                 

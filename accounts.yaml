@@ -1,7 +1,7 @@
 # SEP = U20660659; INDV = U7794534; PAPER = DUM959247
 - account_id: "DUM959247" 
   notification:
-    channel: "etf-blend-100-20"
+    channel: "etf-blend-200-35"
   rebalancing:
     cash_reserve_percentage: 2.0 # 0% to 10% (values outside this range default to 1%)
 

@@ -380,7 +380,7 @@ The rebalancer implements a sell-first portfolio rebalancing algorithm with cash
 5. **Generate Orders**: Creates buy/sell orders to reach target allocation
 6. **Execute Sell Orders**: Submits sell orders first and waits for completion
 7. **Get Cash Balance**: Retrieves actual cash balance after sells complete
-8. **Execute Buy Orders**: Submits buy orders up to `Cash Balance × (1 - Reserve %)`
+8. **Execute Buy Orders**: Submits buy orders up to `Cash Balance - (Account Value × Reserve %)`
 
 ### Order Cancellation
 
@@ -411,11 +411,14 @@ Each account can have its own reserve percentage configured in `accounts.yaml`:
 - **Default**: 1% if not specified or invalid
 - **Logging**: Invalid values are logged with warnings
 
+**Reserve Calculation:**
+The cash reserve is calculated based on **total account value**, not available cash:
+
 **Example:**
 - Account Value: $100,000
-- Reserve: 2% 
-- Available for Trading: $98,000
-- Cash Reserve: $2,000
+- Reserve: 2% of account value = $2,000
+- Available Cash After Sells: $5,000
+- Cash Available for Purchases: $5,000 - $2,000 = $3,000
 
 ### API Response
 
