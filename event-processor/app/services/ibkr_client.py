@@ -637,6 +637,11 @@ class IBKRClient:
                 
                 for order in open_orders:
                     if order.account == account_id:
+                        # Skip what-if orders - they are automatically cancelled by IBKR
+                        if hasattr(order, 'whatIf') and order.whatIf:
+                            logger.debug(f"Skipping what-if order {order.orderId} - automatically cancelled by IBKR")
+                            continue
+                            
                         # Get contract symbol
                         symbol = 'Unknown'
                         if hasattr(order, 'contract') and order.contract:
