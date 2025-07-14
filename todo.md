@@ -14,3 +14,5 @@
 - INFO logging is too verbose
 - Reformat .env and .env.example
 - Ably key should come from .env (Realtime)
+- Search warnings anf fix
+

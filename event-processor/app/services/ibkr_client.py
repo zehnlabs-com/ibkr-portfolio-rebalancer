@@ -200,23 +200,16 @@ class IBKRClient:
             raise Exception("Unable to establish IBKR connection")
         
         try:
-            positions = self.ib.positions(account_id)
+            portfolio_items = self.ib.portfolio(account_id)
             result = []
             
-            for pos in positions:
-                if pos.position != 0:
-                    # Handle cases where marketValue might not be available
-                    market_value = getattr(pos, 'marketValue', None)
-                    if market_value is None:
-                        # Fall back to calculating market value from position and price
-                        market_value = pos.position * getattr(pos, 'avgCost', 0.0)
-                        logger.warning(f"marketValue not available for {pos.contract.symbol}, calculated from position * avgCost")
-                    
+            for item in portfolio_items:
+                if item.position != 0:
                     result.append({
-                        'symbol': pos.contract.symbol,
-                        'position': pos.position,
-                        'market_value': market_value,
-                        'avg_cost': getattr(pos, 'avgCost', 0.0)
+                        'symbol': item.contract.symbol,
+                        'position': item.position,
+                        'market_value': item.marketValue,
+                        'avg_cost': item.averageCost
                     })
             
             return result
