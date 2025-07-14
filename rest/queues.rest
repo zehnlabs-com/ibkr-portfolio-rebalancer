@@ -4,7 +4,6 @@
 ###
 
 @baseUrl = http://localhost:8000
-@apiKey = 8F3A-7C2D-9B1E-4G5H
 @accountId = DUM959247
 @strategyName = etf-blend-100-20
 
@@ -52,11 +51,9 @@ GET {{baseUrl}}/queue/events?limit=10&type=delayed
 
 ### Remove Event by ID (replace with actual event ID)
 DELETE {{baseUrl}}/queue/events/5f88b639-1c1b-4e75-8114-9ed063a7fc49
-Authorization: Bearer {{apiKey}}
 
 ### Add Event
 POST {{baseUrl}}/queue/events
-Authorization: Bearer {{apiKey}}
 Content-Type: application/json
 
  {

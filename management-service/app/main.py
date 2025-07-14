@@ -69,22 +69,16 @@ async def get_queue_events(
     """Get events from queue with optional type filtering"""
     return await container.queue_handlers.get_queue_events(limit=limit, event_type=type)
 
-# Queue management endpoints (require API key)
+# Queue management endpoints
 @app.delete("/queue/events/{event_id}", response_model=RemoveEventResponse)
-async def remove_event(
-    event_id: str,
-    api_key: str = Depends(container.auth_middleware.verify_api_key)
-):
-    """Remove event from queue (requires API key)"""
-    return await container.queue_handlers.remove_event(event_id, api_key)
+async def remove_event(event_id: str):
+    """Remove event from queue"""
+    return await container.queue_handlers.remove_event(event_id)
 
 @app.post("/queue/events", response_model=AddEventResponse)
-async def add_event(
-    event_request: AddEventRequest,
-    api_key: str = Depends(container.auth_middleware.verify_api_key)
-):
-    """Add event to queue (requires API key)"""
-    return await container.queue_handlers.add_event(event_request, api_key)
+async def add_event(event_request: AddEventRequest):
+    """Add event to queue"""
+    return await container.queue_handlers.add_event(event_request)
 
 # Startup and shutdown events
 @app.on_event("startup")

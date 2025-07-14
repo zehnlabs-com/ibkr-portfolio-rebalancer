@@ -112,11 +112,8 @@ services:
       args:
         VERSION: *system-version
     container_name: management-service
-    ports:
-      - "8000:8000"  # Management API port
     environment:
       REDIS_URL: redis://redis:6379/0
-      MANAGEMENT_API_KEY: ${MANAGEMENT_API_KEY}
       SERVICE_VERSION: *system-version
     depends_on:
       redis:

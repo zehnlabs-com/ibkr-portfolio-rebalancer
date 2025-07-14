@@ -6,8 +6,6 @@ from app.repositories.redis_queue_repository import RedisQueueRepository
 from app.repositories.redis_health_repository import RedisHealthRepository
 from app.services.queue_service import QueueService
 from app.services.health_service import HealthService
-from app.services.auth_service import AuthenticationService
-from app.middleware.auth_middleware import AuthenticationMiddleware
 from app.handlers.queue_handlers import QueueHandlers
 from app.handlers.health_handlers import HealthHandlers
 
@@ -23,13 +21,9 @@ class Container:
         # Services
         self.queue_service = QueueService(self.queue_repository)
         self.health_service = HealthService(self.health_repository, self.queue_repository)
-        self.auth_service = AuthenticationService(settings.management_api_key)
-        
-        # Middleware
-        self.auth_middleware = AuthenticationMiddleware(self.auth_service)
         
         # Handlers
-        self.queue_handlers = QueueHandlers(self.queue_service, self.auth_middleware)
+        self.queue_handlers = QueueHandlers(self.queue_service)
         self.health_handlers = HealthHandlers(self.health_service)
     
     async def startup(self):

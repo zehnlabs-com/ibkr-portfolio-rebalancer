@@ -97,21 +97,17 @@ The management service provides a RESTful API for monitoring and controlling the
 - `GET /queue/events?limit=100&type=active` - List only active events
 - `GET /queue/events?limit=100&type=delayed` - List only delayed events
 
-**Queue Management (Requires API Key)**
+**Queue Management (Internal-Only)**
 - `DELETE /queue/events/{event_id}` - Remove specific event from queue (searches both active and delayed)
 - `POST /queue/events` - Add event to queue manually
 
-### Authentication
+### Internal Access
 
-Queue management endpoints require API key authentication:
+Queue management endpoints are internal-only and do not require authentication:
 
 ```bash
-# Set the API key
-export MANAGEMENT_API_KEY="your-secret-key"
-
-# Use with curl
-curl -H "Authorization: Bearer your-secret-key" \
-  -X DELETE http://localhost:8000/queue/events/some-event-id
+# Use with curl (no authentication needed)
+curl -X DELETE http://localhost:8000/queue/events/some-event-id
 ```
 
 ### Health Check Integration
@@ -180,8 +176,7 @@ Example health response:
 
 Add an event manually:
 ```bash
-curl -H "Authorization: Bearer your-secret-key" \
-  -H "Content-Type: application/json" \
+curl -H "Content-Type: application/json" \
   -d '{
     "account_id": "DU123456",
     "exec_command": "rebalance",
@@ -192,8 +187,7 @@ curl -H "Authorization: Bearer your-secret-key" \
 
 Remove a problematic event:
 ```bash
-curl -H "Authorization: Bearer your-secret-key" \
-  -X DELETE http://localhost:8000/queue/events/event-id-here
+curl -X DELETE http://localhost:8000/queue/events/event-id-here
 ```
 
 ## Configuration
@@ -244,7 +238,7 @@ TRADING_MODE=paper
 ALLOCATIONS_API_KEY=your_allocation_key
 
 # Management Service
-MANAGEMENT_API_KEY=your_management_secret_key
+# MANAGEMENT_API_KEY=no_longer_needed
 
 # Order Configuration
 # Note: Only MKT orders are supported (MOC not compatible with sell-first logic)
@@ -259,7 +253,6 @@ LOG_LEVEL=INFO
 ```
 
 **Important Environment Variables:**
-- `MANAGEMENT_API_KEY`: Required for queue management operations (DELETE/POST endpoints)
 - `TRADING_MODE`: Set to `paper` for testing or `live` for production
 - `LOG_LEVEL`: Controls logging verbosity (DEBUG, INFO, WARNING, ERROR)
 
@@ -349,8 +342,7 @@ Test rebalancing by manually adding events via the management service:
 
 ```bash
 # Add a dry run event
-curl -H "Authorization: Bearer $MANAGEMENT_API_KEY" \
-  -H "Content-Type: application/json" \
+curl -H "Content-Type: application/json" \
   -d '{
     "account_id": "DU123456",
     "exec_command": "print-rebalance",
@@ -359,8 +351,7 @@ curl -H "Authorization: Bearer $MANAGEMENT_API_KEY" \
   http://localhost:8000/queue/events
 
 # Add a live rebalance event
-curl -H "Authorization: Bearer $MANAGEMENT_API_KEY" \
-  -H "Content-Type: application/json" \
+curl -H "Content-Type: application/json" \
   -d '{
     "account_id": "DU123456",
     "exec_command": "rebalance",
@@ -517,7 +508,7 @@ This approach solves the original problem where orders might not fill due to pri
 
 - Uses random client IDs to avoid IBKR login conflicts
 - Supports both paper and live trading modes
-- API keys configured via environment variables
+- Internal management API without authentication
 - Non-root user in Docker container
 
 ## Monitoring
@@ -561,8 +552,7 @@ cd management-service && python -m app.main
 curl http://localhost:8000/health
 
 # Add a test event
-curl -H "Authorization: Bearer $MANAGEMENT_API_KEY" \
-  -H "Content-Type: application/json" \
+curl -H "Content-Type: application/json" \
   -d '{"account_id": "DU123456", "exec_command": "print-rebalance", "data": {"exec": "print-rebalance"}}' \
   http://localhost:8000/queue/events
 ```
@@ -611,17 +601,15 @@ curl -H "Authorization: Bearer $MANAGEMENT_API_KEY" \
    - Verify port 8000 is accessible
    - Check management service logs: `docker-compose logs management-service`
 
-2. **API Key Authentication Failed**:
-   - Verify `MANAGEMENT_API_KEY` is set in environment
-   - Use proper authorization header: `Authorization: Bearer your-key`
-   - Check if API key is configured in docker-compose.yaml
+2. **Management API Access**:
+   - Management API is internal-only and doesn't require authentication
+   - Ensure services are running in the same Docker network
 
 #### Queue Management
 1. **Clear Stuck Events**:
    ```bash
    # Remove specific event
-   curl -H "Authorization: Bearer $MANAGEMENT_API_KEY" \
-     -X DELETE http://localhost:8000/queue/events/event-id-here
+   curl -X DELETE http://localhost:8000/queue/events/event-id-here
    ```
 
 2. **Monitor Queue Health**:
@@ -641,8 +629,7 @@ curl -H "Authorization: Bearer $MANAGEMENT_API_KEY" \
 
 3. **Add Event Manually**:
    ```bash
-   curl -H "Authorization: Bearer $MANAGEMENT_API_KEY" \
-     -H "Content-Type: application/json" \
+   curl -H "Content-Type: application/json" \
      -d '{"account_id": "DU123456", "exec_command": "rebalance", "data": {"exec": "rebalance"}}' \
      http://localhost:8000/queue/events
    ```

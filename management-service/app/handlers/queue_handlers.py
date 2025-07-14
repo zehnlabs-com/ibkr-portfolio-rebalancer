@@ -7,7 +7,6 @@ from fastapi import HTTPException, status, Depends
 
 from app.services.interfaces import IQueueService
 from app.models.queue_models import QueueStatus, QueueEvent, AddEventRequest, AddEventResponse, RemoveEventResponse
-from app.middleware.auth_middleware import AuthenticationMiddleware
 
 logger = logging.getLogger(__name__)
 
@@ -15,9 +14,8 @@ logger = logging.getLogger(__name__)
 class QueueHandlers:
     """Queue API handlers"""
     
-    def __init__(self, queue_service: IQueueService, auth_middleware: AuthenticationMiddleware):
+    def __init__(self, queue_service: IQueueService):
         self.queue_service = queue_service
-        self.auth_middleware = auth_middleware
     
     async def get_queue_status(self) -> QueueStatus:
         """Get queue status"""
@@ -51,9 +49,8 @@ class QueueHandlers:
                 detail=f"Failed to get queue events: {str(e)}"
             )
     
-    async def remove_event(self, event_id: str, api_key: str = Depends(lambda: None)) -> RemoveEventResponse:
-        """Remove event from queue (requires API key)"""
-        # This will be properly injected with auth middleware dependency
+    async def remove_event(self, event_id: str) -> RemoveEventResponse:
+        """Remove event from queue"""
         try:
             success = await self.queue_service.remove_event(event_id)
             if success:
@@ -72,9 +69,8 @@ class QueueHandlers:
                 detail=f"Failed to remove event: {str(e)}"
             )
     
-    async def add_event(self, event_request: AddEventRequest, api_key: str = Depends(lambda: None)) -> AddEventResponse:
-        """Add event to queue (requires API key)"""
-        # This will be properly injected with auth middleware dependency
+    async def add_event(self, event_request: AddEventRequest) -> AddEventResponse:
+        """Add event to queue"""
         try:
             event_id = await self.queue_service.add_event(
                 account_id=event_request.account_id,
