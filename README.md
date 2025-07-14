@@ -378,7 +378,7 @@ The rebalancer implements a sell-first portfolio rebalancing algorithm with cash
 3. **Cancel Existing Orders**: Cancels all pending orders to prevent conflicts (waits up to 60 seconds for confirmation)
 4. **Calculate Target Positions**: Uses full account value for allocation calculations
 5. **Generate Orders**: Creates buy/sell orders to reach target allocation
-6. **Execute Sell Orders**: Submits sell orders first and waits for completion
+6. **Execute Sell Orders**: Submits sell orders first and waits for completion (with timeout)
 7. **Get Cash Balance**: Retrieves actual cash balance after sells complete
 8. **Execute Buy Orders**: Submits buy orders up to `Cash Balance - (Account Value × Reserve %)`
 
@@ -387,6 +387,50 @@ The rebalancer implements a sell-first portfolio rebalancing algorithm with cash
 Before placing new rebalancing orders, the system automatically cancels all existing pending orders for the account to prevent duplicate or conflicting trades. 
 
 **Important**: If existing orders cannot be cancelled within 60 seconds, the rebalancing process will fail with an error. This prevents the system from placing new orders when old orders are still pending, which could result in overtrading or unintended positions.
+
+### Order Completion Timeout
+
+The system implements order completion timeout to prevent insufficient funds errors when placing buy orders:
+
+**Problem Solved:**
+- Previously, sell orders were placed and buy orders were immediately executed using estimated cash balance
+- This caused "insufficient funds" errors when sell orders hadn't completed yet
+- Buy orders would be rejected because the actual cash from sells wasn't available
+
+**Solution:**
+After placing sell orders, the system polls their status every 2 seconds until they complete or timeout occurs.
+
+**Configuration:**
+Order completion timeout is configurable in `event-processor/config/config.yaml`:
+
+```yaml
+ibkr:
+  # Order completion timeout - how long to wait for sell orders to complete
+  order_completion_timeout: 60  # Seconds (default: 60)
+```
+
+**Behavior:**
+1. **Sell Orders Placed**: System places all sell orders and collects their order IDs
+2. **Status Polling**: Polls order status every 2 seconds for up to 60 seconds (configurable)
+3. **Success Case**: All sell orders complete → Buy orders execute with updated cash balance
+4. **Timeout Case**: After 60 seconds → Event fails → Automatic retry mechanism triggers
+5. **Retry Handling**: Next attempt starts fresh with current positions/cash state
+
+**Benefits:**
+- **Eliminates insufficient funds errors**: Buy orders only execute after sell proceeds are available
+- **Handles partial fills gracefully**: Retry mechanism accounts for any orders that completed during timeout
+- **Self-correcting**: Each retry evaluates fresh account state and only places needed orders
+- **Configurable timeout**: Can be adjusted based on market conditions and order complexity
+
+**Timeout Recovery:**
+If sell orders don't complete within the timeout period:
+1. The rebalancing event fails with a timeout error
+2. The event is automatically requeued for retry (standard failure handling)
+3. The next retry attempt starts with fresh account data
+4. Only the remaining trades needed are calculated and executed
+5. Process continues until successful completion
+
+This approach leverages the existing robust retry infrastructure while ensuring order sequencing prevents trading errors.
 
 ### Cash Reserve System
 
