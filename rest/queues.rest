@@ -6,6 +6,7 @@
 @baseUrl = http://localhost:8000
 @apiKey = 8F3A-7C2D-9B1E-4G5H
 @accountId = DUM959247
+@strategyName = etf-blend-100-20
 
 ###
 # Root Endpoint
@@ -65,8 +66,8 @@ Content-Type: application/json
       "exec": "rebalance",
       "account_config": {
         "account_id": "{{accountId}}",
-        "notification_channel": "etf-blend-100-20",
-        "allocations_url": "https://api.example.com/etf-blend-100-20/allocations",
+        "notification_channel": "{{strategyName}}",
+        "allocations_url": "https://api.example.com/{{strategyName}}/allocations",
         "cash_reserve_percentage": 1.0
       }
     }

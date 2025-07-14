@@ -9,7 +9,8 @@
 
 - Secure management api?
 
-- Management service root url returns version 1.0.0. Make it configurable. (Completed)
-- `POST {{baseUrl}}/queue/events` lacks duplicate check (Not an issue)
+- (Completed) Management service root url returns version 1.0.0. Make it configurable. 
+- (Not an issue) `POST {{baseUrl}}/queue/events` lacks duplicate check
 - INFO logging is too verbose
 - Reformat .env and .env.example
+- Ably key should come from .env (Realtime)
