@@ -64,7 +64,7 @@ class OrderConfig:
     extended_hours_enabled: bool # Enable extended hours trading
     
 class Config:
-    def __init__(self, config_file: str = "config/config.yaml"):
+    def __init__(self, config_file: str = "config.yaml"):
         # Load configuration from YAML file (required)
         config_data = self._load_config_file(config_file)
         
