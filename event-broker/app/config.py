@@ -57,10 +57,10 @@ class Config:
             raise ValueError("REBALANCE_EVENT_SUBSCRIPTION_API_KEY environment variable is required")
         self.ably = AblyConfig(api_key=api_key)
         
-        # Application config (from YAML only)
+        # Application config (environment variables override YAML)
         app_config = config_data["application"]
         self.application = ApplicationConfig(
-            log_level=app_config["log_level"],
+            log_level=os.getenv("LOG_LEVEL", app_config["log_level"]),
             accounts_file=app_config["accounts_file"]
         )
         

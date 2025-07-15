@@ -69,7 +69,7 @@ class EventProcessor:
                 event_data = await queue_service.get_next_event()
                 
                 if event_data:
-                    logger.info(f"Processing event: {event_data.get('event_id')}")
+                    logger.debug(f"Processing event: {event_data.get('event_id')}")
                     await self.process_event(event_data)
                 else:
                     logger.debug("No events available, waiting...")

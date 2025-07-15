@@ -110,10 +110,10 @@ class Config:
             timeout=allocation_config["timeout"]
         )
         
-        # Logging config
+        # Logging config 
         logging_config = config_data["logging"]  # Required section
         self.logging = LoggingConfig(
-            level=logging_config["level"],
+            level=os.getenv("LOG_LEVEL", logging_config["level"]),
             format=logging_config["format"]
         )
         
@@ -163,8 +163,4 @@ class Config:
             delay=retry_config["delay"]
         )
     
-    # Note: _load_accounts method removed - account configs now come from event payloads
-    
-    # Note: get_account_config method removed - account configs now come from event payloads
-
 config = Config()
