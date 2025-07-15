@@ -4,11 +4,11 @@ Rebalance command implementation.
 
 from typing import Dict, Any
 from app.commands.base import EventCommand, EventCommandResult, CommandStatus
-from app.logger import setup_logger, log_with_event
+from app.logger import EventLogger
 from app.models.account_config import EventAccountConfig
 from app.config import config
 
-logger = setup_logger(__name__)
+event_logger = EventLogger(__name__)
 
 
 class RebalanceCommand(EventCommand):
@@ -30,29 +30,23 @@ class RebalanceCommand(EventCommand):
                 )
             
             # Get account configuration from event payload
-            account_config_data = self.event_data.get('data', {}).get('account_config') or \
-                                self.event_data.get('payload', {}).get('account_config')
+            account_config_data = self.event.payload.get('account_config')
             
             if not account_config_data:
                 return EventCommandResult(
                     status=CommandStatus.FAILED,
-                    error=f"No account configuration found in event payload for account {self.account_id}"
+                    error=f"No account configuration found in event payload for account {self.event.account_id}"
                 )
             
             # Create account config object from the event payload
             account_config = EventAccountConfig(account_config_data)
             
-            log_with_event(logger, 'info',
-                          "Using MKT order type (only type supported)",
-                          event_id=self.event_id, account_id=self.account_id)
+            event_logger.log_info("Using MKT order type (only type supported)", self.event)
             
             # Execute rebalancing (always uses MKT orders)
             result = await rebalancer_service.rebalance_account(account_config)
             
-            log_with_event(logger, 'info',
-                          f"Rebalance completed - orders: {len(result.orders)}",
-                          event_id=self.event_id, account_id=self.account_id,
-                          orders_placed=len(result.orders))
+            event_logger.log_info(f"Rebalance completed - orders: {len(result.orders)}", self.event)
             
             return EventCommandResult(
                 status=CommandStatus.SUCCESS,

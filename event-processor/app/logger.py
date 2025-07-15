@@ -1,6 +1,7 @@
 import logging
 import sys
 import json
+from datetime import datetime
 from app.config import config
 
 class StructuredFormatter(logging.Formatter):
@@ -30,7 +31,11 @@ class StructuredFormatter(logging.Formatter):
                           'msecs', 'relativeCreated', 'thread', 'threadName', 
                           'processName', 'process', 'getMessage', 'exc_info', 
                           'exc_text', 'stack_info', 'message', 'event_id', 'account_id']:
-                log_data[key] = value
+                # Convert datetime objects to ISO format strings for JSON serialization
+                if isinstance(value, datetime):
+                    log_data[key] = value.isoformat()
+                else:
+                    log_data[key] = value
         
         if config.logging.format == 'json':
             return json.dumps(log_data)
@@ -58,13 +63,45 @@ def setup_logger(name: str) -> logging.Logger:
     
     return logger
 
-def log_with_event(logger: logging.Logger, level: str, message: str, event_id: str = None, account_id: str = None, **kwargs):
-    """Helper function to log with event_id and account_id"""
-    extra = kwargs.copy()
-    if event_id:
-        extra['event_id'] = event_id
-    if account_id:
-        extra['account_id'] = account_id
+def _extract_event_properties(event):
+    """Extract relevant properties from an event object for logging"""
+    if event is None:
+        return {}
     
-    log_method = getattr(logger, level.lower())
-    log_method(message, extra=extra)
+    # Since EventInfo objects are strongly typed, we can directly access core properties
+    properties = {
+        'event_id': event.event_id,
+        'account_id': event.account_id,
+        'exec_command': event.exec_command,
+        'status': event.status,
+        'times_queued': event.times_queued,
+        'received_at': event.received_at.isoformat() if isinstance(event.received_at, datetime) else event.received_at
+    }
+    
+    return properties
+
+class EventLogger:
+    """Logger instance for event-based logging with automatic event context extraction"""
+    
+    def __init__(self, name: str):
+        self.logger = setup_logger(name)
+    
+    def log_debug(self, message: str, event):
+        """Log debug message with event context"""
+        extra = _extract_event_properties(event)
+        self.logger.debug(message, extra=extra)
+    
+    def log_info(self, message: str, event):
+        """Log info message with event context"""
+        extra = _extract_event_properties(event)
+        self.logger.info(message, extra=extra)
+    
+    def log_warning(self, message: str, event):
+        """Log warning message with event context"""
+        extra = _extract_event_properties(event)
+        self.logger.warning(message, extra=extra)
+    
+    def log_error(self, message: str, event):
+        """Log error message with event context"""
+        extra = _extract_event_properties(event)
+        self.logger.error(message, extra=extra)

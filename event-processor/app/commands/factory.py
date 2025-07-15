@@ -36,15 +36,15 @@ class CommandFactory:
         self._commands[command_type] = command_class
         logger.debug(f"Registered command: {command_type} -> {command_class.__name__}")
     
-    def create_command(self, command_type: str, event_id: str, account_id: str, event_data: Dict[str, Any]) -> Optional[EventCommand]:
+    def create_command(self, command_type: str, event_id: str, account_id: str, event_info) -> Optional[EventCommand]:
         """
         Create a command instance for the given command type
         
         Args:
             command_type: The type of command to create
-            event_id: Event ID
-            account_id: Account ID
-            event_data: Event data dictionary
+            event_id: Event ID (unused, kept for backward compatibility)
+            account_id: Account ID (unused, kept for backward compatibility)
+            event_info: Event information object
             
         Returns:
             EventCommand instance or None if command type not found
@@ -55,7 +55,7 @@ class CommandFactory:
         
         command_class = self._commands[command_type]
         try:
-            command = command_class(event_id, account_id, event_data)
+            command = command_class(event_info)
             logger.debug(f"Created command: {command}")
             return command
         except Exception as e:

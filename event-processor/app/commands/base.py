@@ -4,8 +4,11 @@ Base classes for event processing commands.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, TYPE_CHECKING
 from enum import Enum
+
+if TYPE_CHECKING:
+    from app.models.events import EventInfo
 
 
 class CommandStatus(Enum):
@@ -27,10 +30,8 @@ class EventCommandResult:
 class EventCommand(ABC):
     """Abstract base class for all event processing commands"""
     
-    def __init__(self, event_id: str, account_id: str, event_data: Dict[str, Any]):
-        self.event_id = event_id
-        self.account_id = account_id
-        self.event_data = event_data
+    def __init__(self, event: 'EventInfo'):
+        self.event = event
         self.command_type = self._get_command_type()
     
     @abstractmethod
@@ -52,4 +53,4 @@ class EventCommand(ABC):
         pass
     
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(event_id={self.event_id}, account_id={self.account_id})"
+        return f"{self.__class__.__name__}(event_id={self.event.event_id}, account_id={self.event.account_id})"

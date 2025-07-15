@@ -5,8 +5,10 @@ import json
 import time
 import redis.asyncio as redis
 from typing import Dict, Any, Optional, List
+from datetime import datetime, timezone
 from app.config import config
 from app.logger import setup_logger
+from app.models.events import EventInfo
 
 logger = setup_logger(__name__)
 
@@ -24,12 +26,12 @@ class QueueService:
             self.redis = await redis.from_url(self._redis_url, decode_responses=True)
         return self.redis
         
-    async def get_next_event(self) -> Optional[Dict[str, Any]]:
+    async def get_next_event(self) -> Optional[EventInfo]:
         """
         Get next event from queue with timeout
         
         Returns:
-            Dict[str, Any]: Event data if available, None if timeout
+            EventInfo: Event object if available, None if timeout
         """
         try:
             redis = await self._get_redis()
@@ -41,11 +43,44 @@ class QueueService:
             if result:
                 queue_name, event_json = result
                 event_data = json.loads(event_json)
+                
+                # Extract exec_command from the nested data structure
+                exec_command = event_data.get('data', {}).get('exec')
+                if not exec_command:
+                    logger.error(f"Event missing exec command: {event_data}")
+                    return None
+                
+                # Parse datetime fields
+                received_at = event_data.get('received_at')
+                if received_at and isinstance(received_at, str):
+                    received_at = datetime.fromisoformat(received_at.replace('Z', '+00:00'))
+                elif not received_at:
+                    received_at = datetime.now(timezone.utc)
+                
+                created_at = event_data.get('created_at')
+                if created_at and isinstance(created_at, str):
+                    created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                elif not created_at:
+                    created_at = datetime.now(timezone.utc)
+                
+                # Create EventInfo object from raw data
+                event_info = EventInfo(
+                    event_id=event_data.get('event_id'),
+                    account_id=event_data.get('account_id'),
+                    exec_command=exec_command,
+                    status=event_data.get('status', 'pending'),
+                    payload=event_data.get('data', {}),
+                    received_at=received_at,
+                    times_queued=event_data.get('times_queued', 1),
+                    created_at=created_at
+                )
+                
                 logger.debug(f"Retrieved event from queue", extra={
-                    'event_id': event_data.get('event_id'),
-                    'account_id': event_data.get('account_id')
+                    'event_id': event_info.event_id,
+                    'account_id': event_info.account_id,
+                    'exec_command': event_info.exec_command
                 })
-                return event_data
+                return event_info
             
             return None
             
@@ -53,38 +88,31 @@ class QueueService:
             logger.error(f"Failed to get event from queue: {e}")
             return None
     
-    async def requeue_event(self, event_data: Dict[str, Any]):
+    async def requeue_event(self, event_info: EventInfo) -> EventInfo:
         """
         Put event back in queue for retry (at back of queue - FIFO retry)
         Increments times_queued counter
         """
         try:
             redis = await self._get_redis()
-            account_id = event_data['account_id']
-            
-            # Extract command from event data - required field
-            exec_command = event_data.get('data', {}).get('exec')
-            if not exec_command:
-                logger.error(f"Event missing required 'exec' field for account {account_id}, cannot requeue", extra={
-                    'account_id': account_id,
-                    'event_id': event_data.get('event_id'),
-                    'event_data': event_data
-                })
-                raise ValueError(f"Event missing required 'exec' field for account {account_id}")
+            account_id = event_info.account_id
+            exec_command = event_info.exec_command
             
             deduplication_key = f"{account_id}:{exec_command}"
             
             # Increment times_queued counter
-            current_times_queued = event_data.get('times_queued')
-            if current_times_queued is None:
-                logger.error(f"Event missing required 'times_queued' field, cannot requeue for account {account_id}", extra={
-                    'account_id': account_id,
-                    'event_id': event_data.get('event_id'),
-                    'event_data': event_data
-                })
-                raise ValueError(f"Event missing required 'times_queued' field for account {account_id}")
+            event_info.times_queued += 1
             
-            event_data['times_queued'] = current_times_queued + 1
+            # Convert EventInfo back to the dictionary format expected by queue
+            event_data = {
+                'event_id': event_info.event_id,
+                'account_id': event_info.account_id,
+                'data': event_info.payload,
+                'status': event_info.status,
+                'received_at': event_info.received_at.isoformat() if event_info.received_at else None,
+                'times_queued': event_info.times_queued,
+                'created_at': event_info.created_at.isoformat() if event_info.created_at else None
+            }
             
             # Add to back of queue (rpush) and tracking set
             pipe = redis.pipeline()
@@ -93,12 +121,14 @@ class QueueService:
             await pipe.execute()
             
             logger.info(f"Event requeued for retry", extra={
-                'event_id': event_data.get('event_id'),
+                'event_id': event_info.event_id,
                 'account_id': account_id,
                 'exec_command': exec_command,
-                'times_queued': event_data['times_queued'],
+                'times_queued': event_info.times_queued,
                 'deduplication_key': deduplication_key
             })
+            
+            return event_info
             
         except Exception as e:
             logger.error(f"Failed to requeue event: {e}")
@@ -166,38 +196,31 @@ class QueueService:
             logger.error(f"Failed to get queued accounts: {e}")
             return set()
     
-    async def requeue_event_delayed(self, event_data: Dict[str, Any]):
+    async def requeue_event_delayed(self, event_info: EventInfo) -> EventInfo:
         """
         Put event in delayed queue for retry after configured delay
         Increments times_queued counter and removes from active events
         """
         try:
             redis = await self._get_redis()
-            account_id = event_data['account_id']
-            
-            # Extract command from event data - required field
-            exec_command = event_data.get('data', {}).get('exec')
-            if not exec_command:
-                logger.error(f"Event missing required 'exec' field for account {account_id}, cannot requeue", extra={
-                    'account_id': account_id,
-                    'event_id': event_data.get('event_id'),
-                    'event_data': event_data
-                })
-                raise ValueError(f"Event missing required 'exec' field for account {account_id}")
+            account_id = event_info.account_id
+            exec_command = event_info.exec_command
             
             deduplication_key = f"{account_id}:{exec_command}"
             
             # Increment times_queued counter
-            current_times_queued = event_data.get('times_queued')
-            if current_times_queued is None:
-                logger.error(f"Event missing required 'times_queued' field, cannot requeue for account {account_id}", extra={
-                    'account_id': account_id,
-                    'event_id': event_data.get('event_id'),
-                    'event_data': event_data
-                })
-                raise ValueError(f"Event missing required 'times_queued' field for account {account_id}")
+            event_info.times_queued += 1
             
-            event_data['times_queued'] = current_times_queued + 1
+            # Convert EventInfo back to dictionary format for queue storage
+            event_data = {
+                'event_id': event_info.event_id,
+                'account_id': event_info.account_id,
+                'data': event_info.payload,
+                'status': event_info.status,
+                'received_at': event_info.received_at.isoformat() if event_info.received_at else None,
+                'times_queued': event_info.times_queued,
+                'created_at': event_info.created_at.isoformat() if event_info.created_at else None
+            }
             
             # Add to delayed queue with current timestamp as score
             # Remove from active events set (no longer active until retry)
@@ -208,13 +231,15 @@ class QueueService:
             await pipe.execute()
             
             logger.info(f"Event added to delayed queue for retry", extra={
-                'event_id': event_data.get('event_id'),
+                'event_id': event_info.event_id,
                 'account_id': account_id,
                 'exec_command': exec_command,
-                'times_queued': event_data['times_queued'],
+                'times_queued': event_info.times_queued,
                 'deduplication_key': deduplication_key,
                 'retry_after': current_time + config.processing.retry_delay_seconds
             })
+            
+            return event_info
             
         except Exception as e:
             logger.error(f"Failed to add event to delayed queue: {e}")

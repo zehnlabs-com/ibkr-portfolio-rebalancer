@@ -6,10 +6,12 @@ import asyncio
 from typing import Dict, Any
 from app.core.service_container import ServiceContainer
 from app.commands.base import CommandStatus
+from app.models.events import EventInfo
 from app.config import config
-from app.logger import setup_logger
+from app.logger import setup_logger, EventLogger
 
 logger = setup_logger(__name__)
+event_logger = EventLogger(__name__)
 
 
 class EventProcessor:
@@ -66,11 +68,11 @@ class EventProcessor:
             try:
                 logger.debug("Checking for events in queue...")
                 # Get event from queue with timeout
-                event_data = await queue_service.get_next_event()
+                event_info = await queue_service.get_next_event()
                 
-                if event_data:
-                    logger.debug(f"Processing event: {event_data.get('event_id')}")
-                    await self.process_event(event_data)
+                if event_info:
+                    logger.debug(f"Processing event: {event_info.event_id}")
+                    await self.process_event(event_info)
                 else:
                     logger.debug("No events available, waiting...")
                     await asyncio.sleep(5)
@@ -79,24 +81,9 @@ class EventProcessor:
                 logger.error(f"Error in main loop: {e}")
                 await asyncio.sleep(10)
     
-    async def process_event(self, event_data: Dict[str, Any]):
+    async def process_event(self, event_info: EventInfo):
         """Process a single event using command pattern"""
-        event_id = event_data.get('event_id')
-        account_id = event_data.get('account_id')
-        data = event_data.get('data', {})
-        exec_command = data.get('exec')
-        times_queued = event_data.get('times_queued')
-        
-        if times_queued is None:
-            await self._handle_permanent_failure(event_data, "Event missing required 'times_queued' field")
-            return
-        
-        logger.info(f"Processing {exec_command} event for account {account_id} (attempt {times_queued})", extra={
-            'event_id': event_id, 
-            'account_id': account_id,
-            'exec_command': exec_command,
-            'times_queued': times_queued
-        })
+        event_logger.log_debug("Processing event", event_info)
         
         queue_service = self.service_container.get_queue_service()
         try:
@@ -104,10 +91,10 @@ class EventProcessor:
             
             # Get command factory and create command
             command_factory = self.service_container.get_command_factory()
-            command = command_factory.create_command(exec_command, event_id, account_id, event_data)
+            command = command_factory.create_command(event_info.exec_command, event_info.event_id, event_info.account_id, event_info)
             
             if not command:
-                await self._handle_permanent_failure(event_data, f"No command handler found for: {exec_command}")
+                await self._handle_permanent_failure(event_info, f"No command handler found for: {event_info.exec_command}")
                 return
             
             # Execute command with services
@@ -116,99 +103,50 @@ class EventProcessor:
             
             # Handle command result
             if result.status == CommandStatus.SUCCESS:
-                logger.info(f"Command executed successfully: {result.message}", extra={
-                    'event_id': event_id,
-                    'account_id': account_id,
-                    'command_type': exec_command,
-                    'times_queued': times_queued
-                })
+                event_logger.log_info(f"Command executed successfully: {result.message}", event_info)
                 
                 # Remove from active events set after successful processing
-                await queue_service.remove_from_queued(account_id, exec_command)
-                logger.debug(f"Event processed successfully, removed from active events", extra={
-                    'event_id': event_id,
-                    'account_id': account_id,
-                    'exec_command': exec_command
-                })
+                await queue_service.remove_from_queued(event_info.account_id, event_info.exec_command)
+                event_logger.log_debug("Event processed successfully, removed from active events", event_info)
             else:
-                logger.error(f"Command failed: {result.error}", extra={
-                    'event_id': event_id,
-                    'account_id': account_id,
-                    'command_type': exec_command,
-                    'times_queued': times_queued
-                })
-                await self._handle_failed_event(event_data, result.error)
+                event_logger.log_error(f"Command failed: {result.error}", event_info)
+                await self._handle_failed_event(event_info, result.error)
                 
         except Exception as e:
-            logger.error(f"Error processing event {event_id}: {e}", extra={
-                'event_id': event_id,
-                'account_id': account_id,
-                'error': str(e),
-                'times_queued': times_queued
-            })
-            await self._handle_failed_event(event_data, str(e))
+            event_logger.log_error(f"Error processing event {event_info.event_id}: {e}", event_info)
+            await self._handle_failed_event(event_info, str(e))
     
-    async def _handle_failed_event(self, event_data: Dict[str, Any], error_message: str):
+    async def _handle_failed_event(self, event_info: EventInfo, error_message: str):
         """Handle failed events by requeuing them automatically"""
-        event_id = event_data.get('event_id')
-        account_id = event_data.get('account_id')
-        exec_command = event_data.get('data', {}).get('exec')
-        times_queued = event_data.get('times_queued')
-        if times_queued is None:
-            logger.error(f"Event missing required 'times_queued' field, cannot handle failure for account {account_id}", extra={
-                'event_id': event_id,
-                'account_id': account_id,
-                'event_data': event_data
-            })
-            return
-        
         try:
             # Failure tracking now handled in Redis only
             
+            # Update event status
+            event_info.status = 'failed'
+            
             # Requeue event automatically (goes to back of queue)
             queue_service = self.service_container.get_queue_service()
-            await queue_service.requeue_event_delayed(event_data)
+            updated_event_info = await queue_service.requeue_event_delayed(event_info)
             
-            logger.info(f"Event requeued after failure", extra={
-                'event_id': event_id,
-                'account_id': account_id,
-                'exec_command': exec_command,
-                'times_queued': times_queued + 1,
-                'error': error_message
-            })
+            event_logger.log_info(f"Event requeued after failure: {error_message}", updated_event_info)
             
         except Exception as e:
-            logger.error(f"Failed to requeue event {event_id}: {e}", extra={
-                'event_id': event_id,
-                'account_id': account_id,
-                'requeue_error': str(e)
-            })
+            event_logger.log_error(f"Failed to requeue event {event_info.event_id}: {e}", event_info)
     
-    async def _handle_permanent_failure(self, event_data: Dict[str, Any], error_message: str):
+    async def _handle_permanent_failure(self, event_info: EventInfo, error_message: str):
         """Handle permanent failures by discarding event and logging error"""
-        event_id = event_data.get('event_id')
-        account_id = event_data.get('account_id')
-        exec_command = event_data.get('data', {}).get('exec')
-        
         try:
             # Remove from active events (no requeue)
             queue_service = self.service_container.get_queue_service()
-            await queue_service.remove_from_queued(account_id, exec_command)
+            await queue_service.remove_from_queued(event_info.account_id, event_info.exec_command)
             
-            logger.error(f"Permanent failure - event discarded: {error_message}", extra={
-                'event_id': event_id,
-                'account_id': account_id,
-                'exec_command': exec_command,
-                'permanent_failure': True,
-                'error': error_message
-            })
+            # Update event status
+            event_info.status = 'failed'
+            
+            event_logger.log_error(f"Permanent failure - event discarded: {error_message}", event_info)
             
         except Exception as e:
-            logger.error(f"Failed to handle permanent failure for event {event_id}: {e}", extra={
-                'event_id': event_id,
-                'account_id': account_id,
-                'permanent_failure_error': str(e)
-            })
+            event_logger.log_error(f"Failed to handle permanent failure for event {event_info.event_id}: {e}", event_info)
     
     async def _delayed_event_processor(self):
         """Background task to process delayed events periodically"""
