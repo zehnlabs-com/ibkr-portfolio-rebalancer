@@ -1,0 +1,30 @@
+# You can configure as many accounts in this file as needed.
+# Each strategy must have a valid subscription and can be traded in multiple accounts.
+
+# Account 1
+############
+  #IBKR account ID
+- account_id: "U123456" 
+  notification:
+    # Name of the strategy that this account will trade.
+    # All lowercase letters, spaces replaced with hyphens.
+    # You must have a valid subscription for this strategy.    
+    channel: "etf-blend-200-35" 
+  rebalancing:
+    # Percentage of equity to reserve as a buffer for quickly changing prices.
+    # Valid values are 0% to 10% (values outside this range default to 1%)
+    cash_reserve_percentage: 2.0
+
+# Account 2
+############
+  # IBKR account ID
+- account_id: "U654321"
+  notification:
+    # Name of the strategy that this account will trade.
+    # All lowercase letters, spaces replaced with hyphens.
+    # You must have a valid subscription for this strategy.
+    channel: "etf-blend-301-20" # Strtagey name, all lowercase, spaces replaced with hyphens
+  rebalancing:
+    # Percentage of equity to reserve as a buffer for quickly changing prices.
+    # Valid values are 0% to 10% (values outside this range default to 1%)
+    cash_reserve_percentage: 2.5

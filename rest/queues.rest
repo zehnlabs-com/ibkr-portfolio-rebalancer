@@ -3,9 +3,9 @@
 # Base URL: http://localhost:8000
 ###
 
-@baseUrl = http://localhost:8000
-@accountId = DUM959247
-@strategyName = etf-blend-100-20
+@baseUrl=http://localhost:8000
+@accountId=DUM959247
+@strategyName=etf-blend-200-35
 
 ###
 # Root Endpoint
