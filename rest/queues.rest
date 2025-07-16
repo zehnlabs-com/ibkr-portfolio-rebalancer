@@ -4,7 +4,7 @@
 ###
 
 @baseUrl=http://localhost:8000
-@accountId=DUM959247
+@accountId={{$dotenv TEST_ACCOUNT_ID}}
 @strategyName=etf-blend-200-35
 
 ###
