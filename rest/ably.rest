@@ -1,6 +1,7 @@
 ### Test variables
 @baseUrl=https://rest.ably.io/channels
 @channelName=etf-blend-200-35
+@eventId=89614df4-4df7-47e8-81cd-349cad23b849
 @auth={{$dotenv REBALANCE_EVENT_SUBSCRIPTION_API_KEY}}
 
 
@@ -10,7 +11,7 @@ Authorization: Basic {{auth}}
 Content-Type: application/json
 
 {
-  "data": { "exec": "print-positions" }
+  "data": { "exec": "print-positions", "eventId": "{{eventId}}" }
 }
 
 ### Print Equity - Log total account value
@@ -19,7 +20,7 @@ Authorization: Basic {{auth}}
 Content-Type: application/json
 
 {
-  "data": { "exec": "print-equity" }
+  "data": { "exec": "print-equity", "eventId": "{{eventId}}" }
 }
 
 ### Print Orders - Log all pending orders
@@ -28,7 +29,7 @@ Authorization: Basic {{auth}}
 Content-Type: application/json
 
 {
-  "data": { "exec": "print-orders" }
+  "data": { "exec": "print-orders", "eventId": "{{eventId}}" }
 }
 
 ### Print Rebalance - Show what orders would be executed (dry run)
@@ -37,7 +38,7 @@ Authorization: Basic {{auth}}
 Content-Type: application/json
 
 {
-  "data": { "exec": "print-rebalance" }
+  "data": { "exec": "print-rebalance", "eventId": "{{eventId}}" }
 }
 
 ### Cancel Orders - Cancel all pending orders
@@ -46,7 +47,7 @@ Authorization: Basic {{auth}}
 Content-Type: application/json
 
 {
-  "data": { "exec": "cancel-orders" }
+  "data": { "exec": "cancel-orders", "eventId": "{{eventId}}" }
 }
 
 ### Rebalance - LIVE TRADING - Execute actual rebalance with real orders
@@ -57,7 +58,7 @@ Authorization: Basic {{auth}}
 Content-Type: application/json
 
 {
-  "data": { "exec": "rebalance" }
+  "data": { "exec": "rebalance", "eventId": "{{eventId}}" }
 }
 
 ### -------------------------------------------------------- ###
@@ -72,7 +73,7 @@ Authorization: Basic {{auth}}
 Content-Type: application/json
 
 {
-  "data": { "exec": "invalid-action" }
+  "data": { "exec": "invalid-action", "eventId": "{{eventId}}" }
 }
 
 ### Test Missing exec - Should trigger an error requiring action specification
@@ -81,7 +82,7 @@ Authorization: Basic {{auth}}
 Content-Type: application/json
 
 {
-  "data": { "message": "test without action" }
+  "data": { "message": "test without action", "eventId": "{{eventId}}" }
 }
 
 

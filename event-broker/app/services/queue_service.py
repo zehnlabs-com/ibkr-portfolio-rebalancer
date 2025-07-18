@@ -48,8 +48,9 @@ class QueueService:
                 logger.info(f"Account {account_id} with command {exec_command} already queued, skipping duplicate event")
                 return None
             
-            # Generate event ID
-            event_id = str(uuid.uuid4())
+            event_id = event_data.get('eventId')
+            if not exec_command:            
+                event_id = str(uuid.uuid4())
             
             # Create queue event
             queue_event = {

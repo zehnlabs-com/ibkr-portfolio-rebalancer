@@ -6,6 +6,7 @@
 @baseUrl=http://localhost:8000
 @accountId={{$dotenv TEST_ACCOUNT_ID}}
 @strategyName=etf-blend-200-35
+@eventId=89614df4-4df7-47e8-81cd-349cad23b849
 
 ###
 # Root Endpoint
@@ -61,6 +62,7 @@ Content-Type: application/json
     "exec_command": "rebalance",
     "data": {
       "exec": "rebalance",
+      "eventId": "{{eventId}}",
       "account_config": {
         "account_id": "{{accountId}}",
         "notification_channel": "{{strategyName}}",
