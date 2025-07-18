@@ -19,8 +19,7 @@ class IBKRClient:
         self.client_id = random.randint(1000, 2999)
         self.connected = False
         self.retry_count = 0
-        self._reconnect_attempts = 0
-        self._max_reconnect_attempts = 5
+        self._reconnection_task = None
         
         # Add synchronization locks
         self._connection_lock = asyncio.Lock()
@@ -33,6 +32,10 @@ class IBKRClient:
         
         # Current market data type (1=live, 2=frozen, 3=delayed, 4=delayed-frozen)
         self._current_market_data_type = 1
+        
+        # Set up event handlers for automatic reconnection
+        self.ib.disconnectedEvent += self._on_disconnected
+        self.ib.connectedEvent += self._on_connected
     
     async def connect(self) -> bool:
         if self.ib.isConnected():  # This method is synchronous and safe to use
@@ -61,22 +64,43 @@ class IBKRClient:
             logger.error(f"Failed to connect to IB Gateway at {config.ibkr.host}:{config.ibkr.port}: {type(e).__name__}: {e}")
             return False    
     
-    async def _handle_reconnection(self):
-        """Handle automatic reconnection with exponential backoff"""
-        while self._reconnect_attempts < self._max_reconnect_attempts:
+    def _on_disconnected(self):
+        """Called automatically when connection is lost"""
+        logger.warning("IBKR connection lost")
+        self.connected = False
+        
+        # Start reconnection task if not already running
+        if self._reconnection_task is None or self._reconnection_task.done():
+            self._reconnection_task = asyncio.create_task(self._reconnect_loop())
+
+    def _on_connected(self):
+        """Called automatically when connection is established"""
+        logger.info("IBKR connection established")
+        self.connected = True
+
+    async def _reconnect_loop(self):
+        """Continuously try to reconnect every 10 seconds"""
+        while not self.ib.isConnected():
             try:
-                await asyncio.sleep(2 ** self._reconnect_attempts)  # Exponential backoff
-                if await self.connect():
-                    logger.debug("Successfully reconnected")
-                    self._reconnect_attempts = 0
-                    return
+                logger.info("Attempting to reconnect to IBKR...")
+                await self.ib.connectAsync(
+                    host=config.ibkr.host,
+                    port=config.ibkr.port,
+                    clientId=self.client_id,
+                    timeout=10
+                )
+                logger.info("Reconnection successful")
+                break
             except Exception as e:
-                logger.error(f"Reconnection attempt {self._reconnect_attempts + 1} failed: {e}")
-                self._reconnect_attempts += 1
-    
+                logger.warning(f"Reconnection failed: {e}, retrying in 10 seconds...")
+                await asyncio.sleep(10)
     
     async def disconnect(self):
         try:
+            # Cancel any ongoing reconnection task
+            if self._reconnection_task and not self._reconnection_task.done():
+                self._reconnection_task.cancel()
+                
             if self.ib.isConnected():                
                 self.ib.disconnect()
                 self.connected = False

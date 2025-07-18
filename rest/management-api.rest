@@ -6,7 +6,7 @@
 @baseUrl=http://localhost:8000
 @accountId={{$dotenv TEST_ACCOUNT_ID}}
 @strategyName=etf-blend-200-35
-@eventId=89614df4-4df7-47e8-81cd-349cad23b849
+@eventId=00000000-0000-0000-0000-000000000000
 
 ###
 # Root Endpoint
@@ -66,14 +66,28 @@ Content-Type: application/json
       "account_config": {
         "account_id": "{{accountId}}",
         "notification_channel": "{{strategyName}}",
-        "allocations_url": "https://api.example.com/{{strategyName}}/allocations",
+        "allocations_url": "https://workers.fintech.zehnlabs.com/api/v1/strategies/{{strategyName}}/allocations",
         "cash_reserve_percentage": 1.0
       }
     }
   }
 
+###
+# Error Testing
+###
 
+### Test Invalid Event Type
+GET {{baseUrl}}/queue/events?type=invalid
 
+### Test Add Event with Invalid Data
+POST {{baseUrl}}/queue/events
+Content-Type: application/json
 
+{
+  "account_id": "",
+  "exec_command": "",
+  "data": {}
+}
 
-
+### Test Remove Non-existent Event
+DELETE {{baseUrl}}/queue/events/non-existent-event-id

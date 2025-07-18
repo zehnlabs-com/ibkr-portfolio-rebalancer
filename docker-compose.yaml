@@ -112,6 +112,8 @@ services:
       args:
         VERSION: *system-version
     container_name: management-service
+    ports:
+      - "8000:8000"
     environment:
       REDIS_URL: redis://redis:6379/0
       LOG_LEVEL: ${LOG_LEVEL:-INFO}

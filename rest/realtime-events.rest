@@ -1,7 +1,7 @@
 ### Test variables
 @baseUrl=https://rest.ably.io/channels
 @channelName=etf-blend-200-35
-@eventId=89614df4-4df7-47e8-81cd-349cad23b849
+@eventId=00000000-0000-0000-0000-000000000000
 @auth={{$dotenv REBALANCE_EVENT_SUBSCRIPTION_API_KEY}}
 
 
