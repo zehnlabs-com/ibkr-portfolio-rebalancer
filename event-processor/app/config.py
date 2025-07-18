@@ -70,12 +70,13 @@ class Config:
         
         # IBKR config (YAML for app settings, env for secrets and connection details)
         ibkr_config = config_data["ibkr"]  # Required section
+        trading_mode = os.getenv("TRADING_MODE", "paper")  # Get trading mode first
         self.ibkr = IBKRConfig(
             host=os.getenv("IB_HOST", ibkr_config["host"]),  # Use IB_HOST like old code
-            port=int(os.getenv("IB_PORT", ibkr_config["port"])),  # Use IB_PORT like old code
+            port=4003 if trading_mode == "live" else 4004,  # 4003 for live, 4004 for paper
             username=os.getenv("IBKR_USERNAME", ""),  # Secret from env
             password=os.getenv("IBKR_PASSWORD", ""),  # Secret from env
-            trading_mode=os.getenv("TRADING_MODE", "paper"),  # Secret from env
+            trading_mode=trading_mode,  # Secret from env
             connection_retry=self._load_retry_config(ibkr_config["connection_retry"]),
             order_retry=self._load_retry_config(ibkr_config["order_retry"]),
             order_completion_timeout=ibkr_config.get("order_completion_timeout", 60)

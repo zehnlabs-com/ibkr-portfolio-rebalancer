@@ -83,7 +83,6 @@ services:
         VERSION: *system-version
     environment:
       IB_HOST: ibkr
-      IB_PORT: ${IB_PORT:-4004}      
       TRADING_MODE: ${TRADING_MODE:-paper}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       ALLOCATIONS_API_KEY: ${ALLOCATIONS_API_KEY}

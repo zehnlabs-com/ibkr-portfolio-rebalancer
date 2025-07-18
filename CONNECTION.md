@@ -48,11 +48,8 @@ This project provides a containerized solution for connecting to Interactive Bro
 IB_USERNAME=your_ib_username
 IB_PASSWORD=your_ib_password
 
-# Trading mode: paper or live
+# Trading mode: paper or live (port automatically set: 4004 for paper, 4003 for live)
 TRADING_MODE=paper
-
-# API connection settings
-IB_PORT=4004        # Port for API connection (4004 for paper, 4003 for live)
 
 # VNC Configuration (for debugging Gateway GUI)
 VNC_PASSWORD=password
@@ -82,20 +79,18 @@ The following environment variables are automatically configured in docker-compo
 ```bash
 # .env file
 TRADING_MODE=paper
-IB_PORT=4004
 
 # Uses paper trading credentials
-# Connects to socat port 4004
+# Automatically connects to socat port 4004
 ```
 
 ### For Live Trading
 ```bash
 # .env file
 TRADING_MODE=live
-IB_PORT=4003
 
 # Uses live trading credentials
-# Connects to socat port 4003
+# Automatically connects to socat port 4003
 ```
 
 **⚠️ Warning**: Live trading involves real money. Always test thoroughly with paper trading first.

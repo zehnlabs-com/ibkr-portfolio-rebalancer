@@ -9,8 +9,6 @@ redis:
 ibkr:
   # Connection settings (secrets come from environment variables)
   host: "ibkr"            # IBKR Gateway/TWS hostname (overridden by IB_HOST env var)
-  port: 4004              # IBKR API port (overridden by IB_PORT env var)
-                          # Common ports: 4004 (Gateway), 7497 (TWS Paper), 7496 (TWS Live)
   
   # Connection retry configuration - handles network disconnections
   connection_retry:
