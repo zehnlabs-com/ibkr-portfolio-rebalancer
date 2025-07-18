@@ -10,12 +10,7 @@ redis:
 
 # Application settings
 application:
-  log_level: "INFO"             # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
   accounts_file: "/accounts.yaml" # Path to account configuration file
-
-# Strategy allocation API configuration
-allocations:
-  base_url: "https://workers.fintech.zehnlabs.com/api/v1/strategies"  # Base URL for strategy allocation API
 
 # Event processor API configuration for health checks
 rebalancer:

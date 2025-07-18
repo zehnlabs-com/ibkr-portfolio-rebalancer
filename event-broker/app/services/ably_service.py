@@ -16,11 +16,9 @@ logger = setup_logger(__name__, level=config.LOG_LEVEL)
 class AccountConfig:
     """Account configuration model"""
     
-    def __init__(self, data: Dict[str, Any], allocations_base_url: str):
+    def __init__(self, data: Dict[str, Any]):
         self.account_id = data.get('account_id')
         self.notification_channel = data.get('notification', {}).get('channel')
-        # Build full allocations URL
-        self.allocations_url = f"{allocations_base_url}/{self.notification_channel}/allocations"
         # Add rebalancing configuration
         rebalancing_data = data.get('rebalancing', {})
         self.cash_reserve_percentage = rebalancing_data.get('cash_reserve_percentage', rebalancing_data.get('equity_reserve_percentage', 1.0))
@@ -105,7 +103,7 @@ class AblyEventSubscriber:
             self.accounts = []
             # accounts_data is a list of account configurations
             for account_data in accounts_data:
-                account = AccountConfig(account_data, config.allocations.base_url)
+                account = AccountConfig(account_data)
                 if account.account_id and account.notification_channel:
                     self.accounts.append(account)
                     logger.debug(f"Loaded account: {account.account_id} -> {account.notification_channel}")
@@ -184,7 +182,6 @@ class AblyEventSubscriber:
                 "account_config": {
                     "account_id": account.account_id,
                     "notification_channel": account.notification_channel,
-                    "allocations_url": account.allocations_url,
                     "cash_reserve_percentage": account.cash_reserve_percentage
                 }
             }

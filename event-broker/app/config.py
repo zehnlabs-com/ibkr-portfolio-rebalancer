@@ -27,11 +27,6 @@ class ApplicationConfig:
     accounts_file: str # Path to account configuration file
 
 @dataclass
-class AllocationsConfig:
-    """Strategy allocation API configuration"""
-    base_url: str  # Base URL for strategy allocation API
-
-@dataclass
 class RebalancerConfig:
     """Event processor API configuration"""
     api_url: str  # Event processor service URL for health checks
@@ -60,14 +55,8 @@ class Config:
         # Application config (environment variables override YAML)
         app_config = config_data["application"]
         self.application = ApplicationConfig(
-            log_level=os.getenv("LOG_LEVEL", app_config["log_level"]),
+            log_level=os.getenv("LOG_LEVEL", "INFO"),
             accounts_file=app_config["accounts_file"]
-        )
-        
-        # Allocations config (from YAML only)
-        allocations_config = config_data["allocations"]
-        self.allocations = AllocationsConfig(
-            base_url=allocations_config["base_url"]
         )
         
         # Rebalancer config (from YAML only)
@@ -95,7 +84,7 @@ class Config:
                 raise ValueError(f"Config file {config_file} is empty")
             
             # Validate required sections exist
-            required_sections = ["redis", "application", "allocations", "rebalancer"]
+            required_sections = ["redis", "application", "rebalancer"]
             for section in required_sections:
                 if section not in config_data:
                     raise ValueError(f"Required configuration section '{section}' missing from {config_file}")
