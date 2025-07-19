@@ -18,8 +18,6 @@ class IBKRConfig:
     """Interactive Brokers API connection configuration"""
     host: str                      # IBKR Gateway/TWS hostname
     port: int                      # IBKR API port number
-    username: str                  # IBKR account username (from environment)
-    password: str                  # IBKR account password (from environment)
     trading_mode: str              # Trading mode: 'paper' or 'live'
     connection_retry: RetryConfig  # Connection retry configuration
     order_retry: RetryConfig       # Order submission retry configuration
@@ -74,9 +72,7 @@ class Config:
         self.ibkr = IBKRConfig(
             host=os.getenv("IB_HOST", ibkr_config["host"]),  # Use IB_HOST like old code
             port=4003 if trading_mode == "live" else 4004,  # 4003 for live, 4004 for paper
-            username=os.getenv("IBKR_USERNAME", ""),  # Secret from env
-            password=os.getenv("IBKR_PASSWORD", ""),  # Secret from env
-            trading_mode=trading_mode,  # Secret from env
+            trading_mode=trading_mode,  # From environment
             connection_retry=self._load_retry_config(ibkr_config["connection_retry"]),
             order_retry=self._load_retry_config(ibkr_config["order_retry"]),
             order_completion_timeout=ibkr_config.get("order_completion_timeout", 60)

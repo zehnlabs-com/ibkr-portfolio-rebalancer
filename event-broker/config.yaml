@@ -12,8 +12,3 @@ redis:
 application:
   accounts_file: "/accounts.yaml" # Path to account configuration file
 
-# Event processor API configuration for health checks
-rebalancer:
-  api_url: "http://event-processor:8000"  # Event processor service URL for health checks
-  timeout: 30                             # HTTP request timeout in seconds
-

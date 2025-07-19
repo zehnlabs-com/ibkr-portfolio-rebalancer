@@ -5,7 +5,7 @@
 
 @baseUrl=http://localhost:8000
 @accountId={{$dotenv TEST_ACCOUNT_ID}}
-@strategyName=etf-blend-200-35
+@strategyName={{$dotenv TEST_STRATEGY_NAME}}
 @eventId=00000000-0000-0000-0000-000000000000
 
 ###
