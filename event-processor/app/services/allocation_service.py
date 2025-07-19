@@ -18,7 +18,7 @@ class AllocationService:
         
         headers = {}
         if api_key:            
-            headers['x-telegram-user-id'] = api_key
+            headers['x-api-key'] = api_key
 
         logger.debug(f"Retrieving allocations from {allocations_url} with API key {api_key}")
         
