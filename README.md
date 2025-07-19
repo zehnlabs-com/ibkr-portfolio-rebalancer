@@ -13,13 +13,6 @@ This software is provided "as-is" without any warranty. Automated trading involv
 - **Management Service**: RESTful API for queue monitoring and manual intervention
 - **Docker Support**: Containerized deployment with existing IBKR gateway
 
-## Quick Start
-
-1. **Prerequisites**: IBKR Pro account with API enabled, Docker Desktop, ZehnLabs subscription
-2. **Setup**: See [Getting Started Guide](docs/getting-started.md) for complete installation instructions
-3. **Start**: `docker compose up`
-4. **Monitor**: `curl http://localhost:8000/health`
-
 ## Documentation
 
 - **[Getting Started](docs/getting-started.md)** - Complete setup and installation guide
@@ -59,4 +52,4 @@ For update notifications, watch the GitHub repository for releases.
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License - see [LICENSE](LICENSE) file for details.
