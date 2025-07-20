@@ -1,6 +1,6 @@
 # 🚀 Getting Started Guide - Windows
 
-Get your IBKR Portfolio Rebalancer up and running on Windows with WSL2 and Docker Desktop.
+Get your IBKR Portfolio Rebalancer up and running on Windows with WSL2 and Docker Desktop. If you prefer Hyper-V over WSL you can simply skip over the WSL setps.
 
 ---
 
