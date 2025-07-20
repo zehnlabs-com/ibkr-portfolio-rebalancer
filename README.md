@@ -16,7 +16,8 @@ This software is provided "as-is" without any warranty. Automated trading involv
 ## 📚 Documentation
 
 ### 🚀 Getting Started
-- **[Getting Started](docs/getting-started.md)** - Quick setup and installation guide
+- **[Getting Started](docs/getting-started.md)** - Quick 4-step setup guide
+- **[Installation Guide](docs/installation.md)** - Detailed installation instructions  
 - **[Operations Guide](docs/operations.md)** - Critical weekly and daily operational procedures
 - **[Architecture](docs/architecture.md)** - System design and service overview
 
