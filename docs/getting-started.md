@@ -115,7 +115,7 @@ If you encounter issues:
 
 ## 🚨 **MUST Read:**
 - **[Operations Guide](operations.md)** - Critical weekly procedures and login restrictions
-- **[Remote Monitoring](monitoring.md)** - (Optional) Monitoring and alerts 
+- **[Remote Monitoring](monitoring.md)** - Monitoring and alerts 
 
 ## ❌ Troubleshooting
 - **[Troubleshooting Guide](troubleshooting.md)** - Common issues and solutions
