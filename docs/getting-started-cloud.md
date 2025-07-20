@@ -14,7 +14,7 @@ Deploy your IBKR Portfolio Rebalancer on a Digital Ocean droplet.
 1. **Log in to Digital Ocean** and click **"Create"** → **"Droplets"**
 
 2. **Choose configuration:**
-   - **Image**: Ubuntu 22.04 LTS x64
+   - **Image**: Ubuntu (Latest LTS version) x64
    - **Authentication**: SSH keys (recommended) or Password
 
 3. **Add SSH Key** (if you don't have one):
@@ -69,8 +69,7 @@ cd ibkr-portfolio-rebalancer
 # Configure and start (follow Linux guide)
 cp .env.example .env
 cp accounts.example.yaml accounts.yaml
-# Edit .env and accounts.yaml files
-# IMPORTANT: Set a strong VNC password in .env if you plan to access the GUI
+# Edit .env and accounts.yaml files as needed
 docker-compose up
 ```
 

@@ -1,37 +1,37 @@
 # 📊 IBKR Portfolio Rebalancer
 
-A portfolio rebalancing service that automatically rebalances your Interactive Brokers (IBKR) accounts based on allocations provided by [Zehnlabs Tactical Asset Allocation strategies](https://fintech.zehnlabs.com).
+A dockerized portfolio rebalancing service that automatically rebalances your Interactive Brokers (IBKR) accounts based on allocations provided by [Zehnlabs Tactical Asset Allocation strategies](https://fintech.zehnlabs.com).
 
 ⚠️ **IMPORTANT DISCLAIMER**  
 This software is provided "as-is" without any warranty. Automated trading involves substantial risk of loss. You are solely responsible for your trading decisions and any resulting gains or losses. This is not financial advice. Always test thoroughly and consider consulting a financial advisor before using automated trading systems.
 
 ## ✨ Features
 
-- **🔄 Event-Driven Rebalancing**: Subscribes to real-time endpoints for rebalancing triggers
-- **🏦 Multi-Account Support**: Allows multiple IBKR accounts with different strategies
+- **🔄 Event-Driven Rebalancing**: Subscribes to real-time Zehnlabs endpoints for rebalancing triggers
+- **🏦 Multi-Account Support**: Allows multiple IBKR accounts and multiple strategies
 - **🛡️ Robust Error Handling**: Indefinite event retention with automatic retry and queue management
 - **📱 Management Service**: RESTful API for queue monitoring and manual intervention
-- **🐳 Docker Support**: Containerized deployment with existing IBKR gateway
+- **🐳 Docker Deployment**: OS agnostic containerized local or cloud deployment
 
 ## 📚 Documentation
 
 ### 🚀 Getting Started
 - **[Getting Started](docs/getting-started.md)** - Detailed installation instructions  
-- **[Operations Guide](docs/operations.md)** - Critical weekly and daily operational procedures
-- **[Remote Monitoring](docs/monitoring.md)** - Cloudflare tunnel and uptime alerts setup
+- **[Operations Guide](docs/operations.md)** - Weekly and daily operational procedures
+- **[Remote Monitoring](docs/monitoring.md)** - Remote health monitoring
 
 ### ⚙️ Design and Architecture
 - **[Architecture](docs/architecture.md)** - System design and service overview
 - **[Event Broker](docs/services/event-broker.md)** - Event ingestion from Zehnlabs
-- **[Event Processor](docs/services/event-processor.md)** - Trade execution and processing
+- **[Event Processor](docs/services/event-processor.md)** - Event processing and trade execution
 - **[Management Service](docs/services/management-service.md)** - API for monitoring and control
 - **[IBKR Gateway](docs/services/ibkr-gateway.md)** - Interactive Brokers connection
 - **[Infrastructure](docs/services/infrastructure.md)** - Redis and NoVNC services
-
-### 🔧 Operations & Troubleshooting  
 - **[Rebalancing Algorithm](docs/rebalancing.md)** - Trading logic and cash reserves
-- **[Troubleshooting](docs/troubleshooting.md)** - Common issues and NoVNC access
+
+### 🔧 Development & Troubleshooting  
 - **[Development](docs/development.md)** - Local development setup
+- **[Troubleshooting](docs/troubleshooting.md)** - Common issues
 
 ## 🏥 System Health
 
@@ -40,6 +40,9 @@ Check if the system is running properly:
 ```bash
 # System health check
 curl http://localhost:8000/health
+
+# Detailed health check
+curl http://localhost:8000/health/detailed
 
 # Queue status and metrics
 curl http://localhost:8000/queue/status

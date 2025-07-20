@@ -2,7 +2,7 @@
 
 Choose your platform to get your IBKR Portfolio Rebalancer up and running quickly.
 
-> ⚠️ **Critical**: Read the [Operations Guide](operations.md) to understand weekly MFA requirements and login limitations before going live.
+> ⚠️ **Critical**: Read the [Operations Guide](operations.md) to understand weekly MFA requirements and login limitations.
 
 ---
 
@@ -19,6 +19,7 @@ Before starting, ensure you have:
 
 ---
 
+> 📖 **Note**: Please note that IBKR API does not support fractional shares of ETFs. Portfolio Rebalancer automatically handles this limitation.
 
 ## 🖥️ Choose Your Platform
 
@@ -26,7 +27,7 @@ Once you have the above prerequisites, select the guide that matches your platfo
 
 ### 🪟 Windows (Docker Desktop)
 **[Getting Started - Windows](getting-started-windows.md)**
-- Windows 10/11 with WSL2 and Docker Desktop
+- Windows 10/11 with WSL2 and Docker Desktop (Hyper-V also works)
 - Step-by-step PowerShell/Command Prompt instructions
 - Includes WSL2 setup and Docker Desktop configuration
 
@@ -54,7 +55,7 @@ Once you have the above prerequisites, select the guide that matches your platfo
 
 After setup, you'll have access to these endpoints:
 
-- **🏥 Health Status**: `http://localhost:8000/health`
+- **🏥 Health Status**: `http://localhost:8000/health` and `http://localhost:8000/health/detailed`
 - **📊 Queue Status**: `http://localhost:8000/queue/status`
 - **🖥️ IBKR Gateway GUI**: `http://localhost:6080` (for troubleshooting)
 
@@ -62,9 +63,9 @@ After setup, you'll have access to these endpoints:
 
 ## 🔄 IMPORTANT: Staying Updated
 
-From time to time, this tool will be updated. It is IMPORTANT that you update to the latest version at your earliest convenience.
+From time to time, this tool will be updated. It is **IMPORTANT** that you update to the latest version at your earliest convenience.
 
-**📺 Get Notifications:**
+**📺 Get Release Notifications:**
 1. Go to `https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer`
 2. Click **"Watch"** → **"Custom"** → **"Releases"**
 3. You'll receive email notifications for new releases
@@ -85,14 +86,14 @@ docker compose up --build -d
 
 ## 🔧 Common Installation Issues
 
-**🐳 Docker permission denied:**
+**🐳 Docker permission denied (Linux):**
 - Ensure your user is in the docker group: `sudo usermod -aG docker $USER`
 - Log out and back in, or run: `newgrp docker`
 
 **📦 Container fails to start:**
 - Check Docker logs: `docker-compose logs`
 - Ensure `.env` and `accounts.yaml` files exist and have correct formatting
-- Set `LOG_LEVEL=DEBUG` for more detailed logging
+- Temporarily set `LOG_LEVEL=DEBUG` for more detailed logging
 
 **⚙️ Services won't start:**
 - Check Docker service is running: `sudo systemctl status docker`
@@ -107,7 +108,7 @@ If you encounter issues:
 
 1. **Check the Common Installation Issues above** for quick fixes
 2. **Review the [Troubleshooting Guide](troubleshooting.md)** for comprehensive solutions
-3. **Set `LOG_LEVEL=DEBUG`** in your `.env` file for detailed logging
+3. **Temporarily set  `LOG_LEVEL=DEBUG`** in your `.env` file for detailed logging
 
 ---
 
@@ -121,6 +122,7 @@ If you encounter issues:
 - **[Troubleshooting Guide](troubleshooting.md)** - Common issues and solutions
 
 ## 📖 **System Understanding:**
-- **[Architecture Guide](architecture.md)** - How the system works
 - **[Rebalancing Algorithm](rebalancing.md)** - Trading logic and cash management
+- **[Architecture Guide](architecture.md)** - How the system works
+
 

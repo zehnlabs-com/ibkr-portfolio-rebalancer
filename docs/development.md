@@ -1,4 +1,5 @@
 # Development
+All services are developed in Python.
 
 ## Local Development
 

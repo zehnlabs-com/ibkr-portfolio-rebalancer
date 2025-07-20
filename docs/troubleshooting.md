@@ -11,6 +11,9 @@ docker-compose ps
 # Quick health check
 curl http://localhost:8000/health
 
+# Detailed health check
+curl http://localhost:8000/health/detailed
+
 # Queue status overview
 curl http://localhost:8000/queue/status
 ```
@@ -19,17 +22,17 @@ curl http://localhost:8000/queue/status
 
 ### 🐳 Docker Desktop Won't Start
 - Ensure virtualization is enabled in BIOS/UEFI settings
-- Verify WSL 2 is properly installed and updated on Windows
+- If using WSL, verify WSL 2 is properly installed and updated on Windows
 - Check Docker Desktop logs for specific error messages
 
 ### Services Fail to Start
 - Ensure `.env` file exists with required environment variables
-- Verify `accounts.yaml` file exists and has correct formatting  
-- Check Docker Desktop has sufficient resources allocated
+- Verify `accounts.yaml` file exists and has correct data and formatting  
+- Check your computer has sufficient resources (memory, disk space, CPU)
 - Review service logs: `docker-compose logs [service-name]`
 
 ### Environment Configuration
-- Set `LOG_LEVEL=DEBUG` in `.env` for detailed logging
+- Temporarily set `LOG_LEVEL=DEBUG` in `.env` for detailed logging
 - Verify all required API keys are configured
 - Ensure IBKR credentials are correct in environment variables
 
@@ -38,17 +41,12 @@ curl http://localhost:8000/queue/status
 ### 🏦 IBKR Gateway Problems
 
 **Gateway won't log in:**
-- **MOST COMMON**: Check if it's Sunday after 01:00 ET - you need to approve MFA on IBKR Mobile app
+- **MOST COMMON**: Check if you need to approve IB Key MFA on IBKR Mobile app
 - **SECOND MOST COMMON**: Check if you're logged into IBKR Client Portal or TWS - only one login allowed
 - Access IBKR Gateway via NoVNC at `http://localhost:6080` 
 - Verify IBKR account has API access enabled
 - Ensure IBKR Key (Mobile app) MFA is properly configured
-
-**API connection failures:**
-- Ensure gateway completed login (wait 60+ seconds after start)
-- **Weekly Restart**: If it's Sunday, approve the MFA prompt on your IBKR Mobile app
-- **Login Conflict**: Log out of IBKR Client Portal/TWS if you're currently logged in
-- Make sure your IBKR account is properly setup and has the right permissions
+- Make sure your IBKR account is properly setup and has the right trading permissions
 
 ### Event Processing Issues
 
@@ -63,7 +61,7 @@ curl http://localhost:8000/queue/status
 - List problem events: `curl http://localhost:8000/queue/events?type=delayed`
 - Review retry counts and error messages
 - Check for IBKR connectivity issues
-- **Near Market Close**: Avoid IBKR logins during last hour of trading when rebalance events occur
+- **Near Market Close**: Avoid manual IBKR logins during last hour of trading when rebalance events generally occur
 - Events will automatically retry once IBKR login conflicts are resolved
 
 ### Redis Connection Issues
@@ -96,12 +94,12 @@ curl http://localhost:8000/queue/events?type=delayed
 # Remove problematic event
 curl -X DELETE http://localhost:8000/queue/events/{event-id}
 
-# Add test event manually
+# Add an event manually (CAUTION: This should generally only be done on a paper account)
 curl -H "Content-Type: application/json" \
   -d '{
     "account_id": "DU123456", 
-    "exec_command": "print-rebalance",
-    "data": {"exec": "print-rebalance"}
+    "exec_command": "rebalance",
+    "data": {"exec": "print-rebalance", "eventId": "00000000-0000-0000-0000-000000000000"}
   }' \
   http://localhost:8000/queue/events
 ```
@@ -123,7 +121,7 @@ docker-compose logs -f management-service
 docker-compose logs --tail=100 -t event-processor
 ```
 
-### Enabling Debug Logging
+### Temporarily Enabling Debug Logging
 
 Modify your `.env` file:
 ```
@@ -133,14 +131,5 @@ LOG_LEVEL=DEBUG
 Then restart services:
 ```bash
 docker-compose restart
-```
-
-### Network Connectivity Testing
-
-```bash
-# Test inter-service connectivity
-docker-compose exec event-processor nc -zv redis 6379
-docker-compose exec event-processor nc -zv ibkr 4001
-docker-compose exec novnc nc -zv ibkr 5900
 ```
 

@@ -2,14 +2,13 @@
 
 ## Purpose
 
-The Management Service provides a RESTful API for monitoring, controlling, and debugging the event processing system. It offers real-time visibility into queue status, event processing health, and manual queue management capabilities.
+The Management Service provides a RESTful API for monitoring, and controlling the event processing system. It offers real-time visibility into queue status, event processing health, and manual queue management capabilities.
 
 ## Key Responsibilities
 
 - **Queue Monitoring**: Real-time status of active and delayed events
 - **Health Checking**: System health assessment for monitoring integrations
 - **Manual Management**: Add, remove, and inspect individual events
-- **Debugging Support**: Detailed event information for troubleshooting
 - **Metrics Collection**: Queue statistics and processing metrics
 
 ## Configuration
@@ -24,7 +23,7 @@ The Management Service provides a RESTful API for monitoring, controlling, and d
 
 ### Port Configuration
 
-The service exposes port **8000** for HTTP API access.
+The service maps port **8000** for HTTP API access.
 
 ## API Endpoints
 
@@ -153,13 +152,6 @@ The `/queue/status` endpoint provides detailed metrics:
 - **Monitoring Systems**: Health endpoint for uptime monitoring
 - **Operators**: Manual queue management and debugging
 - **CI/CD**: Health checks for deployment validation
-
-## Authentication
-
-The Management Service operates as an **internal API** with:
-- **No authentication required** for simplicity
-- **Internal network access only** via Docker networking
-- **Port 8000 exposed** for external monitoring tools
 
 
 ### Monitoring Commands

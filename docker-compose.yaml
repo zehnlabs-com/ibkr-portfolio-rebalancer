@@ -39,6 +39,8 @@ services:
       TWS_PASSWORD_PAPER: ${IB_PASSWORD}
       TRADING_MODE: ${TRADING_MODE:-paper}
       READ_ONLY_API: no
+      BYPASS_WARNING: yes
+      AUTO_RESTART_TIME: 10:00 PM
       VNC_SERVER_PASSWORD: ${VNC_PASSWORD:-password}
     volumes:
       - ib_data:/home/ibgateway

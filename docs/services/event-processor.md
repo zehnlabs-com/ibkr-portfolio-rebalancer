@@ -2,25 +2,14 @@
 
 ## Purpose
 
-The Event Processor is the core execution engine that processes queued rebalancing events and executes trades through the Interactive Brokers API. It handles complex trading logic, retry mechanisms, and error recovery.
+The Event Processor is the core execution engine that processes queued rebalancing events and executes trades through the Interactive Brokers gateway. It handles complex trading logic, retry mechanisms, and error recovery.
 
 ## Key Responsibilities
 
 - **Event Processing**: Dequeues events from Redis and processes them sequentially
 - **Trade Execution**: Executes buy/sell orders through IBKR Gateway
 - **Error Recovery**: Implements sophisticated retry logic with automatic requeuing
-- **Portfolio Management**: Calculates optimal trades based on target allocations
-
-## Command Types
-
-The service supports several command types:
-
-- **`rebalance`** - Execute portfolio rebalancing trades
-- **`print_positions`** - Display current portfolio positions
-- **`print_orders`** - Show pending and recent orders
-- **`print_equity`** - Display account equity information
-- **`cancel_orders`** - Cancel pending orders
-- **`print_rebalance`** - Preview rebalancing trades without execution
+- **Portfolio Management**: Calculates trades based on target allocations
 
 ## Configuration
 
@@ -35,52 +24,8 @@ The service supports several command types:
 | `EXTENDED_HOURS_ENABLED` | Enable extended hours trading | No (defaults to `false`) |
 | `SERVICE_VERSION` | Service version for monitoring | Yes |
 
-### Configuration File
-
-The service uses `/event-processor/config.yaml` for detailed configuration:
-
-```yaml
-redis:
-  host: redis              # Redis server hostname
-  port: 6379              # Redis server port
-  db: 0                   # Redis database number
-  max_connections: 10     # Connection pool size
-
-ibkr:
-  host: "ibkr"            # IBKR Gateway hostname
-  
-  connection_retry:
-    max_retries: 3        # Connection retry attempts
-    delay: 5              # Delay between retries (seconds)
-  
-  order_retry:
-    max_retries: 2        # Order retry attempts
-    delay: 1              # Delay between order retries (seconds)
-  
-  order_completion_timeout: 60  # Order completion timeout (seconds)
-
-processing:
-  queue_timeout: 30           # Queue polling timeout
-  startup_max_attempts: 500   # Startup retry attempts
-  startup_delay: 10           # Startup retry delay
-  startup_initial_delay: 30   # Initial startup delay
-  retry_delay_seconds: 60     # Failed event retry delay
-  retry_check_interval: 60    # Retry check frequency
-
-allocation:
-  api_url: "https://workers.fintech.zehnlabs.com/api/v1/strategies"
-  timeout: 30                 # API request timeout
-
-logging:
-  level: INFO             # Log level
-  format: json            # Log format
-```
 
 ## IBKR Integration
-
-### Trading Modes
-- **Paper Trading**: Safe testing environment with simulated trades
-- **Live Trading**: Real money trading (use with extreme caution)
 
 ### Connection Management
 - Automatic connection retry with configurable attempts
@@ -97,7 +42,7 @@ logging:
 ## Error Handling & Retry Logic
 
 ### Retry Behavior
-- **Connection Failures**: Fast retry with limited attempts
+- **Connection Failures**: Fast failure and retry
 - **Order Failures**: Automatic requeuing with delay
 - **API Errors**: Event requeuing for later retry
 - **Infinite Retries**: Events retry until successful or removed manually
@@ -105,7 +50,7 @@ logging:
 ### Queue Management
 - Failed events move to delayed queue
 - FIFO processing maintains order fairness
-- No event loss - all events eventually process
+- All events eventually process (unless manually removed)
 
 ## Integration Points
 
@@ -117,14 +62,6 @@ logging:
 - **IBKR Gateway**: Executes trades via Interactive Brokers API
 - **Allocation API**: Fetches target portfolio allocations from Zehnlabs
 
-## Health Monitoring
-
-The service provides monitoring through:
-- Comprehensive JSON logging
-- Connection status reporting
-- Trade execution tracking
-- Error rate monitoring
-
 ## Troubleshooting
 
 ### Common Issues
@@ -132,6 +69,10 @@ The service provides monitoring through:
 **Service won't connect to IBKR:**
 - Verify IBKR Gateway is running and logged in
 - Check trading mode matches IBKR configuration
+
+**API Errors:**
+- Verify you have valid subscription to Zehnlabs strategies
+- Ensure your API keys are correct
 
 **Orders not executing:**
 - Ensure your IBKR account has proper permissions

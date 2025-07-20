@@ -24,19 +24,6 @@ The service is configured through environment variables and a YAML configuration
 | `SERVICE_VERSION` | Service version for monitoring | Yes |
 | `REBALANCE_EVENT_SUBSCRIPTION_API_KEY` | API key for Zehnlabs event subscription | Yes |
 
-### Configuration File
-
-The service uses `/event-broker/config.yaml` for detailed configuration:
-
-```yaml
-redis:
-  host: redis             # Redis server hostname
-  port: 6379              # Redis server port
-  db: 0                   # Redis database number
-
-application:
-  accounts_file: "/accounts.yaml"  # Account configuration file path
-```
 
 ## Integration Points
 
@@ -47,25 +34,16 @@ application:
 - **Redis Queue**: Publishes events to `rebalance_queue` for processing
 - **Active Events Set**: Maintains `active_events` set for deduplication
 
-## Health Monitoring
-
-The Event Broker provides health status through:
-- Service logs with configurable verbosity
-- Connection status to Redis queue
-- Event ingestion rate monitoring
-
 ## Troubleshooting
 
 ### Common Issues
 
 **Service won't start:**
-- Verify `REBALANCE_EVENT_SUBSCRIPTION_API_KEY` is set correctly
 - Check Redis connectivity
 - Ensure `accounts.yaml` file exists and is readable
 
 **Events not being queued:**
 - Check Event Broker logs for connection errors
-- Verify Zehnlabs subscription is active
 - Confirm Redis queue is accessible
 
 **Duplicate events:**

@@ -1,21 +1,21 @@
 # Rebalancing Algorithm
 
-The rebalancer implements a sell-first portfolio rebalancing algorithm with cash reserve management:
+The rebalancer implements a sell-first portfolio rebalancing algorithm with cash reserve management. When a rebalance event occurs, the system:
 
-1. **Fetch Target Allocations**: Calls configured API to get target percentages
+1. **Fetch Target Allocations**: Calls Zehnlabs API to get target allocations
 2. **Get Current Positions**: Retrieves current holdings from IBKR
 3. **Cancel Existing Orders**: Cancels all pending orders to prevent conflicts (waits up to 60 seconds for confirmation)
-4. **Calculate Target Positions**: Uses full account value for allocation calculations.
-5. **Generate Orders**: Creates buy/sell orders to reach target allocation
+4. **Calculate Target Positions**: Uses full account value for allocation calculations
+5. **Generate Orders**: Creates buy/sell orders to reach target allocations
 6. **Execute Sell Orders**: Submits sell orders first and waits for completion (with timeout)
 7. **Get Cash Balance**: Retrieves actual cash balance after sells complete
-8. **Execute Buy Orders**: Submits buy orders up to `Cash Balance - (Account Value × Reserve %)`
+8. **Execute Buy Orders**: Submits buy orders up to `Cash Balance - (Account Value × Configurable Reserve %)`
 
 ## Order Cancellation
 
 Before placing new rebalancing orders, the system automatically cancels all existing pending orders for the account to prevent duplicate or conflicting trades. 
 
-**Important**: If existing orders cannot be cancelled within 60 seconds, the rebalancing process will fail with an error. This prevents the system from placing new orders when old orders are still pending, which could result in overtrading or unintended positions.
+**Important**: If existing orders cannot be cancelled within 60 seconds, the rebalancing process will fail with an error and retried later. This prevents the system from placing new orders when old orders are still pending, which could result in overtrading or unintended positions. 
 
 **Behavior:**
 1. **Sell Orders Placed**: System places all sell orders and collects their order IDs
@@ -29,8 +29,7 @@ Before placing new rebalancing orders, the system automatically cancels all exis
 The system maintains a configurable cash reserve applied after sell orders complete to improve order fill rates and handle market volatility:
 
 **Purpose:**
-- **Improved Fill Rates**: Market orders are more likely to fill when there's a cash buffer for price movements
-- **Settlement Buffer**: Provides cushion for trade settlement and fees
+- **Slippage and Fees**: Provides cushion for slippage and trading fees
 - **Risk Management**: Prevents over-leveraging the account
 
 **Configuration:**

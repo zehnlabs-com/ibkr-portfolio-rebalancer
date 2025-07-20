@@ -51,3 +51,5 @@ Thumbs.db
 *.log
 logs/
 
+# Misc
+rest/

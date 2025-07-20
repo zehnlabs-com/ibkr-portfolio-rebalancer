@@ -69,12 +69,11 @@ docker-compose exec redis redis-cli LRANGE rebalance_queue 0 -1
 ## NoVNC Web Access
 
 ### Purpose
-NoVNC provides web-based VNC access to the IBKR Gateway for remote troubleshooting and management.
+NoVNC provides web-based VNC access to the IBKR Gateway for troubleshooting and management.
 
 ### Key Features
 - **Web Interface**: Access IBKR Gateway GUI through browser
 - **No Client Software**: Works with any modern web browser
-- **Secure Access**: Internal Docker networking
 - **Real-time Control**: Full GUI interaction capabilities
 
 ### Configuration
@@ -97,7 +96,6 @@ NoVNC provides web-based VNC access to the IBKR Gateway for remote troubleshooti
 - **Image**: `dougw/novnc:latest` (third-party NoVNC container)
 - **Dependencies**: Requires IBKR Gateway to be running
 - **Port Mapping**: Exposes 6080 for web access
-- **Environment**: Configured to connect to `ibkr:5900`
 - **Restart Policy**: Always restart unless stopped
 
 ## Docker Networking
@@ -158,11 +156,4 @@ NoVNC provides web-based VNC access to the IBKR Gateway for remote troubleshooti
 **Application Logs**: Host directory mounts
 - Service logs written to `./[service]/logs/`
 - Log rotation configured (100MB max, 365 files)
-
-### Backup Considerations
-
-- **Redis**: Queue state persisted in `redis_data` volume
-- **IBKR Settings**: Gateway configuration in `ib_data` volume  
-- **Logs**: Rotated logs stored on host filesystem
-- **Configuration**: Service configs version controlled in repository
 

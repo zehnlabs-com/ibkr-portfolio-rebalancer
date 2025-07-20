@@ -9,11 +9,12 @@ This guide covers critical operational requirements for running the IBKR Portfol
 ### 🔄 Weekly Restart Schedule
 - **IBKR Gateway automatically restarts every Sunday after 01:00 ET**
 - **Weekly restart is an IBKR requirement that we cannot control**
+- Weekly restart time can be configured (see below)
 - When the gateway restarts, the user must reauthenticate MFA
 
 ### 📱 MFA Setup Requirements
 - **YOU MUST have IBKR Key (IBKR Mobile app) installed and configured**
-- **YOU MUST authorize the login on your phone within 3 minutes** of the Sunday restart (see below for alternative)
+- **YOU MUST authorize the login on your phone within 3 minutes** of the IB Key prompt
 - Only IB Key (IBKR Mobile app) MFA is supported
 
 ### 📅 What to Expect
@@ -21,7 +22,14 @@ This guide covers critical operational requirements for running the IBKR Portfol
 - **Your Action Required**: Approve the MFA prompt on your IBKR Mobile app within 3 minutes
 
 ### 🛠️ Restart Time Configuration
-The Sunday restart time is configurable (defaults to after 01:00 ET). See the [gnzsnz/ib-gateway documentation](https://github.com/gnzsnz/ib-gateway-docker) for advanced configuration options.
+The Sunday restart time is configurable (defaults to after 01:00 ET). Configure the `AUTO_RESTART_TIME` environment variable in your `.env` file:
+
+```bash
+# Example: Restart at 2:00 AM ET instead of 1:00 AM
+AUTO_RESTART_TIME=02:00 AM
+```
+
+For detailed configuration options, see the [gnzsnz/ib-gateway environment variables documentation](https://github.com/gnzsnz/ib-gateway-docker/blob/master/README.md#environment-variables).
 
 ### 🏠 Alternative: Weekend Shutdown Schedule
 If the Sunday 01:00 ET MFA timing is inconvenient, you can use this alternative approach:
