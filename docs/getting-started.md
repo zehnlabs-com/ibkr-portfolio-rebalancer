@@ -10,11 +10,11 @@ Choose your platform to get your IBKR Portfolio Rebalancer up and running quickl
 
 Before starting, ensure you have:
 
-🏦 **IBKR Pro account** with API access enabled  (IBKR Lite won't work)
-📊 **Trading permissions** for `Complex or Leveraged Exchange-Traded Products`  
+🏦 **IBKR Pro account** with API access enabled  (IBKR Lite won't work)  
+📊 **Trading permissions** for `Complex or Leveraged Exchange-Traded Products` in your IBKR account  
 💰 **Dividend Election** set to `Reinvest` in your IBKR account  
-📱 **IBKR Key (Mobile App)** configured as MFA - **CRITICAL** for weekly authentication  
-🎯 **Zehnlabs strategy subscription** - active subscription to Tactical Asset Allocation strategies  
+📱 **IBKR Key (Mobile App)** configured as MFA - **CRITICAL** for authentication  
+🎯 **Zehnlabs strategy subscription** - active subscription to [Zehnlabs Tactical Asset Allocation strategies](https://fintech.zehnlabs.com)  
 🔑 **ZehnLabs API keys** - get them from Telegram bot `@FintechZL_bot` (send `/api`)  
 
 ---
@@ -22,27 +22,27 @@ Before starting, ensure you have:
 
 ## 🖥️ Choose Your Platform
 
-Once you have the above prerequisites, select the guide that matches your operating system:
+Once you have the above prerequisites, select the guide that matches your platform:
 
-### 🪟 Windows
+### 🪟 Windows (Docker Desktop)
 **[Getting Started - Windows](getting-started-windows.md)**
 - Windows 10/11 with WSL2 and Docker Desktop
 - Step-by-step PowerShell/Command Prompt instructions
 - Includes WSL2 setup and Docker Desktop configuration
 
-### 🍎 macOS
+### 🍎 macOS (Docker Desktop)
 **[Getting Started - macOS](getting-started-mac.md)**
 - macOS with Docker Desktop
 - Terminal-based setup instructions
 - Homebrew package manager integration
 
-### 🐧 Linux
+### 🐧 Linux (Docker Engine)
 **[Getting Started - Linux](getting-started-linux.md)**
 - Ubuntu, CentOS, Fedora, Arch Linux support
 - Native Docker and Docker Compose installation
 - Distribution-specific package management
 
-### ☁️ Cloud Deployment - Digital Ocean
+### ☁️ Cloud Deployment - Digital Ocean (Ubuntu)
 **[Getting Started - Cloud](getting-started-cloud.md)**
 - Linux based cloud deployment
 - Digital Ocean Droplet setup
