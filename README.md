@@ -18,9 +18,10 @@ This software is provided "as-is" without any warranty. Automated trading involv
 ### 🚀 Getting Started
 - **[Getting Started](docs/getting-started.md)** - Detailed installation instructions  
 - **[Operations Guide](docs/operations.md)** - Critical weekly and daily operational procedures
-- **[Architecture](docs/architecture.md)** - System design and service overview
+- **[Remote Monitoring](docs/monitoring.md)** - Cloudflare tunnel and uptime alerts setup
 
-### ⚙️ Service Documentation
+### ⚙️ Design and Architecture
+- **[Architecture](docs/architecture.md)** - System design and service overview
 - **[Event Broker](docs/services/event-broker.md)** - Event ingestion from Zehnlabs
 - **[Event Processor](docs/services/event-processor.md)** - Trade execution and processing
 - **[Management Service](docs/services/management-service.md)** - API for monitoring and control
@@ -29,7 +30,6 @@ This software is provided "as-is" without any warranty. Automated trading involv
 
 ### 🔧 Operations & Troubleshooting  
 - **[Rebalancing Algorithm](docs/rebalancing.md)** - Trading logic and cash reserves
-- **[Remote Monitoring](docs/monitoring.md)** - Cloudflare tunnel and uptime alerts setup
 - **[Troubleshooting](docs/troubleshooting.md)** - Common issues and NoVNC access
 - **[Development](docs/development.md)** - Local development setup
 

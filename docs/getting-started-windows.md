@@ -124,7 +124,7 @@ curl http://localhost:8000/queue/status
 
 ---
 
-**🎉 You're Ready!** Your IBKR Portfolio Rebalancer is now set up.
+**🎉 You're Ready!** Your IBKR Portfolio Rebalancer is now set up. **Remember to read the [Operations Guide](operations.md) for critical operational procedures before relying on it for live trading.**
 
 *🔔 PRO TIP: You can configure Docker Desktop to start every time you login to your computer.*
 

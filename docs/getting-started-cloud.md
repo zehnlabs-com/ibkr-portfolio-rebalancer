@@ -99,6 +99,6 @@ If you need to access the IBKR Gateway GUI for troubleshooting:
 
 ---
 
-**🎉 You're Ready!** Your IBKR Portfolio Rebalancer is now running 24/7 in the cloud.
+**🎉 You're Ready!** Your IBKR Portfolio Rebalancer is now running 24/7 in the cloud. **Remember to read the [Operations Guide](operations.md) for critical operational procedures before relying on it for live trading.**
 
 *🔔 PRO TIP: Set up monitoring alerts for your droplet's resource usage in the Digital Ocean dashboard.*
