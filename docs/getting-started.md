@@ -50,7 +50,7 @@ Once you have the above prerequisites, select the guide that matches your platfo
 
 ---
 
-## 🌐 Universal Access Points
+## 🌐 Access Points (All Platforms)
 
 After setup, you'll have access to these endpoints:
 
