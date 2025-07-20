@@ -1,19 +1,6 @@
 # 🚀 Getting Started Guide - macOS
 
-Get your IBKR Portfolio Rebalancer up and running on macOS in a few simple steps.
-
-> ⚠️ **Critical**: Read the [Operations Guide](operations.md) to understand weekly MFA requirements and login limitations before going live.
-
-## ✅ Prerequisites
-
-Before starting, ensure you have:
-
-🏦 **IBKR Pro account** with API access enabled  (IBKR Lite won't work)
-📊 **Trading permissions** for `Complex or Leveraged Exchange-Traded Products`  
-💰 **Dividend Election** set to `Reinvest` in your IBKR account  
-📱 **IBKR Key (Mobile App)** configured as MFA - **CRITICAL** for weekly authentication  
-🎯 **Zehnlabs strategy subscription** - active subscription to Tactical Asset Allocation strategies  
-🔑 **ZehnLabs API keys** - get them from Telegram bot `@FintechZL_bot` (send `/api`)  
+Get your IBKR Portfolio Rebalancer up and running on macOS with Docker Desktop.
 
 ---
 
@@ -195,23 +182,6 @@ When a new version is available:
 
 ---
 
-**🎉 You're Ready!** Your IBKR Portfolio Rebalancer is now set up. Remember to read the [Operations Guide](operations.md) for critical operational procedures before relying on it for live trading.
+**🎉 You're Ready!** Your IBKR Portfolio Rebalancer is now set up.
 
 *🔔 PRO TIP: You can configure Docker Desktop to start automatically when you log in to your Mac.*
-
----
-
-# 📚 Essential Reading
-
-## 🚨 **MUST Read:**
-- **[Operations Guide](operations.md)** - Critical weekly procedures and login restrictions
-- **[Remote Monitoring](monitoring.md)** - (Optional) Monitoring and alerts 
-
-## ❌ Troubleshooting
-- **[Troubleshooting Guide](troubleshooting.md)** - Common issues and solutions
-
-## 📖 **System Understanding:**
-- **[Architecture Guide](architecture.md)** - How the system works
-- **[Rebalancing Algorithm](rebalancing.md)** - Trading logic and cash management
-
----

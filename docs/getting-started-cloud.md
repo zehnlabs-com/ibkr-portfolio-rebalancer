@@ -1,20 +1,8 @@
 # 🚀 Getting Started Guide - Cloud Deployment (Digital Ocean)
 
-Deploy your IBKR Portfolio Rebalancer on a Digital Ocean droplet for 24/7 operation.
+Deploy your IBKR Portfolio Rebalancer on a Digital Ocean droplet.
 
-> ⚠️ **Critical**: Read the [Operations Guide](operations.md) to understand weekly MFA requirements and login limitations before going live.
-
-## ✅ Prerequisites
-
-**IBKR Portfolio Rebalancer requirements:**
-🏦 **IBKR Pro account** with API access enabled  (IBKR Lite won't work)
-📊 **Trading permissions** for `Complex or Leveraged Exchange-Traded Products`  
-💰 **Dividend Election** set to `Reinvest` in your IBKR account  
-📱 **IBKR Key (Mobile App)** configured as MFA - **CRITICAL** for weekly authentication  
-🎯 **Zehnlabs strategy subscription** - active subscription to Tactical Asset Allocation strategies  
-🔑 **ZehnLabs API keys** - get them from Telegram bot `@FintechZL_bot` (send `/api`)  
-
-**Cloud requirements:**
+**You'll need:**
 ☁️ **Digital Ocean account** - [Sign up here](https://www.digitalocean.com/)
 🔑 **SSH key pair** - for secure server access
 💳 **Payment method** - droplet costs ~$12-24/month depending on size
@@ -128,23 +116,6 @@ docker-compose up --build -d
 
 ---
 
-**🎉 You're Ready!** Your IBKR Portfolio Rebalancer is now running 24/7 in the cloud. Remember to read the [Operations Guide](operations.md) for critical operational procedures.
+**🎉 You're Ready!** Your IBKR Portfolio Rebalancer is now running 24/7 in the cloud.
 
 *🔔 PRO TIP: Set up monitoring alerts for your droplet's resource usage in the Digital Ocean dashboard.*
-
----
-
-# 📚 Essential Reading
-
-## 🚨 **MUST Read:**
-- **[Operations Guide](operations.md)** - Critical weekly procedures and login restrictions
-- **[Remote Monitoring](monitoring.md)** - (Optional) Monitoring and alerts 
-
-## ❌ Troubleshooting
-- **[Troubleshooting Guide](troubleshooting.md)** - Common issues and solutions
-
-## 📖 **System Understanding:**
-- **[Architecture Guide](architecture.md)** - How the system works
-- **[Rebalancing Algorithm](rebalancing.md)** - Trading logic and cash management
-
----
