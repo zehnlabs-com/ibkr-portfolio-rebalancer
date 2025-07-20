@@ -15,12 +15,21 @@ This software is provided "as-is" without any warranty. Automated trading involv
 
 ## Documentation
 
+### Getting Started
 - **[Getting Started](docs/getting-started.md)** - Complete setup and installation guide
-- **[Architecture](docs/architecture.md)** - System design and error handling strategy
-- **[API Reference](docs/api.md)** - Management service endpoints
+- **[Architecture](docs/architecture.md)** - System design and service overview
+
+### Service Documentation
+- **[Event Broker](docs/services/event-broker.md)** - Event ingestion from Zehnlabs
+- **[Event Processor](docs/services/event-processor.md)** - Trade execution and processing
+- **[Management Service](docs/services/management-service.md)** - API for monitoring and control
+- **[IBKR Gateway](docs/services/ibkr-gateway.md)** - Interactive Brokers connection
+- **[Infrastructure](docs/services/infrastructure.md)** - Redis and NoVNC services
+
+### Operations & Troubleshooting  
 - **[Rebalancing Algorithm](docs/rebalancing.md)** - Trading logic and cash reserves
 - **[Remote Monitoring](docs/monitoring.md)** - Cloudflare tunnel and uptime alerts setup
-- **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
+- **[Troubleshooting](docs/troubleshooting.md)** - Common issues and NoVNC access
 - **[Development](docs/development.md)** - Local development setup
 
 ## System Health
@@ -47,6 +56,10 @@ docker compose down
 git pull origin main
 docker compose up --build -d
 ```
+
+## Acknowledgments
+
+This project builds upon many excellent open source projects. See [CREDITS.md](CREDITS.md) for full acknowledgments and licensing information.
 
 For update notifications, watch the GitHub repository for releases.
 
