@@ -1,6 +1,6 @@
 # 📊 IBKR Portfolio Rebalancer
 
-A portfolio rebalancing service that automatically rebalances your Interactive Brokers (IBKR) accounts based on allocations provided by Zehnlabs Tactical Asset Allocation strategies.
+A portfolio rebalancing service that automatically rebalances your Interactive Brokers (IBKR) accounts based on allocations provided by [Zehnlabs Tactical Asset Allocation](https://fintech.zehnlabs.com) strategies.
 
 ⚠️ **IMPORTANT DISCLAIMER**  
 This software is provided "as-is" without any warranty. Automated trading involves substantial risk of loss. You are solely responsible for your trading decisions and any resulting gains or losses. This is not financial advice. Always test thoroughly and consider consulting a financial advisor before using automated trading systems.
@@ -60,7 +60,7 @@ docker compose up --build -d
 
 ## 🙏 Acknowledgments
 
-This project builds upon many excellent open source projects. See [CREDITS.md](CREDITS.md) for full acknowledgments and licensing information.
+This project builds upon many excellent open source projects. See [CREDITS](CREDITS.md) for full acknowledgments and licensing information.
 
 For update notifications, watch the GitHub repository for releases.
 
