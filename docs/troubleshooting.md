@@ -1,6 +1,6 @@
-# Troubleshooting Guide
+# 🔧 Troubleshooting Guide
 
-## Quick System Health Check
+## 🩺 Quick System Health Check
 
 Start with these commands to get an overview of system status:
 
@@ -15,9 +15,9 @@ curl http://localhost:8000/health
 curl http://localhost:8000/queue/status
 ```
 
-## Initial Setup Issues
+## 🚀 Initial Setup Issues
 
-### Docker Desktop Won't Start
+### 🐳 Docker Desktop Won't Start
 - Ensure virtualization is enabled in BIOS/UEFI settings
 - Verify WSL 2 is properly installed and updated on Windows
 - Check Docker Desktop logs for specific error messages
@@ -33,9 +33,9 @@ curl http://localhost:8000/queue/status
 - Verify all required API keys are configured
 - Ensure IBKR credentials are correct in environment variables
 
-## Service-Specific Issues
+## ⚙️ Service-Specific Issues
 
-### IBKR Gateway Problems
+### 🏦 IBKR Gateway Problems
 
 **Gateway won't log in:**
 - Access IBKR Gateway via NoVNC at `http://localhost:6080` 

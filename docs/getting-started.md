@@ -1,4 +1,4 @@
-# Getting Started Guide - Automated Portfolio Rebalancing Tool
+# Getting Started Guide
 
 This guide will walk you through setting up and configuring the IBKR automated portfolio rebalancing tool for use with fintech.zehnlabs.com Tactical Asset Allocation strategies.
 
