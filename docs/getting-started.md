@@ -1,6 +1,6 @@
 # 🚀 Getting Started Guide
 
-Get your IBKR Portfolio Rebalancer up and running in 4 simple steps.
+Get your IBKR Portfolio Rebalancer up and running in a few simple steps.
 
 > ⚠️ **Critical**: Read the [Operations Guide](operations.md) to understand weekly MFA requirements and login limitations before going live.
 
@@ -211,7 +211,9 @@ The Docker-based approach ensures consistent behavior across all platforms.
 
 ---
 
-**🎉 Installation Complete!** Return to the [Getting Started Guide](getting-started.md) to continue with testing and going live.
+**🎉 You're Ready!** Your IBKR Portfolio Rebalancer is now set up. Remember to read the [Operations Guide](operations.md) for critical operational procedures before relying on it for live trading.
+
+*🔔 PRO TIP: You can configure Docker Desktop to start every time you login to your computer.*
 
 ---
 
@@ -229,9 +231,5 @@ The Docker-based approach ensures consistent behavior across all platforms.
 - **[Rebalancing Algorithm](rebalancing.md)** - Trading logic and cash management
 
 ---
-
-**🎉 You're Ready!** Your IBKR Portfolio Rebalancer is now set up. Remember to read the [Operations Guide](operations.md) for critical operational procedures before relying on it for live trading.
-
-*🔔 PRO TIP: You can configure Docker Desktop to start every time you login to your computer.*
 
 
