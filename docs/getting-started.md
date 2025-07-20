@@ -83,12 +83,30 @@ docker compose up --build -d
 
 ---
 
+## 🔧 Common Installation Issues
+
+**🐳 Docker permission denied:**
+- Ensure your user is in the docker group: `sudo usermod -aG docker $USER`
+- Log out and back in, or run: `newgrp docker`
+
+**📦 Container fails to start:**
+- Check Docker logs: `docker-compose logs`
+- Ensure `.env` and `accounts.yaml` files exist and have correct formatting
+- Set `LOG_LEVEL=DEBUG` for more detailed logging
+
+**⚙️ Services won't start:**
+- Check Docker service is running: `sudo systemctl status docker`
+- Verify `.env` and `accounts.yaml` files exist
+- Run `docker-compose logs` to see error details
+
+---
+
 ## ❌ Need Help?
 
 If you encounter issues:
 
-1. **Check the platform-specific troubleshooting sections** in your chosen guide
-2. **Review the [Troubleshooting Guide](troubleshooting.md)** for common issues
+1. **Check the Common Installation Issues above** for quick fixes
+2. **Review the [Troubleshooting Guide](troubleshooting.md)** for comprehensive solutions
 3. **Set `LOG_LEVEL=DEBUG`** in your `.env` file for detailed logging
 
 ---

@@ -99,23 +99,6 @@ If you need to access the IBKR Gateway GUI for troubleshooting:
 
 ---
 
-## 🔄 Updates and Maintenance
-
-Follow the same update process as the Linux guide:
-
-```bash
-# Stop containers
-docker-compose down
-
-# Pull latest changes  
-git pull origin main
-
-# Rebuild and restart
-docker-compose up --build -d
-```
-
----
-
 **🎉 You're Ready!** Your IBKR Portfolio Rebalancer is now running 24/7 in the cloud.
 
 *🔔 PRO TIP: Set up monitoring alerts for your droplet's resource usage in the Digital Ocean dashboard.*
