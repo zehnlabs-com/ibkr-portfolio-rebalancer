@@ -22,6 +22,20 @@ This guide covers critical operational requirements for running the IBKR Portfol
 - **Rest of Week**: System runs automatically without intervention
 - **Missed MFA**: If you don't approve within 3 minutes, the system will retry login
 
+### 🏠 Alternative: Weekend Shutdown Schedule
+If the Sunday 01:00 ET MFA timing is inconvenient, you can use this alternative approach:
+
+- **Friday Evening**: Shutdown the container stack after market close
+  ```bash
+  docker-compose down
+  ```
+- **Monday Morning**: Restart the system when you can authorize MFA on Monday morning
+  ```bash
+  docker-compose up -d
+  ```
+- **Authorize MFA**: Approve the login on your IBKR Mobile app when containers start
+- **Benefits**: No late-night weekend MFA required, fresh weekly start on Monday
+
 ### 🛠️ Restart Time Configuration
 The Sunday restart time is configurable (defaults to after 01:00 ET). See the [gnzsnz/ib-gateway documentation](https://github.com/gnzsnz/ib-gateway-docker) for advanced configuration options.
 
@@ -68,10 +82,17 @@ curl http://localhost:8000/queue/status
 curl http://localhost:8000/queue/events?limit=10
 ```
 
-### Weekly Checklist (Sundays)
+### Weekly Checklist
+**For Default Sunday Schedule:**
 - [ ] **01:00 ET onwards**: Watch for MFA notification on IBKR Mobile app
 - [ ] **Approve MFA within 3 minutes** when prompted
 - [ ] **Verify system reconnection** after MFA approval
+- [ ] **Check health endpoints** to confirm system is operational
+
+**For Weekend Shutdown Schedule:**
+- [ ] **Friday Evening**: Shutdown system after market close (`docker-compose down`)
+- [ ] **Monday Morning**: Start system when convenient (`docker-compose up -d`)
+- [ ] **Approve MFA** when prompted on IBKR Mobile app
 - [ ] **Check health endpoints** to confirm system is operational
 
 ### Warning Signs
@@ -83,11 +104,13 @@ curl http://localhost:8000/queue/events?limit=10
 
 ## 🚨 Emergency Procedures
 
-### If You Miss Sunday MFA
+### If You Miss MFA Authorization
 1. **System will keep retrying** - no immediate action needed
 2. **Access NoVNC**: Navigate to `http://localhost:6080`
 3. **Manually approve** MFA through the gateway interface
 4. **Verify reconnection** via health endpoints
+
+**Note**: This applies to both Sunday automatic restarts and manual Monday startups
 
 ### If You're Logged Into IBKR During Market Close
 1. **Log out immediately** from IBKR Client Portal/TWS
