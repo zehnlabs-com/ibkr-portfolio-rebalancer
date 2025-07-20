@@ -38,11 +38,16 @@ curl http://localhost:8000/queue/status
 ### 🏦 IBKR Gateway Problems
 
 **Gateway won't log in:**
+- **MOST COMMON**: Check if it's Sunday after 01:00 ET - you need to approve MFA on IBKR Mobile app
+- **SECOND MOST COMMON**: Check if you're logged into IBKR Client Portal or TWS - only one login allowed
 - Access IBKR Gateway via NoVNC at `http://localhost:6080` 
 - Verify IBKR account has API access enabled
+- Ensure IBKR Key (Mobile app) MFA is properly configured
 
 **API connection failures:**
 - Ensure gateway completed login (wait 60+ seconds after start)
+- **Weekly Restart**: If it's Sunday, approve the MFA prompt on your IBKR Mobile app
+- **Login Conflict**: Log out of IBKR Client Portal/TWS if you're currently logged in
 - Make sure your IBKR account is properly setup and has the right permissions
 
 ### Event Processing Issues
@@ -54,10 +59,12 @@ curl http://localhost:8000/queue/status
 - Check Redis connectivity
 
 **Events stuck in queue:**
+- **COMMON CAUSE**: Check if you're logged into IBKR manually - events fail during login conflicts
 - List problem events: `curl http://localhost:8000/queue/events?type=delayed`
 - Review retry counts and error messages
 - Check for IBKR connectivity issues
-- Consider manually removing problematic events
+- **Near Market Close**: Avoid IBKR logins during last hour of trading when rebalance events occur
+- Events will automatically retry once IBKR login conflicts are resolved
 
 ### Redis Connection Issues
 

@@ -1,278 +1,143 @@
-# Getting Started Guide
+# 🚀 Getting Started Guide
 
-This guide will walk you through setting up and configuring the IBKR automated portfolio rebalancing tool for use with fintech.zehnlabs.com Tactical Asset Allocation strategies.
+Get your IBKR Portfolio Rebalancer up and running in under 30 minutes.
 
 ## Prerequisites
 
-Before starting, ensure:
-- You have an **IBKR Pro** account
-- Your IBKR account is API enabled
-- In your IBKR account `Dividend Election` is set to `Reinvest`
-- In your IBKR account you have `Trading Permissions` for `Complex or Leveraged Exchange-Traded Products`
-- Your IBKR account is setup with IBKR Key as MFA
-- You have a valid subscription to one or more zehnlabs.com Tactical Asset Allocation strategies
-- You have your ZehnLabs API keys (see below)
+Before starting, ensure you have:
 
-## Getting Your ZehnLabs API Keys
+✅ **IBKR Pro account** with API access enabled  
+✅ **IBKR Key (Mobile App)** configured for MFA authentication  
+✅ **Trading permissions** for Exchange-Traded Products  
+✅ **Dividend Election** set to "Reinvest"  
+✅ **Zehnlabs strategy subscription** and API keys  
 
-To retrieve your ZehnLabs API keys, use the Zehnlabs Fintech Bot on Telegram:
+> ⚠️ **Important**: Before going live, read the [Operations Guide](operations.md) to understand critical weekly restart and login requirements.
+
+## Get Your API Keys
 
 1. Open Telegram and search for **@FintechZL_bot**
-2. Start a conversation with the bot
-3. Send the command: `/api`
-4. The bot will verify your account and generate your API keys
+2. Send the command: `/api`
+3. Save the API keys provided by the bot
 
-**Note for first-time users:** The verification process may take a few seconds as the bot validates your account before generating your keys.
+## Quick Installation
 
-## Setup Options
+### Option 1: Docker Desktop (Recommended)
 
-This tool runs using Docker and can work on any operating system. You have two main options:
-
-1. **Local Setup with Docker Desktop** (Recommended - covered in this guide)
-2. **Cloud Hosting** (Digital Ocean droplet, AWS, etc.)
-
-This guide focuses on setting up locally using **Windows with WSL and Docker Desktop**. The same Docker-based setup works on macOS, Linux, and cloud environments with minor command variations.
-
----
-
-## Installation and Setup
-
-### Step 1: Install Git
-
-Git is required to download the repository.
-
-1. Download Git from [git-scm.com](https://git-scm.com/download/windows)
-2. Run the installer with default settings
-3. Verify installation by opening Command Prompt and typing: `git --version`
-
-### Step 2: Update WSL and Install Ubuntu
-
-Update Windows Subsystem for Linux and install Ubuntu for optimal Docker performance.
-
-1. Open PowerShell or Terminal as Administrator
-2. Update WSL: `wsl --update`
-3. Set WSL 2 as default: `wsl --set-default-version 2`
-4. Check if you already have Ubuntu installed: `wsl -l -v`
-   - If Ubuntu is listed, skip to step 5
-   - If not, install Ubuntu: `wsl --install -d Ubuntu`
-5. Launch Ubuntu from the Start menu and complete the initial setup if this is your first time (create username/password)
-
-### Step 3: Install Docker Desktop with WSL
-
-Docker Desktop will run your rebalancing tool in containers.
-
-1. Download Docker Desktop from [docker.com](https://www.docker.com/products/docker-desktop/)
-2. During installation, ensure **"Use WSL 2 instead of Hyper-V"** is checked
-3. After installation, open Docker Desktop
-4. Go to Settings → General → Verify **"Use the WSL 2 based engine"** is enabled
-5. Go to Settings → Resources → WSL Integration → Enable integration with your Ubuntu distribution
-6. Restart Docker Desktop if needed
-
-### Step 4: Clone the Repository
-
-1. Open Command Prompt or PowerShell
-2. Create your preferred directory e.g. `mkdir %USERPROFILE%\docker\zehnlabs`
-3. Navigate to `zehnlabs` directory e.g. `cd %USERPROFILE%\docker\zehnlabs`
-3. Clone the repository:
-   ```cmd
-   git clone https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer.git
-   cd ibkr-portfolio-rebalancer
+1. **Install Docker Desktop** for your operating system
+2. **Clone or download** this repository
+3. **Copy example files**:
+   ```bash
+   cp .env.example .env
+   cp accounts.example.yaml accounts.yaml
    ```
 
-### Step 5: Configure Environment Variables
-
-1. Copy the example environment file:
-   ```cmd
-   copy .env.example .env
+4. **Configure your environment** (`.env` file):
+   ```bash
+   # IBKR Credentials
+   IB_USERNAME=your_ibkr_username
+   IB_PASSWORD=your_ibkr_password
+   TRADING_MODE=paper  # Start with paper trading!
+   
+   # Zehnlabs API Keys (from Telegram bot)
+   ALLOCATIONS_API_KEY=your_allocations_key
+   REBALANCE_EVENT_SUBSCRIPTION_API_KEY=your_events_key
    ```
 
-2. Edit the `.env` file:
-   ```cmd
-   notepad .env
-   ```
-   *(You can use any text editor of your choice)*
-
-3. Update the following values with your actual credentials:
-   ```env
-   # Interactive Brokers Account Configuration
-   IB_USERNAME=your_ib_username
-   IB_PASSWORD=your_ib_password
-
-   # Trading Configuration
-   TRADING_MODE=paper  # Start with 'paper' for testing, change to 'live' when ready; make sure you have an IBKR paper account
-   TIME_IN_FORCE=GTC   # GTC (Good Till Cancelled) or DAY
-   EXTENDED_HOURS_ENABLED=true
-
-   # API Keys
-   ALLOCATIONS_API_KEY=your_allocations_api_key
-   REBALANCE_EVENT_SUBSCRIPTION_API_KEY=your_realtime_api_key
-
-   # Optional. VNC Configuration (for accessing IB Gateway GUI if needed)
-   VNC_PASSWORD=choose_a_secure_password
-
-   # Application Configuration
-   LOG_LEVEL=INFO  # Use DEBUG for troubleshooting, INFO for normal operation
-
-   # Optional. Testing account if you want to test using REST API
-   TEST_ACCOUNT_ID=your_ibkr_account_id
-   ```
-
-### Step 6: Configure Trading Accounts
-
-1. Copy the example accounts file:
-   ```cmd
-   copy accounts.example.yaml accounts.yaml
-   ```
-
-2. Edit the accounts configuration:
-   ```cmd
-   notepad accounts.yaml
-   ```
-   *(You can use any text editor of your choice)*
-
-3. Configure your trading accounts. **If you only want to trade one account, remove the second account section entirely.**
-
-   **Example for a single account:**
+5. **Configure your accounts** (`accounts.yaml` file):
    ```yaml
-   # Account 1
-   ############
-   - account_id: "U123456"  # Your IBKR account ID
-     notification:
-       # Zehnlabs strategy name: all lowercase, spaces replaced with hyphens
-       # You must be subscribed to this strategy
-       channel: "etf-blend-200-35"
-     rebalancing:
-       # Cash reserve: 0% to 10% (defaults to 1% if outside range)
-       cash_reserve_percentage: 2.0
+   accounts:
+     - account_id: "DU123456"  # Your IBKR account ID
+       notification_channel: "strategy-name"  # Your strategy name
+       cash_reserve_percentage: 1.0
    ```
 
-   **Example for multiple accounts:**
-   ```yaml
-   # Account 1
-   ############
-   - account_id: "U123456"
-     notification:
-       channel: "etf-blend-200-35"
-     rebalancing:
-       cash_reserve_percentage: 2.0
-
-   # Account 2
-   ############
-   - account_id: "U654321"
-     notification:
-       channel: "etf-blend-301-20"
-     rebalancing:
-       cash_reserve_percentage: 2.5
+6. **Start the system**:
+   ```bash
+   docker compose up -d
    ```
 
-### Step 7: Start the Application
+### Option 2: Cloud/VPS Setup
 
-1. Ensure Docker Desktop is running
-2. In your Command Prompt or PowerShell, from the project directory, run:
-   ```cmd 
-   docker compose up
-   ```
+For cloud deployment, see the [Remote Monitoring](monitoring.md) guide for Cloudflare tunnel setup.
 
-This command will:
-- Download required Docker images (first run takes a few minutes)
-- Build the application containers
-- Start all services
+## First Run Verification
 
-### Step 8: View Logs and Verify Successful Start
+### 1. Check System Health
+```bash
+# All services should be running
+docker compose ps
 
-1. Open Docker Desktop
-2. Go to the **"Containers"** tab
-3. Find and click on your project container
-4. Click on **"Logs"** to view the application logs
+# System should be healthy
+curl http://localhost:8000/health
+```
 
-**Look for these success indicators:**
-- No error messages in the logs
-- Services start without crashing
+### 2. Test with Paper Trading
+- System starts in **paper trading mode** by default
+- Monitor logs: `docker compose logs -f event-processor`
+- Events will appear when rebalancing occurs
 
-**If you see errors:**
-- Check your `.env` file credentials
-- Check your account ID
-- Verify your ZehnLabs subscription is active
-- Ensure Interactive Brokers account is properly set up
+### 3. Access Management Interface
+- **Health Status**: `http://localhost:8000/health`
+- **Queue Status**: `http://localhost:8000/queue/status`
+- **IBKR Gateway GUI**: `http://localhost:6080` (for troubleshooting)
+
+## Going Live
+
+### 1. Test Thoroughly in Paper Mode
+- Let the system run for at least one rebalancing event
+- Verify positions and trades in IBKR paper account
+- Check logs for any errors or warnings
+
+### 2. Switch to Live Trading
+Edit your `.env` file:
+```bash
+TRADING_MODE=live  # Only after thorough testing!
+```
+
+Restart the system:
+```bash
+docker compose restart
+```
+
+### 3. Critical: Read Operations Guide
+**Before going live**, thoroughly read the [Operations Guide](operations.md) to understand:
+- 📅 Weekly Sunday MFA requirements
+- 🚫 IBKR single login limitations  
+- 📈 Market close timing restrictions
+- 🔧 Daily monitoring procedures
+
+## Next Steps
+
+### Essential Reading
+- **[Operations Guide](operations.md)** - Critical weekly and daily procedures
+- **[Troubleshooting](troubleshooting.md)** - Common issues and solutions
+- **[Architecture](architecture.md)** - How the system works
+
+### Optional Configuration
+- **[Remote Monitoring](monitoring.md)** - Cloudflare tunnels and alerts
+- **[Development](development.md)** - Local development setup
+
+## Common First-Time Issues
+
+**Services won't start:**
+- Check Docker Desktop is running
+- Verify `.env` and `accounts.yaml` files exist
+- Run `docker compose logs` to see error details
+
+**Can't access management API:**
+- Ensure port 8000 isn't blocked
+- Try `http://localhost:8000/health` in browser
+- Check service is running: `docker compose ps management-service`
+
+**IBKR Gateway won't connect:**
+- Wait 60+ seconds for login process
+- Check credentials in `.env` file
+- Use NoVNC (`http://localhost:6080`) to see gateway GUI
+- Ensure IBKR account has API access enabled
+
+> 💡 **Tip**: Most issues are resolved by reading the [Operations Guide](operations.md) and [Troubleshooting Guide](troubleshooting.md).
 
 ---
 
-## IMPORTANT: Staying Updated with New Versions
-
-From time to time new versions of this tool will be released. You should update this tool accordingly.
-
-### Get Notified of Repository Updates
-
-To receive notifications when new versions are released:
-
-**GitHub Watch:**
-1. Go to `https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer`
-2. Click the **"Watch"** button
-3. Select **"Custom"** → **"Releases"**
-4. You'll receive email notifications for new releases
-
-### Update to the Latest Version
-
-When a new version is available:
-
-1. **Stop the running containers:**
-   ```cmd
-   docker compose down
-   ```
-
-2. **Pull the latest changes:**
-   ```cmd
-   git pull origin main
-   ```
-
-3. **Rebuild and restart with the new version:**
-   ```cmd
-   docker compose up --build -d
-   ```
-
-4. **Check logs in Docker Desktop** to ensure the update was successful
-
----
-
-## Alternative Setups
-
-While this guide focuses on Windows + WSL + Docker Desktop, the tool works on other platforms:
-
-- **macOS**: Install Docker Desktop for Mac, use Terminal instead of WSL
-- **Linux**: Install Docker and Docker Compose, use native terminal
-- **Cloud hosting**: Deploy on Digital Ocean droplets, AWS EC2, etc.
-- **Other Windows setups**: Can run without WSL using Command Prompt/PowerShell
-
-The Docker-based approach ensures consistent behavior across all platforms. 
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-**Docker Desktop won't start:**
-- Ensure virtualization is enabled in BIOS/UEFI
-- Verify WSL 2 is properly installed and updated
-
-**Container fails to start:**
-- Review Docker Desktop logs for specific error messages
-- Ensure `.env` and `accounts.yaml` files exist and have correct formatting
-- Set `LOG_LEVEL=DEBUG` for more detailed logging
-
-### Getting More Help
-
-1. Check the detailed logs in Docker Desktop
-2. Set `LOG_LEVEL=DEBUG` in your `.env` file for verbose logging
-3. Verify all prerequisites and subscriptions are active
-4. Ensure firewall isn't blocking Docker or IB connections
-
----
-
-## Security and Best Practices
-
-- **Keep your `.env` file secure** - never share or commit it to version control
-- **Start with paper trading** - use `TRADING_MODE=paper` until you're confident
-- **Monitor your positions** - especially during the first few days of operation
-- **Regular updates** - keep Docker images and the application updated
-
+**🎉 Congratulations!** Your IBKR Portfolio Rebalancer is now running. Make sure to read the [Operations Guide](operations.md) before relying on it for live trading.
