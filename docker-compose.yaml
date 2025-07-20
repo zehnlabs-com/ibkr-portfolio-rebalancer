@@ -16,6 +16,9 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      TZ: America/New_York
     command: redis-server --appendonly yes
     networks:
       - ibkr-network
@@ -42,8 +45,10 @@ services:
       BYPASS_WARNING: yes
       AUTO_RESTART_TIME: 10:00 PM
       VNC_SERVER_PASSWORD: ${VNC_PASSWORD:-password}
+      TZ: America/New_York
     volumes:
       - ib_data:/home/ibgateway
+      - /etc/localtime:/etc/localtime:ro
     healthcheck:      
       test: ["CMD", "sleep", "60"] # wait for 1 minute to fpr gateway to complete login workflow
       interval: 5s
@@ -63,12 +68,14 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       SERVICE_VERSION: *system-version
       REBALANCE_EVENT_SUBSCRIPTION_API_KEY: ${REBALANCE_EVENT_SUBSCRIPTION_API_KEY}
+      TZ: America/New_York
     depends_on:
       redis:
         condition: service_healthy
     volumes:
       - ./event-broker/logs:/app/logs
       - ./accounts.yaml:/accounts.yaml
+      - /etc/localtime:/etc/localtime:ro
     networks:
       - ibkr-network
     logging:
@@ -90,9 +97,11 @@ services:
       ALLOCATIONS_API_KEY: ${ALLOCATIONS_API_KEY}
       EXTENDED_HOURS_ENABLED: ${EXTENDED_HOURS_ENABLED:-false}
       SERVICE_VERSION: *system-version
+      TZ: America/New_York
     volumes:
       - ./event-processor/config:/app/config
       - ./event-processor/logs:/app/logs
+      - /etc/localtime:/etc/localtime:ro
     networks:
       - ibkr-network
     depends_on:
@@ -120,11 +129,13 @@ services:
       REDIS_URL: redis://redis:6379/0
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       SERVICE_VERSION: *system-version
+      TZ: America/New_York
     depends_on:
       redis:
         condition: service_healthy
     volumes:
       - ./management-service/logs:/app/logs
+      - /etc/localtime:/etc/localtime:ro
     networks:
       - ibkr-network
     healthcheck:
@@ -145,10 +156,13 @@ services:
       - "6080:8081"  # Web VNC access
     depends_on:
       - ibkr
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
     networks:
       - ibkr-network
     restart: unless-stopped
     environment:
       REMOTE_HOST: ibkr
       REMOTE_PORT: 5900
+      TZ: America/New_York
 

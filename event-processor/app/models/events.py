@@ -1,5 +1,5 @@
 from typing import Dict, Any, Optional
-from datetime import datetime, date, timezone
+from datetime import datetime, date
 import uuid
 from pydantic import BaseModel
 
@@ -15,7 +15,7 @@ class EventInfo(BaseModel):
 
     @classmethod
     def create_new(cls, account_id: str, exec_command: str, payload: Dict[str, Any], times_queued: int = 1) -> 'EventInfo':
-        now = datetime.now(timezone.utc)
+        now = datetime.now()
         return cls(
             event_id=str(uuid.uuid4()),
             account_id=account_id,

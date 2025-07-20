@@ -5,7 +5,7 @@ import json
 import redis
 import uuid
 from typing import Dict, Any
-from datetime import datetime, timezone
+from datetime import datetime
 from app.config import config
 from app.logger import setup_logger
 
@@ -58,7 +58,7 @@ class QueueService:
                 'account_id': account_id,
                 'data': event_data,
                 'times_queued': 1,
-                'created_at': datetime.now(timezone.utc).isoformat()
+                'created_at': datetime.now().isoformat()
             }
             
             # Add to queue and tracking set atomically

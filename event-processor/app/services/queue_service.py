@@ -5,7 +5,7 @@ import json
 import time
 import redis.asyncio as redis
 from typing import Dict, Any, Optional, List
-from datetime import datetime, timezone
+from datetime import datetime
 from app.config import config
 from app.logger import setup_logger
 from app.models.events import EventInfo
@@ -50,18 +50,18 @@ class QueueService:
                     logger.error(f"Event missing exec command: {event_data}")
                     return None
                 
-                # Parse datetime fields
+                # Parse datetime fields (assuming system timezone consistency)
                 received_at = event_data.get('received_at')
                 if received_at and isinstance(received_at, str):
-                    received_at = datetime.fromisoformat(received_at.replace('Z', '+00:00'))
+                    received_at = datetime.fromisoformat(received_at.replace('Z', ''))
                 elif not received_at:
-                    received_at = datetime.now(timezone.utc)
+                    received_at = datetime.now()
                 
                 created_at = event_data.get('created_at')
                 if created_at and isinstance(created_at, str):
-                    created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    created_at = datetime.fromisoformat(created_at.replace('Z', ''))
                 elif not created_at:
-                    created_at = datetime.now(timezone.utc)
+                    created_at = datetime.now()
                 
                 # Create EventInfo object from raw data
                 event_info = EventInfo(

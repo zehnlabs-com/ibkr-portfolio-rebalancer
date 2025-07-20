@@ -10,7 +10,7 @@ class StructuredFormatter(logging.Formatter):
     def format(self, record):
         # Start with basic log structure
         log_data = {
-            'timestamp': self.formatTime(record),
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S %Z'),
             'level': record.levelname,
             'logger': record.name,
             'message': record.getMessage()
@@ -31,9 +31,9 @@ class StructuredFormatter(logging.Formatter):
                           'msecs', 'relativeCreated', 'thread', 'threadName', 
                           'processName', 'process', 'getMessage', 'exc_info', 
                           'exc_text', 'stack_info', 'message', 'event_id', 'account_id']:
-                # Convert datetime objects to ISO format strings for JSON serialization
+                # Convert datetime objects to ISO format strings with timezone info for JSON serialization
                 if isinstance(value, datetime):
-                    log_data[key] = value.isoformat()
+                    log_data[key] = value.strftime('%Y-%m-%d %H:%M:%S %Z') if value.tzinfo else value.strftime('%Y-%m-%d %H:%M:%S %Z')
                 else:
                     log_data[key] = value
         
@@ -75,7 +75,7 @@ def _extract_event_properties(event):
         'exec_command': event.exec_command,
         'status': event.status,
         'times_queued': event.times_queued,
-        'received_at': event.received_at.isoformat() if isinstance(event.received_at, datetime) else event.received_at
+        'received_at': event.received_at.strftime('%Y-%m-%d %H:%M:%S %Z') if isinstance(event.received_at, datetime) else event.received_at
     }
     
     return properties

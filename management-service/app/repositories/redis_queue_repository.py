@@ -5,7 +5,7 @@ import json
 import uuid
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timezone
+from datetime import datetime
 import redis.asyncio as redis
 
 from app.repositories.interfaces import IQueueRepository
@@ -160,7 +160,7 @@ class RedisQueueRepository(IQueueRepository):
                     **data
                 },
                 "times_queued": 1,
-                "created_at": datetime.now(timezone.utc).isoformat()
+                "created_at": datetime.now().isoformat()
             }
             
             # Add to queue and active events atomically
@@ -235,8 +235,8 @@ class RedisQueueRepository(IQueueRepository):
                 return None
             
             # Parse timestamp
-            created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
-            now = datetime.now(timezone.utc)
+            created_at = datetime.fromisoformat(created_at_str.replace('Z', ''))
+            now = datetime.now()
             
             age_seconds = int((now - created_at).total_seconds())
             return age_seconds
@@ -281,7 +281,7 @@ class RedisQueueRepository(IQueueRepository):
                     retry_after = None
                     if score:
                         # Add retry delay to the score to get when it will be retried
-                        retry_after = datetime.fromtimestamp(score + 300, timezone.utc).isoformat()  # 300 seconds delay
+                        retry_after = datetime.fromtimestamp(score + 300).isoformat()  # 300 seconds delay
                     
                     events.append({
                         "event_id": event_id,

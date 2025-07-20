@@ -6,6 +6,7 @@ WORKDIR /app
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
@@ -19,8 +20,9 @@ COPY event-broker/app/ ./app/
 COPY accounts.yaml .
 COPY event-broker/config.yaml .
 
-# Set Python path
+# Set Python path and timezone
 ENV PYTHONPATH=/app
+ENV TZ=America/New_York
 
 # Create non-root user for security
 RUN groupadd -r appuser && useradd -r -g appuser appuser
