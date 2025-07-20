@@ -8,7 +8,7 @@ Get your IBKR Portfolio Rebalancer up and running in 4 simple steps.
 
 Before starting, ensure you have:
 
-🏦 **IBKR Pro account** with API access enabled  
+🏦 **IBKR Pro account** with API access enabled  (IBKR Lite won't work)
 📊 **Trading permissions** for `Complex or Leveraged Exchange-Traded Products`  
 💰 **Dividend Election** set to `Reinvest` in your IBKR account  
 📱 **IBKR Key (Mobile App)** configured as MFA - **CRITICAL** for weekly authentication  
@@ -231,4 +231,7 @@ The Docker-based approach ensures consistent behavior across all platforms.
 ---
 
 **🎉 You're Ready!** Your IBKR Portfolio Rebalancer is now set up. Remember to read the [Operations Guide](operations.md) for critical operational procedures before relying on it for live trading.
+
+*🔔 PRO TIP: You can configure Docker Desktop to start every time you login to your computer.*
+
 
