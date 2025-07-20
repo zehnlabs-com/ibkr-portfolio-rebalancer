@@ -73,31 +73,8 @@ Docker Desktop will run your rebalancing tool in containers.
    ```
    💡 *(You can use any text editor of your choice)*
 
-3. Update the following values with your actual credentials:
-   ```env
-   # Interactive Brokers Account Configuration
-   IB_USERNAME=your_ib_username
-   IB_PASSWORD=your_ib_password
-
-   # Trading Configuration
-   TRADING_MODE=paper  # Start with 'paper' for testing, change to 'live' when ready; make sure you have an IBKR paper account
-   TIME_IN_FORCE=GTC   # GTC (Good Till Cancelled) or DAY
-   EXTENDED_HOURS_ENABLED=true
-
-   # API Keys
-   ALLOCATIONS_API_KEY=your_allocations_api_key
-   REBALANCE_EVENT_SUBSCRIPTION_API_KEY=your_realtime_api_key
-
-   # Optional. VNC Configuration (for accessing IB Gateway GUI if needed)
-   VNC_PASSWORD=choose_a_secure_password
-
-   # Application Configuration
-   LOG_LEVEL=INFO  # Use DEBUG for troubleshooting, INFO for normal operation
-
-   # Optional. Testing account if you want to test using REST API
-   TEST_ACCOUNT_ID=your_ibkr_account_id
-   ```
-
+3. Update the values of environment variables in .env file as needed, and save the file.
+   
 ## 🏦 Step 6: Configure Trading Accounts
 
 1. **Copy the example accounts file**:
@@ -112,41 +89,9 @@ Docker Desktop will run your rebalancing tool in containers.
    💡 *(You can use any text editor of your choice)*
 
 3. **Configure your trading accounts**. 
+   - Modify the data as per your IBKR trading accounts and the Zehnlabs strategies you have valid subscrptions for.
 
-   ⚠️ **If you only want to trade one account, remove the second account section entirely.**
-
-   **📊 Example for a single account:**
-   ```yaml
-   # Account 1
-   ############
-   - account_id: "U123456"  # Your IBKR account ID
-     notification:
-       # Zehnlabs strategy name: all lowercase, spaces replaced with hyphens
-       # You must be subscribed to this strategy
-       channel: "etf-blend-200-35"
-     rebalancing:
-       # Cash reserve: 0% to 10% (defaults to 1% if outside range)
-       cash_reserve_percentage: 2.0
-   ```
-
-   **🏢 Example for multiple accounts:**
-   ```yaml
-   # Account 1
-   ############
-   - account_id: "U123456"
-     notification:
-       channel: "etf-blend-200-35"
-     rebalancing:
-       cash_reserve_percentage: 2.0
-
-   # Account 2
-   ############
-   - account_id: "U654321"
-     notification:
-       channel: "etf-blend-301-20"
-     rebalancing:
-       cash_reserve_percentage: 2.5
-   ```
+   ⚠️ **If you only want to trade one account, remove the second account section entirely. Similarly, if you want to trade more than two accounts, you can add them accordingly**
 
 ## 🚀 Step 7: Start the Application
 
@@ -166,7 +111,7 @@ This command will:
 1. **Open Docker Desktop**
 2. **Go to the "Containers" tab**
 3. **Find and click on your project container**
-4. **Click on "Logs"** to view the application logs
+4. **After a couple of minutes, event-processor service should start**
 
 **✅ Look for these success indicators:**
 - No error messages in the logs
@@ -183,9 +128,6 @@ This command will:
 After starting the system, verify everything is working:
 
 ```bash
-# Check all services are running
-docker compose ps
-
 # System health check
 curl http://localhost:8000/health
 
@@ -200,17 +142,19 @@ curl http://localhost:8000/queue/status
 
 ---
 
-# 🔄 Staying Updated
+# 🔄 IMPORTANT: Staying Updated
 
 ## 🔔 Get Notified of Repository Updates
 
-To receive notifications when new versions are released:
+From time to time, this tool will be updated. It is IMPORTANT that you update to the latest version at your earliest convenience. To receive notifications when new versions are released:
 
 **📺 GitHub Watch:**
 1. Go to `https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer`
 2. Click the **"Watch"** button
 3. Select **"Custom"** → **"Releases"**
 4. You'll receive email notifications for new releases
+
+*You should schedule your updates when the markets are closed.*
 
 ## ⬆️ Update to the Latest Version
 
@@ -241,8 +185,7 @@ While this guide focuses on Windows + WSL + Docker Desktop, the tool works on ot
 
 - **macOS**: Install Docker Desktop for Mac, use Terminal instead of WSL
 - **Linux**: Install Docker and Docker Compose, use native terminal
-- **Cloud hosting**: Deploy on Digital Ocean droplets, AWS EC2, etc. - see [Remote Monitoring Guide](monitoring.md)
-- **Other Windows setups**: Can run without WSL using Command Prompt/PowerShell
+- **Cloud hosting**: Deploy on Digital Ocean droplets, AWS EC2, etc. 
 
 The Docker-based approach ensures consistent behavior across all platforms.
 
@@ -274,28 +217,18 @@ The Docker-based approach ensures consistent behavior across all platforms.
 
 # 📚 Essential Reading
 
-## 🚨 **Must Read:**
+## 🚨 **MUST Read:**
 - **[Operations Guide](operations.md)** - Critical weekly procedures and login restrictions
+- **[Remote Monitoring](monitoring.md)** - (Optional) Monitoring and alerts 
+
+## ❌ Troubleshooting
 - **[Troubleshooting Guide](troubleshooting.md)** - Common issues and solutions
 
 ## 📖 **System Understanding:**
 - **[Architecture Guide](architecture.md)** - How the system works
 - **[Rebalancing Algorithm](rebalancing.md)** - Trading logic and cash management
 
-## ⚙️ **Service Details:**
-- **[Event Broker](services/event-broker.md)** - Event ingestion from Zehnlabs
-- **[Event Processor](services/event-processor.md)** - Trade execution engine  
-- **[Management Service](services/management-service.md)** - Monitoring API
-- **[IBKR Gateway](services/ibkr-gateway.md)** - Interactive Brokers connection
-- **[Infrastructure](services/infrastructure.md)** - Redis and NoVNC services
-
-## 🔧 **Advanced Topics:**
-- **[Remote Monitoring](monitoring.md)** - Cloudflare tunnels and uptime alerts
-- **[Development Setup](development.md)** - Local development without Docker
-
 ---
-
 
 **🎉 You're Ready!** Your IBKR Portfolio Rebalancer is now set up. Remember to read the [Operations Guide](operations.md) for critical operational procedures before relying on it for live trading.
 
-> 💡 **Pro Tip**: Bookmark the [Management Interface](http://localhost:8000/health) for quick system health checks.

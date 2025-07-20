@@ -1,6 +1,6 @@
 # Remote Monitoring Setup
 
-This guide shows how to set up remote health monitoring for your portfolio rebalancer using Cloudflare Zero Trust tunnel and uptime monitoring services.
+This guide shows how to set up remote health monitoring for your portfolio rebalancer using Cloudflare Zero Trust tunnel and UptimeRobot monitoring services.
 
 ## Cloudflare Zero Trust Tunnel (Free)
 
