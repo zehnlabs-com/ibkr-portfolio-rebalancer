@@ -4,23 +4,24 @@ This guide covers critical operational requirements for running the IBKR Portfol
 
 ## ⚠️ Weekly IBKR Gateway Restart & MFA Requirements
 
-**This is extremely important for uninterrupted trading operations:**
+**This is extremely important:**
 
 ### 🔄 Weekly Restart Schedule
 - **IBKR Gateway automatically restarts every Sunday after 01:00 ET**
-- **Authentication is required ONLY ONCE per week** (on Sunday restart)
-- The system can run continuously for the entire week after Sunday authentication
+- **Weekly restart is an IBKR requirement that we cannot control**
+- When the gateway restarts, the user must reauthenticate MFA
 
 ### 📱 MFA Setup Requirements
 - **YOU MUST have IBKR Key (IBKR Mobile app) installed and configured**
-- **YOU MUST authorize the login on your phone within 3 minutes** of the Sunday restart
-- Text message MFA is NOT supported - only IBKR Mobile app authentication
+- **YOU MUST authorize the login on your phone within 3 minutes** of the Sunday restart (see below for alternative)
+- Only IB Key (IBKR Mobile app) MFA is supported
 
 ### 📅 What to Expect
 - **Every Sunday**: Gateway restarts automatically around 01:00 ET
 - **Your Action Required**: Approve the MFA prompt on your IBKR Mobile app within 3 minutes
-- **Rest of Week**: System runs automatically without intervention
-- **Missed MFA**: If you don't approve within 3 minutes, the system will retry login
+
+### 🛠️ Restart Time Configuration
+The Sunday restart time is configurable (defaults to after 01:00 ET). See the [gnzsnz/ib-gateway documentation](https://github.com/gnzsnz/ib-gateway-docker) for advanced configuration options.
 
 ### 🏠 Alternative: Weekend Shutdown Schedule
 If the Sunday 01:00 ET MFA timing is inconvenient, you can use this alternative approach:
@@ -35,9 +36,6 @@ If the Sunday 01:00 ET MFA timing is inconvenient, you can use this alternative 
   ```
 - **Authorize MFA**: Approve the login on your IBKR Mobile app when containers start
 - **Benefits**: No late-night weekend MFA required, fresh weekly start on Monday
-
-### 🛠️ Restart Time Configuration
-The Sunday restart time is configurable (defaults to after 01:00 ET). See the [gnzsnz/ib-gateway documentation](https://github.com/gnzsnz/ib-gateway-docker) for advanced configuration options.
 
 ---
 
