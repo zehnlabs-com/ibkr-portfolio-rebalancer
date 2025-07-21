@@ -125,10 +125,12 @@ class RebalancerService:
         # Retry logic is now handled by IBKRClient with configurable parameters
         market_prices = await self.ibkr_client.get_multiple_market_prices(list(all_symbols))
         
+        # Validate that we have prices for all required symbols
+        missing_prices = [symbol for symbol in all_symbols if symbol not in market_prices]
+        if missing_prices:
+            raise ValueError(f"Missing market prices for symbols: {', '.join(missing_prices)}.")
+        
         for symbol, target_value in target_positions.items():
-            if symbol not in market_prices:
-                logger.warning(f"No market price available for {symbol}, skipping")
-                continue
             
             market_price = market_prices[symbol]
             target_shares = target_value / market_price
