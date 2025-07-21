@@ -7,11 +7,11 @@ This software is provided "as-is" without any warranty. Automated trading involv
 
 ## ✨ Features
 
+- **🐳 Docker Deployment**: OS agnostic containerized local or cloud deployment
 - **🔄 Event-Driven Rebalancing**: Subscribes to real-time Zehnlabs endpoints for rebalancing triggers
 - **🏦 Multi-Account Support**: Allows multiple IBKR accounts and multiple strategies
 - **🛡️ Robust Error Handling**: Indefinite event retention with automatic retry and queue management
 - **📱 Management Service**: RESTful API for queue monitoring and manual intervention
-- **🐳 Docker Deployment**: OS agnostic containerized local or cloud deployment
 
 ## 📚 Documentation
 
