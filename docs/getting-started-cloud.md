@@ -80,21 +80,7 @@ docker-compose up
 - **📊 Queue Status**: `curl http://localhost:8000/queue/status`
 
 **Optional - IBKR Gateway GUI Access:**
-If you need to access the IBKR Gateway GUI for troubleshooting:
-
-⚠️ **Security Warning**: Only do this temporarily and ensure you have a strong VNC password set in your `.env` file.
-
-1. **Open the VNC port temporarily:**
-   ```bash
-   sudo ufw allow 6080
-   ```
-
-2. **Access the GUI**: `http://YOUR_DROPLET_IP:6080`
-
-3. **Close the port when done:**
-   ```bash
-   sudo ufw delete allow 6080
-   ```
+The IBKR Gateway GUI is available at `http://localhost:6080` for local troubleshooting. For remote access, consider using a reverse proxy or Cloudflare tunnel.
 
 ---
 

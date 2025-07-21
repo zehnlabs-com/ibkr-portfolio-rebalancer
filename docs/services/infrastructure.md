@@ -105,7 +105,7 @@ NoVNC provides web-based VNC access to the IBKR Gateway for troubleshooting and 
 **Network Name**: `ibkr-network`
 - **Type**: Bridge network
 - **Isolation**: All services communicate internally
-- **External Access**: Only Management API (8000) and NoVNC (6080) exposed
+- **External Access**: Management API (8000) and NoVNC (6080) exposed on localhost only
 
 ### Service Communication
 
@@ -135,11 +135,11 @@ NoVNC provides web-based VNC access to the IBKR Gateway for troubleshooting and 
 
 | Service | Internal Port | External Port | Purpose |
 |---------|---------------|---------------|---------|
-| Redis | 6379 | 6379 | Queue access |
-| IBKR Gateway | 4001, 4002 | 4001, 4002 | TWS API |
-| IBKR Gateway | 5900 | 5900 | VNC server |
-| Management API | 8000 | 8000 | HTTP API |
-| NoVNC | 8081 | 6080 | Web VNC |
+| Redis | 6379 | 127.0.0.1:6379 | Queue access |
+| IBKR Gateway | 4003, 4004 | 127.0.0.1:4001, 4002 | TWS API |
+| IBKR Gateway | 5900 | 127.0.0.1:5900 | VNC server |
+| Management API | 8000 | 127.0.0.1:8000 | HTTP API |
+| NoVNC | 8081 | 127.0.0.1:6080 | Web VNC |
 
 ## Data Persistence
 

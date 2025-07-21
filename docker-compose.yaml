@@ -13,7 +13,7 @@ services:
     image: redis:7-alpine
     container_name: redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
       - /etc/localtime:/etc/localtime:ro
@@ -128,7 +128,7 @@ services:
         VERSION: *system-version
     container_name: management-service
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       REDIS_URL: redis://redis:6379/0
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -157,7 +157,7 @@ services:
   novnc:
     image: dougw/novnc:latest
     ports:
-      - "6080:8081"  # Web VNC access
+      - "127.0.0.1:6080:8081"  # Web VNC access
     depends_on:
       - ibkr
     volumes:
