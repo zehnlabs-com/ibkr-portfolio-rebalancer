@@ -1,4 +1,4 @@
-ib-async==0.9.86
+ib-async==2.0.1
 python-dotenv==1.0.0
 loguru==0.7.2
 redis==5.0.1

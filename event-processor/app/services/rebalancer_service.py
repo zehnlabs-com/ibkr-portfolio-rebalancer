@@ -174,10 +174,6 @@ class RebalancerService:
     async def _execute_sell_orders(self, account_id: str, orders: List[RebalanceOrder], dry_run: bool = False):
         """Execute sell orders using simple algorithm approach - concurrent placement, sequential waiting"""
         cancelled_orders = []
-        
-        if not dry_run:
-            cancelled_orders = await self._cancel_pending_orders(account_id)
-        
         sell_orders = [order for order in orders if order.action == 'SELL']
         
         if not sell_orders:
@@ -192,12 +188,15 @@ class RebalancerService:
                 logger.info(f"DRY RUN - Would execute: {order}")
             return cancelled_orders
         
+        # Cancel pending orders before executing live orders
+        cancelled_orders = await self._cancel_pending_orders(account_id)
+        
         # Place ALL sell orders concurrently (like simple algorithm)
         sell_tasks = []
         for order in sell_orders:
             quantity = -order.quantity  # Negative for sell
             
-            trade = await self.ibkr_client.place_order(
+            trade = self.ibkr_client.place_order(
                 account_id=account_id,
                 symbol=order.symbol,
                 quantity=quantity,
@@ -236,7 +235,7 @@ class RebalancerService:
         # Place ALL buy orders concurrently (like simple algorithm)
         buy_tasks = []
         for order in buy_orders:
-            trade = await self.ibkr_client.place_order(
+            trade = self.ibkr_client.place_order(
                 account_id=account_id,
                 symbol=order.symbol,
                 quantity=order.quantity,
