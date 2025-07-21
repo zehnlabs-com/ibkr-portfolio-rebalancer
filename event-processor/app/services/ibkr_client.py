@@ -2,13 +2,11 @@ import asyncio
 import os
 import random
 from typing import List, Dict, Optional, Any
-# Removed asyncio_throttle to reduce async conflicts
-from ib_async import IB, Stock, Order, LimitOrder, Contract
+from ib_async import IB, Stock, MarketOrder
 from app.config import config
 from app.logger import setup_logger
 
 logger = setup_logger(__name__)
-
 class IBKRClient:
     def __init__(self):
         self.ib = IB()
@@ -180,16 +178,14 @@ class IBKRClient:
             raise Exception("Unable to establish IBKR connection")
         
         try:
-            # Use portfolioAsync like simple algorithm, but filter by account
-            portfolio_items = await self.ib.portfolioAsync()
+            portfolio_items = self.ib.portfolio()
             result = []
             
             for item in portfolio_items:
-                # Filter by account and include ALL positions (even zeros) like simple algorithm
                 if hasattr(item, 'account') and item.account == account_id:
                     result.append({
                         'symbol': item.contract.symbol,
-                        'position': item.position,  # Include zero positions
+                        'position': item.position,
                         'market_value': item.marketValue,
                         'avg_cost': item.averageCost
                     })
@@ -207,20 +203,28 @@ class IBKRClient:
     
     
     async def get_multiple_market_prices(self, symbols: List[str]) -> Dict[str, float]:
-        """Get market prices using simple algorithm's approach"""
+        """Get market prices using a robust, qualified approach."""
         if not await self.ensure_connected():
             raise Exception("Unable to establish IBKR connection")
         
         if not symbols:
             return {}
         
-        # Use simple algorithm's approach - direct reqTickersAsync
+        # 1. Create unqualified contract objects
         contracts = [Stock(s, 'SMART', 'USD') for s in symbols]
-        tickers = await self.ib.reqTickersAsync(*contracts)
+        
+        # 2. Qualify them to get the unique conId for each
+        try:
+            qualified_contracts = await self.ib.qualifyContractsAsync(*contracts)
+        except Exception as e:
+            logger.error(f"Failed to qualify contracts for symbols {symbols}: {e}")
+            raise RuntimeError(f"Could not qualify contracts for: {symbols}. Cannot proceed.")
+
+        # 3. Request tickers using the now-qualified contracts
+        tickers = await self.ib.reqTickersAsync(*qualified_contracts)
         
         prices = {t.contract.symbol: t.marketPrice() for t in tickers if t.marketPrice() > 0}
         
-        # Check for missing prices like simple algorithm
         missing_symbols = [s for s in symbols if s not in prices]
         if missing_symbols:
             raise RuntimeError(f"Could not fetch market price for: {missing_symbols}. Cannot proceed.")
@@ -229,21 +233,24 @@ class IBKRClient:
     
     
     async def place_order(self, account_id: str, symbol: str, quantity: int, order_type: str = "MKT", 
-                         time_in_force: str = "DAY", extended_hours: bool = False):
+                        time_in_force: str = "DAY", extended_hours: bool = False):
         if not await self.ensure_connected():
             raise Exception("Unable to establish IBKR connection")
         
-        # Direct order placement like simple algorithm
         contract = Stock(symbol, 'SMART', 'USD')
-        qualified_contracts = self.ib.qualifyContracts(contract)
-        if not qualified_contracts:
-            raise Exception(f"Could not qualify contract for {symbol}")
         
-        contract = qualified_contracts[0]
-        action = "BUY" if quantity > 0 else "SELL"
+        # Use the async version for consistency
+        try:
+            qualified_contracts = await self.ib.qualifyContractsAsync(contract)
+            if not qualified_contracts:
+                raise Exception(f"Could not qualify contract for {symbol}")
+            contract = qualified_contracts[0]
+        except Exception as e:
+            logger.error(f"Failed to qualify contract for {symbol}: {e}")
+            raise RuntimeError(f"Could not qualify contract for: {symbol}. Cannot proceed.")
+
+        action = "BUY" if quantity > 0 else "SELL"        
         
-        # Create order like simple algorithm
-        from ib_async import MarketOrder
         order = MarketOrder(action, abs(quantity))
         if extended_hours:
             order.outsideRth = True
@@ -253,9 +260,6 @@ class IBKRClient:
         logger.info(f"Order placed: ID={trade.order.orderId}; {action} {abs(quantity)} shares of {symbol}")
         
         return trade
-    
-    
-    
     
     async def cancel_all_orders(self, account_id: str) -> List[Dict]:
         """Cancel all pending orders for the given account.
