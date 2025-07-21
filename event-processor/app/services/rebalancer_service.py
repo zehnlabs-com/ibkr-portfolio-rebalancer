@@ -1,6 +1,6 @@
-import math
 import asyncio
-from typing import List, Dict, Optional, Tuple
+import pandas as pd
+from typing import List, Dict, Optional
 from collections import defaultdict
 from app.config import config
 from app.models.account_config import EventAccountConfig
@@ -56,24 +56,11 @@ class RebalancerService:
                     account_config
                 )
                 
-                # Validate all orders before placing any
-                await self._validate_all_orders(account_config.account_id, result.orders)
-                
                 # Execute sell orders first and wait for completion
                 cancelled_orders = await self._execute_sell_orders(account_config.account_id, result.orders, dry_run=False)
                 
-                # Get actual cash balance after sells complete
-                available_cash = await self.ibkr_client.get_cash_balance(account_config.account_id)
-                
-                # Execute buy orders with cash reserve applied
-                executed_buy_orders = await self._execute_buy_orders(
-                    account_config.account_id, 
-                    result.orders, 
-                    available_cash, 
-                    account_config.rebalancing.cash_reserve_percentage,
-                    account_value,
-                    dry_run=False
-                )
+                # Execute buy orders (no cash validation - trust pandas calculations)
+                await self._execute_buy_orders(account_config.account_id, result.orders, dry_run=False)
                 
                 logger.info(f"Completed LIVE rebalance for account {account_config.account_id}")
                 
@@ -92,130 +79,86 @@ class RebalancerService:
         account_config: EventAccountConfig
     ) -> RebalanceResult:
         
-        orders = []
+        # Calculate cash reserve scaling factor (like simple algorithm)
+        cash_reserve_percent = account_config.rebalancing.cash_reserve_percentage / 100.0
+        scaling_factor = 1.0 - cash_reserve_percent
+        reserve_amount = account_value * cash_reserve_percent
         
-        # Calculate investable amount (account value minus reserve)
-        reserve_amount = account_value * (account_config.rebalancing.cash_reserve_percentage / 100.0)
-        investable_amount = account_value - reserve_amount
+        logger.info(f"Account {account_config.account_id}: Account value: ${account_value:.2f}, Cash reserve: {account_config.rebalancing.cash_reserve_percentage}% (${reserve_amount:.2f}), Scaling factor: {scaling_factor:.3f}")
         
-        logger.info(f"Account {account_config.account_id}: Account value: ${account_value:.2f}, Cash reserve: {account_config.rebalancing.cash_reserve_percentage}% (${reserve_amount:.2f}), Investable amount: ${investable_amount:.2f}")
+        # Convert target allocations to DataFrame with scaled weights
+        target_df = pd.DataFrame([
+            {'symbol': allocation['symbol'], 'target_weight': allocation['allocation'] * scaling_factor}
+            for allocation in target_allocations
+        ])
         
-        current_positions_map = {pos['symbol']: pos for pos in current_positions}
+        # Convert current positions to DataFrame  
+        if current_positions:
+            current_df = pd.DataFrame([{
+                'symbol': pos['symbol'],
+                'shares': pos['position'],
+                'market_value': pos.get('market_value', 0.0)
+            } for pos in current_positions])
+        else:
+            current_df = pd.DataFrame(columns=['symbol', 'shares', 'market_value'])
         
-        target_positions = {}
-        for allocation in target_allocations:
-            symbol = allocation['symbol']
-            target_percentage = allocation['allocation']
-            target_value = investable_amount * target_percentage  # Use investable amount
-            target_positions[symbol] = target_value
+        # Merge target and current positions (outer join to include positions to liquidate)
+        if not current_df.empty:
+            portfolio_df = pd.merge(target_df, current_df, on='symbol', how='outer')
+        else:
+            portfolio_df = target_df.copy()
+            portfolio_df['shares'] = 0
+            portfolio_df['market_value'] = 0.0
         
-        # Create equity info (reserve info will be updated after sells)
-        equity_info = {
-            'total_equity': account_value,
-            'cash_reserve_percentage': account_config.rebalancing.cash_reserve_percentage,
-            'reserve_amount': 0,  # Will be calculated after sells
-            'available_for_trading': account_value
-        }
+        portfolio_df.fillna(0, inplace=True)
         
-        all_symbols = set()
-        all_symbols.update(target_positions.keys())
-        all_symbols.update(current_positions_map.keys())
+        # Calculate target values based on account value
+        portfolio_df['target_value'] = account_value * portfolio_df['target_weight']
         
-        # Get all market prices in parallel for better performance
-        # Retry logic is now handled by IBKRClient with configurable parameters
-        market_prices = await self.ibkr_client.get_multiple_market_prices(list(all_symbols))
+        # Get market prices for all symbols
+        all_symbols = portfolio_df['symbol'].unique().tolist()
+        market_prices = await self.ibkr_client.get_multiple_market_prices(all_symbols)
         
-        # Validate that we have prices for all required symbols
+        # Validate prices
         missing_prices = [symbol for symbol in all_symbols if symbol not in market_prices]
         if missing_prices:
             raise ValueError(f"Missing market prices for symbols: {', '.join(missing_prices)}.")
         
-        for symbol, target_value in target_positions.items():
-            
-            market_price = market_prices[symbol]
-            target_shares = target_value / market_price
-            
-            current_shares = 0
-            if symbol in current_positions_map:
-                current_shares = current_positions_map[symbol]['position']
-            
-            shares_diff = target_shares - current_shares
-            
-            if abs(shares_diff) > 0.5:
-                shares_to_trade = int(round(shares_diff))
-                
-                if shares_to_trade > 0:
-                    orders.append(RebalanceOrder(
-                        symbol=symbol,
-                        quantity=shares_to_trade,
-                        action='BUY',
-                        market_value=shares_to_trade * market_price
-                    ))
-                else:
-                    orders.append(RebalanceOrder(
-                        symbol=symbol,
-                        quantity=abs(shares_to_trade),
-                        action='SELL',
-                        market_value=abs(shares_to_trade) * market_price
-                    ))
+        portfolio_df['current_price'] = portfolio_df['symbol'].map(market_prices)
         
-        for symbol, position in current_positions_map.items():
-            if symbol not in target_positions and position['position'] > 0:
-                if symbol in market_prices:
-                    market_price = market_prices[symbol]
-                    shares_to_sell = int(position['position'])
-                    
-                    orders.append(RebalanceOrder(
-                        symbol=symbol,
-                        quantity=shares_to_sell,
-                        action='SELL',
-                        market_value=shares_to_sell * market_price
-                    ))
+        # Calculate trades needed (pandas vectorized operations)
+        portfolio_df['value_diff'] = portfolio_df['target_value'] - portfolio_df['market_value']
+        portfolio_df['shares_to_trade'] = (portfolio_df['value_diff'] / portfolio_df['current_price']).round().astype(int)
+        
+        # Filter to only trades that are needed
+        trades_df = portfolio_df[portfolio_df['shares_to_trade'] != 0].copy()
+        
+        logger.info(f"\n{trades_df[['symbol', 'shares', 'market_value', 'target_value', 'value_diff', 'shares_to_trade']].to_string()}")
+        
+        # Convert to RebalanceOrder objects
+        orders = []
+        for _, row in trades_df.iterrows():
+            shares_to_trade = int(row['shares_to_trade'])
+            action = 'BUY' if shares_to_trade > 0 else 'SELL'
+            quantity = abs(shares_to_trade)
+            market_value = quantity * row['current_price']
+            
+            orders.append(RebalanceOrder(
+                symbol=row['symbol'],
+                quantity=quantity,
+                action=action,
+                market_value=market_value
+            ))
+        
+        # Create equity info
+        equity_info = {
+            'total_equity': account_value,
+            'cash_reserve_percentage': account_config.rebalancing.cash_reserve_percentage,
+            'reserve_amount': reserve_amount,
+            'available_for_trading': account_value - reserve_amount
+        }
         
         return RebalanceResult(orders, equity_info)
-    
-    async def _validate_all_orders(self, account_id: str, orders: List[RebalanceOrder]):
-        """Validate all orders using WhatIf before placing any real orders.
-        
-        This ensures that all orders will be accepted before we start placing them.
-        If any order fails validation, the entire rebalance fails.
-        """
-        if not orders:
-            return
-            
-        logger.info(f"Validating {len(orders)} orders for account {account_id}")
-        
-        # Convert RebalanceOrder objects to validation format
-        order_data = []
-        for order in orders:
-            quantity = order.quantity if order.action == 'BUY' else -order.quantity
-            order_data.append({
-                'symbol': order.symbol,
-                'quantity': quantity,
-                'order_type': 'MKT',
-                'time_in_force': config.order.time_in_force,
-                'extended_hours': config.order.extended_hours_enabled
-            })
-        
-        try:
-            # Validate all orders in batch - this will raise exception if any fail
-            validation_results = await self.ibkr_client.validate_orders_batch(account_id, order_data)
-            
-            # Log validation results
-            total_margin_impact = 0
-            total_commission = 0
-            for i, result in enumerate(validation_results):
-                order = orders[i]
-                total_margin_impact += result['margin_after'] - result['margin_before']
-                total_commission += result['commission']
-                
-                logger.info(f"Order validation passed: {order.symbol} - Margin impact: ${result['margin_after'] - result['margin_before']:.2f}, Commission: ${result['commission']:.2f}")
-            
-            logger.info(f"All orders validated successfully. Total margin impact: ${total_margin_impact:.2f}, Total commission: ${total_commission:.2f}")
-            
-        except Exception as e:
-            logger.error(f"Order validation failed: {e}")
-            raise Exception(f"Order validation failed, rebalance aborted: {e}")
     
     async def _cancel_pending_orders(self, account_id: str):
         """Cancel all pending orders for the account before rebalancing"""
@@ -229,7 +172,7 @@ class RebalancerService:
             raise
 
     async def _execute_sell_orders(self, account_id: str, orders: List[RebalanceOrder], dry_run: bool = False):
-        """Execute sell orders and wait for completion"""
+        """Execute sell orders using simple algorithm approach - concurrent placement, sequential waiting"""
         cancelled_orders = []
         
         if not dry_run:
@@ -244,88 +187,73 @@ class RebalancerService:
         mode_text = "DRY RUN" if dry_run else "LIVE"
         logger.info(f"{mode_text} - Executing {len(sell_orders)} sell orders for account {account_id}")
         
-        sell_order_ids = []
+        if dry_run:
+            for order in sell_orders:
+                logger.info(f"DRY RUN - Would execute: {order}")
+            return cancelled_orders
         
+        # Place ALL sell orders concurrently (like simple algorithm)
+        sell_tasks = []
         for order in sell_orders:
-            try:
-                if dry_run:
-                    logger.info(f"DRY RUN - Would execute: {order}")
-                else:
-                    quantity = -order.quantity  # Negative for sell
-                    
-                    order_id = await self.ibkr_client.place_order(
-                        account_id=account_id,
-                        symbol=order.symbol,
-                        quantity=quantity,
-                        order_type="MKT",
-                        time_in_force=config.order.time_in_force,
-                        extended_hours=config.order.extended_hours_enabled
-                    )
-                    
-                    sell_order_ids.append(str(order_id))
-                    logger.info(f"LIVE - Sell order placed: {order} - Order ID: {order_id}")
-                
-            except Exception as e:
-                error_text = f"Failed to {'simulate' if dry_run else 'place'} sell order {order}: {e}"
-                logger.error(error_text)
-                raise Exception(error_text) from e
+            quantity = -order.quantity  # Negative for sell
+            
+            trade = await self.ibkr_client.place_order(
+                account_id=account_id,
+                symbol=order.symbol,
+                quantity=quantity,
+                order_type="MKT",
+                time_in_force=config.order.time_in_force,
+                extended_hours=config.order.extended_hours_enabled
+            )
+            
+            sell_tasks.append(trade)
+            logger.info(f"SELL order placed: {order} - Order ID: {trade.order.orderId}")
         
-        # Wait for sell orders to complete before returning
-        if not dry_run and sell_order_ids:
-            await self.ibkr_client.wait_for_sell_orders_completion(account_id, sell_order_ids)
+        # Wait for ALL sells to complete sequentially (like simple algorithm)
+        for trade in sell_tasks:
+            await trade.filledEvent
+            logger.info(f"SELL Filled: {trade.order.orderId} - {trade.contract.symbol} {trade.order.totalQuantity}")
         
+        logger.info("All SELL orders executed")
         return cancelled_orders
     
-    async def _execute_buy_orders(self, account_id: str, orders: List[RebalanceOrder], available_cash: float, reserve_percentage: float, account_value: float, dry_run: bool = False):
-        """Execute buy orders up to available cash after reserve"""
+    async def _execute_buy_orders(self, account_id: str, orders: List[RebalanceOrder], dry_run: bool = False):
+        """Execute buy orders using simple algorithm approach - concurrent placement, sequential waiting"""
         buy_orders = [order for order in orders if order.action == 'BUY']
         
         if not buy_orders:
             logger.info("No buy orders to execute")
             return
         
-        # Calculate cash available for purchases after reserve (based on total account value)
-        reserve_amount = account_value * (reserve_percentage / 100.0)
-        cash_after_reserve = available_cash - reserve_amount
-        
-        # Sort buy orders by market value (largest first) to prioritize important positions
-        buy_orders.sort(key=lambda x: x.market_value, reverse=True)
-        
         mode_text = "DRY RUN" if dry_run else "LIVE"
-        logger.info(f"{mode_text} - Available cash: ${available_cash:.2f}, Reserve: {reserve_percentage}% (${reserve_amount:.2f}), Cash for purchases: ${cash_after_reserve:.2f}")
+        logger.info(f"{mode_text} - Executing {len(buy_orders)} buy orders for account {account_id}")
         
-        executed_orders = []
-        total_cost = 0.0
+        if dry_run:
+            for order in buy_orders:
+                logger.info(f"DRY RUN - Would execute: {order}")
+            return
         
+        # Place ALL buy orders concurrently (like simple algorithm)
+        buy_tasks = []
         for order in buy_orders:
-            if total_cost + order.market_value <= cash_after_reserve:
-                try:
-                    if dry_run:
-                        logger.info(f"DRY RUN - Would execute: {order}")
-                    else:
-                        order_id = await self.ibkr_client.place_order(
-                            account_id=account_id,
-                            symbol=order.symbol,
-                            quantity=order.quantity,
-                            order_type="MKT",
-                            time_in_force=config.order.time_in_force,
-                            extended_hours=config.order.extended_hours_enabled
-                        )
-                        
-                        logger.info(f"LIVE - Buy order placed: {order} - Order ID: {order_id}")
-                    
-                    executed_orders.append(order)
-                    total_cost += order.market_value
-                    
-                except Exception as e:
-                    error_text = f"Failed to {'simulate' if dry_run else 'place'} buy order {order}: {e}"
-                    logger.error(error_text)
-                    raise Exception(error_text) from e
-            else:
-                logger.info(f"Skipping buy order {order} - insufficient cash (need ${order.market_value:.2f}, have ${cash_after_reserve - total_cost:.2f} remaining)")
+            trade = await self.ibkr_client.place_order(
+                account_id=account_id,
+                symbol=order.symbol,
+                quantity=order.quantity,
+                order_type="MKT",
+                time_in_force=config.order.time_in_force,
+                extended_hours=config.order.extended_hours_enabled
+            )
+            
+            buy_tasks.append(trade)
+            logger.info(f"BUY order placed: {order} - Order ID: {trade.order.orderId}")
         
-        logger.info(f"{mode_text} - Executed {len(executed_orders)} buy orders totaling ${total_cost:.2f}")
-        return executed_orders
+        # Wait for ALL buys to complete sequentially (like simple algorithm)
+        for trade in buy_tasks:
+            await trade.filledEvent
+            logger.info(f"BUY Filled: {trade.order.orderId} - {trade.contract.symbol} {trade.order.totalQuantity}")
+        
+        logger.info("All BUY orders executed")
     
     async def dry_run_rebalance(self, account_config: EventAccountConfig) -> RebalanceResult:
         # Log queue position
@@ -353,18 +281,8 @@ class RebalancerService:
                 # Simulate sell orders first
                 await self._execute_sell_orders(account_config.account_id, result.orders, dry_run=True)
                 
-                # For dry run, simulate current cash balance (assume some cash from current positions)
-                estimated_cash = sum(pos.get('market_value', 0) for pos in current_positions if pos.get('market_value', 0) > 0) * 0.1  # Rough estimate
-                
-                # Simulate buy orders with cash reserve
-                await self._execute_buy_orders(
-                    account_config.account_id, 
-                    result.orders, 
-                    estimated_cash, 
-                    account_config.rebalancing.cash_reserve_percentage,
-                    account_value,
-                    dry_run=True
-                )
+                # Simulate buy orders
+                await self._execute_buy_orders(account_config.account_id, result.orders, dry_run=True)
                 
                 return result
                 
