@@ -82,11 +82,11 @@ class RebalancerService:
     ) -> RebalanceResult:
         
         # Calculate cash reserve scaling factor (like simple algorithm)
-        cash_reserve_percent = account_config.rebalancing.cash_reserve_percentage / 100.0
+        cash_reserve_percent = account_config.cash_reserve_percent / 100.0
         scaling_factor = 1.0 - cash_reserve_percent
         reserve_amount = account_value * cash_reserve_percent
         
-        app_logger.log_info(f"Account {account_config.account_id}: Account value: ${account_value:.2f}, Cash reserve: {account_config.rebalancing.cash_reserve_percentage}% (${reserve_amount:.2f}), Scaling factor: {scaling_factor:.3f}", event)
+        app_logger.log_info(f"Account {account_config.account_id}: Account value: ${account_value:.2f}, Cash reserve: {account_config.cash_reserve_percent}% (${reserve_amount:.2f}), Scaling factor: {scaling_factor:.3f}", event)
         
         # Convert target allocations to DataFrame with scaled weights
         target_df = pd.DataFrame([
@@ -155,7 +155,7 @@ class RebalancerService:
         # Create equity info
         equity_info = {
             'total_equity': account_value,
-            'cash_reserve_percentage': account_config.rebalancing.cash_reserve_percentage,
+            'cash_reserve_percent': account_config.cash_reserve_percent,
             'reserve_amount': reserve_amount,
             'available_for_trading': account_value - reserve_amount
         }

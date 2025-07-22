@@ -10,9 +10,8 @@ app_logger = AppLogger(__name__)
 
 class AllocationService:
     @staticmethod
-    async def get_allocations(account_config: EventAccountConfig, event=None) -> List[Dict[str, float]]:
-        # Construct allocations URL from base URL and channel
-        allocations_url = f"{config.allocations_base_url}/{account_config.notification.channel}/allocations"
+    async def get_allocations(account_config: EventAccountConfig, event=None) -> List[Dict[str, float]]:        
+        allocations_url = f"{config.allocations_base_url}/{account_config.strategy_name}/allocations"
         
         api_key = config.allocations_api_key
         

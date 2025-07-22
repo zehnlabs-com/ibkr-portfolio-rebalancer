@@ -66,7 +66,7 @@ class RedisQueueRepository(IQueueRepository):
                     # Extract information
                     event_id = event_data.get("event_id", "unknown")
                     account_id = event_data.get("account_id", "unknown")
-                    exec_command = event_data.get("data", {}).get("exec", "unknown")
+                    exec_command = event_data.get("exec", "unknown")
                     times_queued = event_data.get("times_queued", 1)
                     created_at = event_data.get("created_at", "unknown")
                     
@@ -106,7 +106,7 @@ class RedisQueueRepository(IQueueRepository):
                         
                         # Remove from active events set
                         account_id = event_data.get("account_id", "unknown")
-                        exec_command = event_data.get("data", {}).get("exec", "unknown")
+                        exec_command = event_data.get("exec", "unknown")
                         deduplication_key = f"{account_id}:{exec_command}"
                         await self.redis.srem("active_events_set", deduplication_key)
                         
@@ -155,10 +155,8 @@ class RedisQueueRepository(IQueueRepository):
             event_data = {
                 "event_id": event_id,
                 "account_id": account_id,
-                "data": {
-                    "exec": exec_command,
-                    **data
-                },
+                "exec": exec_command,
+                **data,
                 "times_queued": 1,
                 "created_at": datetime.now().isoformat()
             }
@@ -272,7 +270,7 @@ class RedisQueueRepository(IQueueRepository):
                     # Extract information
                     event_id = event_data.get("event_id", "unknown")
                     account_id = event_data.get("account_id", "unknown")
-                    exec_command = event_data.get("data", {}).get("exec", "unknown")
+                    exec_command = event_data.get("exec", "unknown")
                     times_queued = event_data.get("times_queued", 1)
                     created_at = event_data.get("created_at", "unknown")
                     

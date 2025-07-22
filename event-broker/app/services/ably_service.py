@@ -18,10 +18,10 @@ class AccountConfig:
     
     def __init__(self, data: Dict[str, Any]):
         self.account_id = data.get('account_id')
-        self.notification_channel = data.get('notification', {}).get('channel')
+        self.strategy_name = data.get('notification', {}).get('channel')
         # Add rebalancing configuration
         rebalancing_data = data.get('rebalancing', {})
-        self.cash_reserve_percentage = rebalancing_data.get('cash_reserve_percentage', rebalancing_data.get('equity_reserve_percentage', 1.0))
+        self.cash_reserve_percent = rebalancing_data.get('cash_reserve_percent', rebalancing_data.get('equity_reserve_percentage', 1.0))
 
 
 class AblyEventSubscriber:
@@ -104,9 +104,9 @@ class AblyEventSubscriber:
             # accounts_data is a list of account configurations
             for account_data in accounts_data:
                 account = AccountConfig(account_data)
-                if account.account_id and account.notification_channel:
+                if account.account_id and account.strategy_name:
                     self.accounts.append(account)
-                    logger.debug(f"Loaded account: {account.account_id} -> {account.notification_channel}")
+                    logger.debug(f"Loaded account: {account.account_id} -> {account.strategy_name}")
                 else:
                     logger.warning(f"Invalid account configuration: {account_data}")
             
@@ -120,7 +120,7 @@ class AblyEventSubscriber:
         """Subscribe to Ably channels for all configured accounts"""
         for account in self.accounts:
             try:
-                channel_name = account.notification_channel
+                channel_name = account.strategy_name
                 logger.info(f"Subscribing to channel: {channel_name} for account: {account.account_id}")
                 
                 # Get the channel
@@ -140,7 +140,7 @@ class AblyEventSubscriber:
                 logger.info(f"Successfully subscribed to channel: {channel_name}")
                 
             except Exception as e:
-                logger.error(f"Failed to subscribe to channel {account.notification_channel}: {e}")
+                logger.error(f"Failed to subscribe to channel {account.strategy_name}: {e}")
     
     async def _handle_event(self, message, account: AccountConfig):
         """
@@ -176,14 +176,11 @@ class AblyEventSubscriber:
             # Log the action being taken
             logger.info(f"Exec '{action}' event received for account {account.account_id}")
             
-            # Enhance payload with account configuration
             enhanced_payload = {
                 **payload,
-                "account_config": {
-                    "account_id": account.account_id,
-                    "notification_channel": account.notification_channel,
-                    "cash_reserve_percentage": account.cash_reserve_percentage
-                }
+                "account_id": account.account_id,
+                "strategy_name": account.strategy_name,
+                "cash_reserve_percent": account.cash_reserve_percent
             }
             
             # Enqueue to Redis (with deduplication)

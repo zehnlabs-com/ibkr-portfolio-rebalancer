@@ -99,7 +99,7 @@ curl -H "Content-Type: application/json" \
   -d '{
     "account_id": "DU123456", 
     "exec_command": "rebalance",
-    "data": {"exec": "print-rebalance", "eventId": "00000000-0000-0000-0000-000000000000"}
+    "strategy_name": "etf-blend-200-35"
   }' \
   http://localhost:8000/queue/events
 ```

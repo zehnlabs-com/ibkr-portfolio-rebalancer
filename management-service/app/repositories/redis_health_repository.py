@@ -78,7 +78,7 @@ class RedisHealthRepository(IHealthRepository):
                         problematic_events.append({
                             "event_id": event_data.get("event_id", "unknown"),
                             "account_id": event_data.get("account_id", "unknown"),
-                            "exec_command": event_data.get("data", {}).get("exec", "unknown"),
+                            "exec_command": event_data.get("exec", "unknown"),
                             "times_queued": times_queued,
                             "created_at": event_data.get("created_at", "unknown"),
                             "data": event_data.get("data", {})

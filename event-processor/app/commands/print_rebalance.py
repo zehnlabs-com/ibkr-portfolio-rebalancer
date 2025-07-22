@@ -28,17 +28,13 @@ class PrintRebalanceCommand(EventCommand):
                     error="Rebalancer service not available"
                 )
             
-            # Get account configuration from event payload
-            account_config_data = self.event.payload.get('account_config')
-            
-            if not account_config_data:
+            if not self.event.payload.get('strategy_name'):
                 return EventCommandResult(
                     status=CommandStatus.FAILED,
-                    error=f"No account configuration found in event payload for account {self.event.account_id}"
+                    error=f"No strategy_name found in event payload for account {self.event.account_id}"
                 )
             
-            # Create account config object from the event payload
-            account_config = EventAccountConfig(account_config_data)
+            account_config = EventAccountConfig(self.event.payload)
             
             # Execute dry run rebalancing
             result = await rebalancer_service.dry_run_rebalance(account_config)

@@ -41,7 +41,7 @@ curl http://localhost:8000/health
 
 # Add a test event
 curl -H "Content-Type: application/json" \
-  -d '{"account_id": "DU123456", "exec_command": "print-rebalance", "data": {"exec": "print-rebalance"}}' \
+  -d '{"account_id": "DU123456", "exec_command": "print-rebalance", "strategy_name": "etf-blend-200-35"}' \
   http://localhost:8000/queue/events
 ```
 

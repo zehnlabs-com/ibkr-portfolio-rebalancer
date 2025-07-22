@@ -13,7 +13,7 @@
   rebalancing:
     # Percentage of equity to reserve as a buffer for quickly changing prices.
     # Valid values are 0% to 10% (values outside this range default to 1%)
-    cash_reserve_percentage: 2.0
+    cash_reserve_percent: 2.0
 
 # Account 2
 ############
@@ -27,4 +27,4 @@
   rebalancing:
     # Percentage of equity to reserve as a buffer for quickly changing prices.
     # Valid values are 0% to 10% (values outside this range default to 1%)
-    cash_reserve_percentage: 2.5
+    cash_reserve_percent: 2.5

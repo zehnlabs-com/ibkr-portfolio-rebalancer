@@ -75,7 +75,7 @@ class QueueHandlers:
             event_id = await self.queue_service.add_event(
                 account_id=event_request.account_id,
                 exec_command=event_request.exec_command,
-                data=event_request.data
+                data=event_request.to_data_dict()
             )
             return AddEventResponse(
                 message="Event added successfully",

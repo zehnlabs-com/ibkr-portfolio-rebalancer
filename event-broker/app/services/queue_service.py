@@ -56,9 +56,9 @@ class QueueService:
             queue_event = {
                 'event_id': event_id,
                 'account_id': account_id,
-                'data': event_data,
                 'times_queued': 1,
-                'created_at': datetime.now().isoformat()
+                'created_at': datetime.now().isoformat(),
+                **event_data
             }
             
             # Add to queue and tracking set atomically

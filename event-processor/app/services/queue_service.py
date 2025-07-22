@@ -43,9 +43,7 @@ class QueueService:
             if result:
                 queue_name, event_json = result
                 event_data = json.loads(event_json)
-                
-                # Extract exec_command from the nested data structure
-                exec_command = event_data.get('data', {}).get('exec')
+                exec_command = event_data.get('exec')
                 if not exec_command:
                     app_logger.log_error(f"Event missing exec command: {event_data}")
                     return None
@@ -69,7 +67,7 @@ class QueueService:
                     account_id=event_data.get('account_id'),
                     exec_command=exec_command,
                     status=event_data.get('status', 'pending'),
-                    payload=event_data.get('data', {}),
+                    payload=event_data,
                     received_at=received_at,
                     times_queued=event_data.get('times_queued', 1),
                     created_at=created_at
@@ -101,9 +99,10 @@ class QueueService:
             
             # Convert EventInfo back to the dictionary format expected by queue
             event_data = {
+                **event_info.payload,
                 'event_id': event_info.event_id,
                 'account_id': event_info.account_id,
-                'data': event_info.payload,
+                'exec': event_info.exec_command,
                 'status': event_info.status,
                 'received_at': event_info.received_at.isoformat() if event_info.received_at else None,
                 'times_queued': event_info.times_queued,
@@ -196,9 +195,10 @@ class QueueService:
             
             # Convert EventInfo back to dictionary format for queue storage
             event_data = {
+                **event_info.payload,
                 'event_id': event_info.event_id,
                 'account_id': event_info.account_id,
-                'data': event_info.payload,
+                'exec': event_info.exec_command,
                 'status': event_info.status,
                 'received_at': event_info.received_at.isoformat() if event_info.received_at else None,
                 'times_queued': event_info.times_queued,
@@ -249,7 +249,7 @@ class QueueService:
             for event_json in ready_events:
                 event_data = json.loads(event_json)
                 account_id = event_data['account_id']
-                exec_command = event_data.get('data', {}).get('exec')
+                exec_command = event_data.get('exec')
                 deduplication_key = f"{account_id}:{exec_command}"
                 
                 # Add to main queue and active set

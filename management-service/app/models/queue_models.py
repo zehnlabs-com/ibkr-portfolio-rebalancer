@@ -27,10 +27,18 @@ class QueueEvent(BaseModel):
 
 
 class AddEventRequest(BaseModel):
-    """Add event request model"""
+    """Add event request model - flat structure"""
     account_id: str
-    exec_command: str
-    data: Dict[str, Any]
+    exec_command: str    
+    eventId: str = "00000000-0000-0000-0000-000000000000"
+    strategy_name: str
+    cash_reserve_percent: float = 1.0
+    
+    def to_data_dict(self) -> Dict[str, Any]:
+        """Convert to data dictionary excluding base fields"""
+        base_fields = {'account_id', 'exec_command'}
+        return {k: v for k, v in self.model_dump().items() 
+                if k not in base_fields and v is not None}
 
 
 class AddEventResponse(BaseModel):

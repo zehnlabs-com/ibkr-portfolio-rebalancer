@@ -81,15 +81,8 @@ curl -H "Content-Type: application/json" \
   -d '{
     "account_id": "DU123456",
     "exec_command": "rebalance",
-    "data": {
-      "exec": "rebalance",
-      "eventId": "00000000-0000-0000-0000-000000000000",
-      "account_config": {
-        "account_id": "DU123456",
-        "notification_channel": "strategy-name",
-        "cash_reserve_percentage": 1.0
-      }
-    }
+    "strategy_name": "strategy-name"
+    
   }' \
   http://localhost:8000/queue/events
 
@@ -98,15 +91,9 @@ curl -H "Content-Type: application/json" \
   -d '{
     "account_id": "DU123456", 
     "exec_command": "print-rebalance",
-    "data": {
-      "exec": "print-rebalance",
-      "eventId": "00000000-0000-0000-0000-000000000000",
-      "account_config": {
-        "account_id": "DU123456",
-        "notification_channel": "strategy-name", 
-        "cash_reserve_percentage": 1.0
-      }
-    }
+    "eventId": "00000000-0000-0000-0000-000000000000",
+    "strategy_name": "strategy-name",
+    "cash_reserve_percent": 1.0
   }' \
   http://localhost:8000/queue/events
 ```
