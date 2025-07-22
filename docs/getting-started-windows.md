@@ -38,7 +38,7 @@ Docker Desktop will run your rebalancing tool in containers.
 
 ## 📁 Step 4: Clone the Repository
 
-1. **Open Command Prompt or PowerShell**
+1. **Open Command Prompt** (type 'CMD' in Search)
 2. **Create your preferred directory** e.g. `mkdir %USERPROFILE%\docker\zehnlabs`
 3. **Navigate to zehnlabs directory** e.g. `cd %USERPROFILE%\docker\zehnlabs`
 4. **Clone the repository**:
@@ -85,7 +85,7 @@ Docker Desktop will run your rebalancing tool in containers.
 1. **Ensure Docker Desktop is running**
 2. **In your Command Prompt or PowerShell**, from the project directory, run:
    ```cmd 
-   docker compose up
+   docker compose up -d
    ```
 
 This command will:
@@ -112,7 +112,7 @@ This command will:
 
 ## 🩺 Step 9: Verify System Health
 
-After starting the system, verify everything is working:
+After starting the system, verify everything is working. You can use a browser to navigate to `http://localhost:8000/health` and `http://localhost:8000/queue/status` or use the command line as follows.
 
 ```bash
 # System health check

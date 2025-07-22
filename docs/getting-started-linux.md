@@ -49,7 +49,7 @@ git --version
 
 3. **Install Docker Compose:**
    ```bash
-   sudo apt install docker-compose
+   sudo apt install docker compose
    ```
 
 4. **Start and enable Docker:**
@@ -69,10 +69,10 @@ git --version
 1. **Install Docker:**
    ```bash
    # CentOS/RHEL
-   sudo yum install docker docker-compose
+   sudo yum install docker docker compose
    
    # Fedora
-   sudo dnf install docker docker-compose
+   sudo dnf install docker docker compose
    ```
 
 2. **Start and enable Docker:**
@@ -90,7 +90,7 @@ git --version
 
 1. **Install Docker:**
    ```bash
-   sudo pacman -S docker docker-compose
+   sudo pacman -S docker docker compose
    ```
 
 2. **Start and enable Docker:**
@@ -107,7 +107,7 @@ git --version
 **Verify installation:**
 ```bash
 docker --version
-docker-compose --version
+docker compose --version
 ```
 
 ## 📁 Step 3: Clone the Repository
@@ -166,7 +166,7 @@ docker-compose --version
 
 2. **From the project directory, run**:
    ```bash
-   docker-compose up
+   docker compose up -d
    ```
 
 This command will:
@@ -178,16 +178,16 @@ This command will:
 
 1. **In another terminal, view running containers**:
    ```bash
-   docker-compose ps
+   docker compose ps
    ```
 
 2. **View logs for specific services**:
    ```bash
    # View all logs
-   docker-compose logs
+   docker compose logs
    
    # View logs for specific service
-   docker-compose logs event-processor
+   docker compose logs event-processor
    ```
 
 3. **After a couple of minutes, event-processor service should start**
@@ -204,7 +204,7 @@ This command will:
 
 ## 🩺 Step 8: Verify System Health
 
-After starting the system, verify everything is working:
+After starting the system, verify everything is working. You can use a browser to navigate to `http://localhost:8000/health` and `http://localhost:8000/queue/status` or use the command line as follows.
 
 ```bash
 # System health check

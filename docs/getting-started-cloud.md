@@ -56,7 +56,7 @@ Deploy your IBKR Portfolio Rebalancer on a Digital Ocean droplet.
 The key commands are:
 ```bash
 # Install Docker
-sudo apt install docker.io docker-compose
+sudo apt install docker.io docker compose
 sudo systemctl start docker
 sudo systemctl enable docker
 
@@ -70,7 +70,7 @@ cd ibkr-portfolio-rebalancer
 cp .env.example .env
 cp accounts.example.yaml accounts.yaml
 # Edit .env and accounts.yaml files as needed
-docker-compose up
+docker compose up -d
 ```
 
 ## 🌐 Step 4: Access Your Cloud Deployment

@@ -81,7 +81,7 @@ Docker Desktop will run your rebalancing tool in containers.
 1. **Ensure Docker Desktop is running**
 2. **In Terminal**, from the project directory, run:
    ```bash
-   docker compose up
+   docker compose up -d
    ```
 
 This command will:
@@ -108,7 +108,8 @@ This command will:
 
 ## 🩺 Step 8: Verify System Health
 
-After starting the system, verify everything is working:
+After starting the system, verify everything is working. You can use a browser to navigate to `http://localhost:8000/health` and `http://localhost:8000/queue/status` or use the command line as follows.
+
 
 ```bash
 # System health check

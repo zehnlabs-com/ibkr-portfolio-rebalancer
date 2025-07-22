@@ -66,6 +66,7 @@ docker-compose logs -f management-service
 ```
 
 ### Verify System Health
+After starting the system, verify everything is working. You can use a browser to navigate to `http://localhost:8000/health` and `http://localhost:8000/queue/status` or use the command line as follows.
 
 ```bash
 # Check management service health
