@@ -1,6 +1,5 @@
 ib-async==2.0.1
 python-dotenv==1.0.0
-loguru==0.7.2
 redis==5.0.1
 PyYAML==6.0.1
 nest-asyncio==1.5.8

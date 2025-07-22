@@ -25,10 +25,11 @@ This project is built on the shoulders of many excellent open source projects. W
 
 ### Core Dependencies
 
-**[ib-insync](https://github.com/erdewit/ib_insync)** - Interactive Brokers API  
+**[ib-async](https://github.com/ib-api-reloaded/ib_async)** - Interactive Brokers API  
 **License**: BSD 2-Clause  
 **Usage**: Python wrapper for Interactive Brokers TWS API  
-**Maintainer**: Ewald de Wit (@erdewit)
+**Maintainer**: Matt Stancliff (@mattsta
+)
 
 **[FastAPI](https://fastapi.tiangolo.com/)** - Web Framework  
 **License**: MIT  
@@ -53,11 +54,6 @@ This project is built on the shoulders of many excellent open source projects. W
 **License**: MIT  
 **Usage**: Data models and validation across services  
 **Repository**: https://github.com/pydantic/pydantic
-
-**[Loguru](https://github.com/Delgan/loguru)** - Logging  
-**License**: MIT  
-**Usage**: Structured JSON logging across all services  
-**Maintainer**: Antoine Catel (@Delgan)
 
 **[PyYAML](https://pyyaml.org/)** - YAML Processing  
 **License**: MIT  

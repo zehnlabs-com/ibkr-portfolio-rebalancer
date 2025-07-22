@@ -4,9 +4,9 @@ Application service for managing application lifecycle.
 
 from app.core.service_container import ServiceContainer
 from app.core.signal_handler import SignalHandler
-from app.logger import setup_logger
+from app.logger import AppLogger
 
-logger = setup_logger(__name__)
+app_logger = AppLogger(__name__)
 
 
 class ApplicationService:
@@ -19,7 +19,7 @@ class ApplicationService:
     
     async def start(self):
         """Start the application services"""
-        logger.info("Starting application services...")
+        app_logger.log_info("Starting application services...")
         
         try:
             # Initialize service container
@@ -29,10 +29,10 @@ class ApplicationService:
             self.signal_handler.setup_signal_handlers()
             
             self.running = True
-            logger.info("Application services started successfully")
+            app_logger.log_info("Application services started successfully")
             
         except Exception as e:
-            logger.error(f"Failed to start application services: {e}")
+            app_logger.log_error(f"Failed to start application services: {e}")
             raise
     
     async def stop(self):
@@ -42,7 +42,7 @@ class ApplicationService:
         
         self.running = False
 
-        logger.info("Application services stopped successfully")
+        app_logger.log_info("Application services stopped successfully")
         
     
     def get_service_container(self) -> ServiceContainer:

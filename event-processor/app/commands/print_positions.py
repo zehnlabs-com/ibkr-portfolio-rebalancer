@@ -4,9 +4,9 @@ Print positions command implementation.
 
 from typing import Dict, Any
 from app.commands.base import EventCommand, EventCommandResult, CommandStatus
-from app.logger import EventLogger
+from app.logger import AppLogger
 
-event_logger = EventLogger(__name__)
+app_logger = AppLogger(__name__)
 
 
 class PrintPositionsCommand(EventCommand):
@@ -17,7 +17,7 @@ class PrintPositionsCommand(EventCommand):
     
     async def execute(self, services: Dict[str, Any]) -> EventCommandResult:
         """Execute print positions command"""
-        event_logger.log_info(f"Printing positions for account {self.event.account_id}", self.event)
+        app_logger.log_info(f"Printing positions for account {self.event.account_id}", self.event)
         
         try:
             ibkr_client = services.get('ibkr_client')
@@ -30,12 +30,12 @@ class PrintPositionsCommand(EventCommand):
             positions = await ibkr_client.get_positions(self.event.account_id)
             
             if not positions:
-                event_logger.log_info(f"No positions found for account {self.event.account_id}", self.event)
+                app_logger.log_info(f"No positions found for account {self.event.account_id}", self.event)
             else:
-                event_logger.log_info(f"Current positions for account {self.event.account_id}:", self.event)
+                app_logger.log_info(f"Current positions for account {self.event.account_id}:", self.event)
                 
                 for position in positions:
-                    event_logger.log_info(f"  {position['symbol']}: {position['position']} shares, market value: ${position['market_value']:.2f}, avg cost: ${position['avg_cost']:.2f}", self.event)
+                    app_logger.log_info(f"  {position['symbol']}: {position['position']} shares, market value: ${position['market_value']:.2f}, avg cost: ${position['avg_cost']:.2f}", self.event)
             
             return EventCommandResult(
                 status=CommandStatus.SUCCESS,
@@ -44,7 +44,7 @@ class PrintPositionsCommand(EventCommand):
             )
             
         except Exception as e:
-            event_logger.log_error(f"Print positions failed: {e}", self.event)
+            app_logger.log_error(f"Print positions failed: {e}", self.event)
             
             return EventCommandResult(
                 status=CommandStatus.FAILED,

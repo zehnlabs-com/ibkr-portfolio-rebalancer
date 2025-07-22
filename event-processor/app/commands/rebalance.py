@@ -4,11 +4,11 @@ Rebalance command implementation.
 
 from typing import Dict, Any
 from app.commands.base import EventCommand, EventCommandResult, CommandStatus
-from app.logger import EventLogger
+from app.logger import AppLogger
 from app.models.account_config import EventAccountConfig
 from app.config import config
 
-event_logger = EventLogger(__name__)
+app_logger = AppLogger(__name__)
 
 
 class RebalanceCommand(EventCommand):
@@ -41,12 +41,12 @@ class RebalanceCommand(EventCommand):
             # Create account config object from the event payload
             account_config = EventAccountConfig(account_config_data)
             
-            event_logger.log_info("Using MKT order type (only type supported)", self.event)
+            app_logger.log_info("Using MKT order type (only type supported)", self.event)
             
             # Execute rebalancing (always uses MKT orders)
-            result = await rebalancer_service.rebalance_account(account_config)
+            result = await rebalancer_service.rebalance_account(account_config, self.event)
             
-            event_logger.log_info(f"Rebalance completed - orders: {len(result.orders)}", self.event)
+            app_logger.log_info(f"Rebalance completed - orders: {len(result.orders)}", self.event)
             
             return EventCommandResult(
                 status=CommandStatus.SUCCESS,
@@ -55,11 +55,7 @@ class RebalanceCommand(EventCommand):
             )
             
         except Exception as e:
-            logger.error(f"Rebalance failed: {e}", extra={
-                'event_id': self.event_id,
-                'account_id': self.account_id,
-                'error': str(e)
-            })
+            app_logger.log_error(f"Rebalance failed: {e}", self.event)
             
             return EventCommandResult(
                 status=CommandStatus.FAILED,

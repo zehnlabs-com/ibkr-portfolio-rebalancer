@@ -56,12 +56,47 @@ def setup_logger(name: str) -> logging.Logger:
     
     logger.setLevel(getattr(logging, config.logging.level.upper()))
     
+    # Don't add handlers to individual loggers - let them propagate to root logger
+    # This prevents duplicate log entries
+    
+    return logger
+
+def configure_root_logger():
+    """Configure the root logger to use structured formatting for all third-party logs"""
+    root_logger = logging.getLogger()
+    
+    # Clear existing handlers to avoid duplicates
+    root_logger.handlers.clear()
+    
+    # Set log level
+    root_logger.setLevel(getattr(logging, config.logging.level.upper()))
+    
+    # Add structured handler
     handler = logging.StreamHandler(sys.stdout)
     formatter = StructuredFormatter()
     handler.setFormatter(formatter)
-    logger.addHandler(handler)
+    root_logger.addHandler(handler)
     
-    return logger
+    # Configure specific third-party library loggers
+    _configure_third_party_loggers()
+
+def _configure_third_party_loggers():
+    """Configure specific third-party library loggers with appropriate levels"""
+    # ib-async: Set to WARNING to reduce noise from connection details
+    ib_logger = logging.getLogger('ib_async')
+    ib_logger.setLevel(logging.WARNING)
+    
+    # Redis: Set to INFO to capture connection issues but reduce debug noise
+    redis_logger = logging.getLogger('redis')
+    redis_logger.setLevel(logging.INFO)
+    
+    # aiohttp: Set to WARNING to reduce HTTP request/response noise
+    aiohttp_logger = logging.getLogger('aiohttp')
+    aiohttp_logger.setLevel(logging.WARNING)
+    
+    # Set access log to WARNING to reduce noise
+    aiohttp_access_logger = logging.getLogger('aiohttp.access')
+    aiohttp_access_logger.setLevel(logging.WARNING)
 
 def _extract_event_properties(event):
     """Extract relevant properties from an event object for logging"""
@@ -80,28 +115,28 @@ def _extract_event_properties(event):
     
     return properties
 
-class EventLogger:
+class AppLogger:
     """Logger instance for event-based logging with automatic event context extraction"""
     
     def __init__(self, name: str):
         self.logger = setup_logger(name)
     
-    def log_debug(self, message: str, event):
+    def log_debug(self, message: str, event=None):
         """Log debug message with event context"""
         extra = _extract_event_properties(event)
         self.logger.debug(message, extra=extra)
     
-    def log_info(self, message: str, event):
+    def log_info(self, message: str, event=None):
         """Log info message with event context"""
         extra = _extract_event_properties(event)
         self.logger.info(message, extra=extra)
     
-    def log_warning(self, message: str, event):
+    def log_warning(self, message: str, event=None):
         """Log warning message with event context"""
         extra = _extract_event_properties(event)
         self.logger.warning(message, extra=extra)
     
-    def log_error(self, message: str, event):
+    def log_error(self, message: str, event=None):
         """Log error message with event context"""
         extra = _extract_event_properties(event)
         self.logger.error(message, extra=extra)

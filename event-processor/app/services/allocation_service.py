@@ -3,14 +3,14 @@ import aiohttp
 from typing import List, Dict
 from app.config import config
 from app.models.account_config import EventAccountConfig
-from app.logger import setup_logger
+from app.logger import AppLogger
 
-logger = setup_logger(__name__)
+app_logger = AppLogger(__name__)
 
 
 class AllocationService:
     @staticmethod
-    async def get_allocations(account_config: EventAccountConfig) -> List[Dict[str, float]]:
+    async def get_allocations(account_config: EventAccountConfig, event=None) -> List[Dict[str, float]]:
         # Construct allocations URL from base URL and channel
         allocations_url = f"{config.allocations_base_url}/{account_config.notification.channel}/allocations"
         
@@ -20,7 +20,7 @@ class AllocationService:
         if api_key:            
             headers['x-api-key'] = api_key
 
-        logger.debug(f"Retrieving allocations from {allocations_url} with API key {api_key}")
+        app_logger.log_debug(f"Retrieving allocations from {allocations_url} with API key {api_key}", event)
         
         try:
             async with aiohttp.ClientSession() as session:
@@ -69,25 +69,25 @@ class AllocationService:
                         total_allocation += allocation
                     
                     if abs(total_allocation - 1.0) > 0.01:
-                        logger.warning(f"Total allocation is {total_allocation:.3f}, not 1.0")
+                        app_logger.log_warning(f"Total allocation is {total_allocation:.3f}, not 1.0", event)
                     
                     strategy_name = response_data.get("name", "Unknown")
                     strategy_long_name = response_data.get("strategy_long_name", "")
                     last_rebalance = response_data.get("last_rebalance_on", "")
                     
-                    logger.info(f"Retrieved {len(allocations)} allocations for account {account_config.account_id}")
-                    logger.info(f"Strategy: {strategy_name} ({strategy_long_name})")
+                    app_logger.log_info(f"Retrieved {len(allocations)} allocations for account {account_config.account_id}", event)
+                    app_logger.log_info(f"Strategy: {strategy_name} ({strategy_long_name})", event)
                     if last_rebalance:
-                        logger.info(f"Last rebalance: {last_rebalance}")
+                        app_logger.log_info(f"Last rebalance: {last_rebalance}", event)
                     
                     return allocations
                     
         except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON response from allocation API: {e}")
+            app_logger.log_error(f"Invalid JSON response from allocation API: {e}", event)
             raise
         except aiohttp.ClientError as e:
-            logger.error(f"HTTP error getting allocations: {e}")
+            app_logger.log_error(f"HTTP error getting allocations: {e}", event)
             raise
         except Exception as e:
-            logger.error(f"Error getting allocations: {e}")
+            app_logger.log_error(f"Error getting allocations: {e}", event)
             raise

@@ -4,9 +4,9 @@ Print equity command implementation.
 
 from typing import Dict, Any
 from app.commands.base import EventCommand, EventCommandResult, CommandStatus
-from app.logger import EventLogger
+from app.logger import AppLogger
 
-event_logger = EventLogger(__name__)
+app_logger = AppLogger(__name__)
 
 
 class PrintEquityCommand(EventCommand):
@@ -17,7 +17,7 @@ class PrintEquityCommand(EventCommand):
     
     async def execute(self, services: Dict[str, Any]) -> EventCommandResult:
         """Execute print equity command"""
-        event_logger.log_info(f"Printing equity for account {self.event.account_id}", self.event)
+        app_logger.log_info(f"Printing equity for account {self.event.account_id}", self.event)
         
         try:
             ibkr_client = services.get('ibkr_client')
@@ -29,7 +29,7 @@ class PrintEquityCommand(EventCommand):
             
             account_value = await ibkr_client.get_account_value(self.event.account_id)
             
-            event_logger.log_info(f"Total account value for {self.event.account_id}: ${account_value:.2f}", self.event)
+            app_logger.log_info(f"Total account value for {self.event.account_id}: ${account_value:.2f}", self.event)
             
             return EventCommandResult(
                 status=CommandStatus.SUCCESS,
@@ -38,7 +38,7 @@ class PrintEquityCommand(EventCommand):
             )
             
         except Exception as e:
-            event_logger.log_error(f"Print equity failed: {e}", self.event)
+            app_logger.log_error(f"Print equity failed: {e}", self.event)
             
             return EventCommandResult(
                 status=CommandStatus.FAILED,

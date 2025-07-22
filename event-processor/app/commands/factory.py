@@ -10,9 +10,9 @@ from app.commands.print_orders import PrintOrdersCommand
 from app.commands.print_rebalance import PrintRebalanceCommand
 from app.commands.cancel_orders import CancelOrdersCommand
 from app.commands.rebalance import RebalanceCommand
-from app.logger import setup_logger
+from app.logger import AppLogger
 
-logger = setup_logger(__name__)
+app_logger = AppLogger(__name__)
 
 
 class CommandFactory:
@@ -34,7 +34,7 @@ class CommandFactory:
     def register_command(self, command_type: str, command_class: Type[EventCommand]):
         """Register a command class for a specific command type"""
         self._commands[command_type] = command_class
-        logger.debug(f"Registered command: {command_type} -> {command_class.__name__}")
+        app_logger.log_debug(f"Registered command: {command_type} -> {command_class.__name__}")
     
     def create_command(self, command_type: str, event_id: str, account_id: str, event_info) -> Optional[EventCommand]:
         """
@@ -50,16 +50,16 @@ class CommandFactory:
             EventCommand instance or None if command type not found
         """
         if command_type not in self._commands:
-            logger.warning(f"Unknown command type: {command_type}")
+            app_logger.log_warning(f"Unknown command type: {command_type}")
             return None
         
         command_class = self._commands[command_type]
         try:
             command = command_class(event_info)
-            logger.debug(f"Created command: {command}")
+            app_logger.log_debug(f"Created command: {command}")
             return command
         except Exception as e:
-            logger.error(f"Failed to create command {command_type}: {e}")
+            app_logger.log_error(f"Failed to create command {command_type}: {e}")
             return None
     
     def get_registered_commands(self) -> Dict[str, Type[EventCommand]]:

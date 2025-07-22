@@ -2,8 +2,9 @@ import asyncio
 import logging
 from typing import Callable, Any, Optional, Union
 from app.config import RetryConfig
+from app.logger import AppLogger
 
-logger = logging.getLogger(__name__)
+app_logger = AppLogger(__name__)
 
 async def retry_with_config(
     func: Callable,
@@ -32,12 +33,12 @@ async def retry_with_config(
     for attempt in range(retry_config.max_retries + 1):  # +1 because range is exclusive
         try:
             if attempt > 0:
-                logger.info(f"{operation_name}: Attempt {attempt + 1}/{retry_config.max_retries + 1}")
+                app_logger.log_info(f"{operation_name}: Attempt {attempt + 1}/{retry_config.max_retries + 1}")
             
             result = await func(*args, **kwargs)
             
             if attempt > 0:
-                logger.info(f"{operation_name}: Succeeded on attempt {attempt + 1}")
+                app_logger.log_info(f"{operation_name}: Succeeded on attempt {attempt + 1}")
             
             return result
             
@@ -46,13 +47,13 @@ async def retry_with_config(
             
             if attempt < retry_config.max_retries:
                 delay = retry_config.delay
-                logger.warning(
+                app_logger.log_warning(
                     f"{operation_name}: Attempt {attempt + 1} failed: {e}. "
                     f"Retrying in {delay} seconds..."
                 )
                 await asyncio.sleep(delay)
             else:
-                logger.error(f"{operation_name}: All {retry_config.max_retries + 1} attempts failed")
+                app_logger.log_error(f"{operation_name}: All {retry_config.max_retries + 1} attempts failed")
     
     raise last_exception
 

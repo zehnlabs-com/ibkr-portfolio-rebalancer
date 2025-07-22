@@ -6,9 +6,9 @@ from typing import Dict, Any, Optional, TypeVar, Type
 from app.services.queue_service import QueueService
 from app.services.ibkr_client import IBKRClient
 from app.commands.factory import CommandFactory
-from app.logger import setup_logger
+from app.logger import AppLogger
 
-logger = setup_logger(__name__)
+app_logger = AppLogger(__name__)
 
 T = TypeVar('T')
 
@@ -25,7 +25,7 @@ class ServiceContainer:
         if self._initialized:
             return
             
-        logger.info("Initializing service container...")
+        app_logger.log_info("Initializing service container...")
         
         # Initialize core services
         self._services['queue_service'] = QueueService()
@@ -37,14 +37,14 @@ class ServiceContainer:
         try:
             from app.services.rebalancer_service import RebalancerService
             self._services['rebalancer_service'] = RebalancerService(self._services['ibkr_client'])
-            logger.info("Rebalancer services initialized successfully")
+            app_logger.log_info("Rebalancer services initialized successfully")
         except Exception as e:
-            logger.error(f"CRITICAL: Could not initialize rebalancer services: {e}")
-            logger.error("Application cannot proceed without real financial services")
+            app_logger.log_error(f"CRITICAL: Could not initialize rebalancer services: {e}")
+            app_logger.log_error("Application cannot proceed without real financial services")
             raise RuntimeError(f"Failed to initialize critical financial services: {e}")
         
         self._initialized = True
-        logger.info("Service container initialized successfully")
+        app_logger.log_info("Service container initialized successfully")
     
     def get_service(self, service_name: str) -> Optional[Any]:
         """Get a service by name"""
@@ -63,7 +63,7 @@ class ServiceContainer:
     def register_service(self, service_name: str, service_instance: Any):
         """Register a custom service instance"""
         self._services[service_name] = service_instance
-        logger.debug(f"Registered service: {service_name}")
+        app_logger.log_debug(f"Registered service: {service_name}")
     
     def get_queue_service(self) -> QueueService:
         """Get the queue service instance"""

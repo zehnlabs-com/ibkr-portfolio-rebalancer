@@ -5,9 +5,9 @@ Signal handler for graceful shutdown.
 import signal
 import asyncio
 from typing import Callable, Awaitable
-from app.logger import setup_logger
+from app.logger import AppLogger
 
-logger = setup_logger(__name__)
+app_logger = AppLogger(__name__)
 
 
 class SignalHandler:
@@ -21,10 +21,10 @@ class SignalHandler:
         """Set up signal handlers for graceful shutdown"""
         def signal_handler(sig_num, frame):
             if self._shutdown_initiated:
-                logger.warning("Shutdown already initiated, ignoring signal")
+                app_logger.log_warning("Shutdown already initiated, ignoring signal")
                 return
                 
-            logger.info(f"Received signal {sig_num}")
+            app_logger.log_info(f"Received signal {sig_num}")
             self._shutdown_initiated = True
             
             # Create new event loop if none exists
@@ -41,15 +41,15 @@ class SignalHandler:
         # Register signal handlers
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
-        logger.info("Signal handlers registered")
+        app_logger.log_info("Signal handlers registered")
     
     async def _handle_shutdown(self, signal_name: str):
         """Handle shutdown process"""
-        logger.info(f"Received {signal_name} signal, initiating graceful shutdown...")
+        app_logger.log_info(f"Received {signal_name} signal, initiating graceful shutdown...")
         
         try:
             await self.shutdown_callback()
-            logger.info("Graceful shutdown completed")
+            app_logger.log_info("Graceful shutdown completed")
         except Exception as e:
-            logger.error(f"Error during shutdown: {e}")
+            app_logger.log_error(f"Error during shutdown: {e}")
             raise

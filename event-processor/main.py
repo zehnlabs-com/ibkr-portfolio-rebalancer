@@ -10,9 +10,12 @@ nest_asyncio.apply()
 import asyncio
 import sys
 from app.core import ApplicationService, EventProcessor
-from app.logger import setup_logger
+from app.logger import AppLogger, configure_root_logger
 
-logger = setup_logger(__name__)
+# Configure root logger for structured formatting of all logs
+configure_root_logger()
+
+app_logger = AppLogger(__name__)
 
 
 class EventProcessorApp:
@@ -24,7 +27,7 @@ class EventProcessorApp:
         
     async def start(self):
         """Start the event processor application"""
-        logger.info("Starting Event Processor Application...")
+        app_logger.log_info("Starting Event Processor Application...")
         
         try:
             # Start application services
@@ -38,12 +41,12 @@ class EventProcessorApp:
             await self.event_processor.start_processing()
             
         except Exception as e:
-            logger.error(f"Failed to start Event Processor Application: {e}")
+            app_logger.log_error(f"Failed to start Event Processor Application: {e}")
             raise
     
     async def stop(self):
         """Stop the event processor application"""
-        logger.info("Stopping Event Processor Application...")
+        app_logger.log_info("Stopping Event Processor Application...")
         
         try:
             # Stop event processing
@@ -53,9 +56,9 @@ class EventProcessorApp:
             # Stop application services
             await self.application_service.stop()
             
-            logger.info("Event Processor Application stopped successfully")
+            app_logger.log_info("Event Processor Application stopped successfully")
         except Exception as e:
-            logger.error(f"Error stopping Event Processor Application: {e}")
+            app_logger.log_error(f"Error stopping Event Processor Application: {e}")
 
 
 # Global app instance
@@ -69,12 +72,12 @@ async def main():
         await app.start()
         
     except KeyboardInterrupt:
-        logger.info("Keyboard interrupt received")
+        app_logger.log_info("Keyboard interrupt received")
         await app.stop()
     except Exception as e:
-        logger.error(f"Unhandled exception in main: {e}")
+        app_logger.log_error(f"Unhandled exception in main: {e}")
         import traceback
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        app_logger.log_error(f"Traceback: {traceback.format_exc()}")
         await app.stop()
         sys.exit(1)
 
@@ -84,7 +87,7 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("Application terminated by user")
+        app_logger.log_info("Application terminated by user")
     except Exception as e:
-        logger.error(f"Application failed: {e}")
+        app_logger.log_error(f"Application failed: {e}")
         sys.exit(1)

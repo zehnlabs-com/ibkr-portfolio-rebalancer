@@ -4,9 +4,9 @@ import random
 from typing import List, Dict, Optional, Any
 from ib_async import IB, Stock, MarketOrder
 from app.config import config
-from app.logger import setup_logger
+from app.logger import AppLogger
 
-logger = setup_logger(__name__)
+app_logger = AppLogger(__name__)
 class IBKRClient:
     def __init__(self):
         self.ib = IB()
@@ -34,29 +34,29 @@ class IBKRClient:
         
         try:
             # Direct connection like the old working code
-            logger.debug(f"Attempting to connect to IB Gateway at {config.ibkr.host}:{config.ibkr.port} with client ID {self.client_id}")
+            app_logger.log_debug(f"Attempting to connect to IB Gateway at {config.ibkr.host}:{config.ibkr.port} with client ID {self.client_id}")
             await self.ib.connectAsync(
                 host=config.ibkr.host,
                 port=config.ibkr.port,
                 clientId=self.client_id,
                 timeout=10  # Use same timeout as old working code
             )
-            logger.debug(f"Successfully connected to IB Gateway at {config.ibkr.host}:{config.ibkr.port}")
+            app_logger.log_debug(f"Successfully connected to IB Gateway at {config.ibkr.host}:{config.ibkr.port}")
             self.connected = True
             return True
         except TimeoutError as e:
-            logger.error(f"Connection timeout to IB Gateway at {config.ibkr.host}:{config.ibkr.port}: {e}")
+            app_logger.log_error(f"Connection timeout to IB Gateway at {config.ibkr.host}:{config.ibkr.port}: {e}")
             return False
         except ConnectionRefusedError as e:
-            logger.error(f"Connection refused to IB Gateway at {config.ibkr.host}:{config.ibkr.port}: {e}")
+            app_logger.log_error(f"Connection refused to IB Gateway at {config.ibkr.host}:{config.ibkr.port}: {e}")
             return False
         except Exception as e:
-            logger.error(f"Failed to connect to IB Gateway at {config.ibkr.host}:{config.ibkr.port}: {type(e).__name__}: {e}")
+            app_logger.log_error(f"Failed to connect to IB Gateway at {config.ibkr.host}:{config.ibkr.port}: {type(e).__name__}: {e}")
             return False    
     
     def _on_disconnected(self):
         """Called automatically when connection is lost"""
-        logger.warning("IBKR connection lost")
+        app_logger.log_warning("IBKR connection lost")
         self.connected = False
         
         # Start reconnection task if not already running
@@ -65,24 +65,24 @@ class IBKRClient:
 
     def _on_connected(self):
         """Called automatically when connection is established"""
-        logger.info("IBKR connection established")
+        app_logger.log_info("IBKR connection established")
         self.connected = True
 
     async def _reconnect_loop(self):
         """Continuously try to reconnect every 10 seconds"""
         while not self.ib.isConnected():
             try:
-                logger.info("Attempting to reconnect to IBKR...")
+                app_logger.log_info("Attempting to reconnect to IBKR...")
                 await self.ib.connectAsync(
                     host=config.ibkr.host,
                     port=config.ibkr.port,
                     clientId=self.client_id,
                     timeout=10
                 )
-                logger.info("Reconnection successful")
+                app_logger.log_info("Reconnection successful")
                 break
             except Exception as e:
-                logger.warning(f"Reconnection failed: {e}, retrying in 10 seconds...")
+                app_logger.log_warning(f"Reconnection failed: {e}, retrying in 10 seconds...")
                 await asyncio.sleep(10)
     
     async def disconnect(self):
@@ -94,10 +94,10 @@ class IBKRClient:
             if self.ib.isConnected():                
                 self.ib.disconnect()
                 self.connected = False
-                logger.debug("Disconnected from IBKR")
+                app_logger.log_debug("Disconnected from IBKR")
         except Exception as e:
             # Some ib_async internal errors during disconnect are expected
-            logger.debug(f"Disconnect error (ignored): {e}")
+            app_logger.log_debug(f"Disconnect error (ignored): {e}")
             pass
     
     async def __aenter__(self):
@@ -124,7 +124,7 @@ class IBKRClient:
                 "client_id": self.client_id
             }
         except Exception as e:
-            logger.error(f"Health check failed: {e}")
+            app_logger.log_error(f"Health check failed: {e}")
             return {
                 "status": "unhealthy", 
                 "connected": False,
@@ -132,7 +132,7 @@ class IBKRClient:
                 "client_id": self.client_id
             }
     
-    async def get_account_value(self, account_id: str, tag: str = "NetLiquidation") -> float:
+    async def get_account_value(self, account_id: str, tag: str = "NetLiquidation", event=None) -> float:
         if not await self.ensure_connected():
             raise Exception("Unable to establish IBKR connection")
         
@@ -148,7 +148,7 @@ class IBKRClient:
                 raise Exception(f"Could not retrieve {tag} value for account {account_id} from IB.")
             return 0.0
         except Exception as e:
-            logger.error(f"Failed to get account value: {e}")
+            app_logger.log_error(f"Failed to get account value: {e}", event)
             raise
     
     async def get_cash_balance(self, account_id: str) -> float:
@@ -170,10 +170,10 @@ class IBKRClient:
             
             return 0.0
         except Exception as e:
-            logger.error(f"Failed to get cash balance: {e}")
+            app_logger.log_error(f"Failed to get cash balance: {e}")
             raise
     
-    async def get_positions(self, account_id: str) -> List[Dict]:
+    async def get_positions(self, account_id: str, event=None) -> List[Dict]:
         if not await self.ensure_connected():
             raise Exception("Unable to establish IBKR connection")
         
@@ -192,7 +192,7 @@ class IBKRClient:
             
             return result
         except Exception as e:
-            logger.error(f"Failed to get positions: {e}")
+            app_logger.log_error(f"Failed to get positions: {e}", event)
             raise
     
     
@@ -202,7 +202,7 @@ class IBKRClient:
         return prices[symbol]
     
     
-    async def get_multiple_market_prices(self, symbols: List[str]) -> Dict[str, float]:
+    async def get_multiple_market_prices(self, symbols: List[str], event=None) -> Dict[str, float]:
         """Get market prices using a robust, qualified approach."""
         if not await self.ensure_connected():
             raise Exception("Unable to establish IBKR connection")
@@ -217,7 +217,7 @@ class IBKRClient:
         try:
             qualified_contracts = await self.ib.qualifyContractsAsync(*contracts)
         except Exception as e:
-            logger.error(f"Failed to qualify contracts for symbols {symbols}: {e}")
+            app_logger.log_error(f"Failed to qualify contracts for symbols {symbols}: {e}", event)
             raise RuntimeError(f"Could not qualify contracts for: {symbols}. Cannot proceed.")
 
         # 3. Request tickers using the now-qualified contracts
@@ -232,7 +232,7 @@ class IBKRClient:
         return prices
     
     
-    async def place_order(self, account_id: str, symbol: str, quantity: int, order_type: str = "MKT", 
+    async def place_order(self, account_id: str, symbol: str, quantity: int, order_type: str = "MKT", event=None, 
                         time_in_force: str = "DAY", extended_hours: bool = False):
         if not await self.ensure_connected():
             raise Exception("Unable to establish IBKR connection")
@@ -246,7 +246,7 @@ class IBKRClient:
                 raise Exception(f"Could not qualify contract for {symbol}")
             contract = qualified_contracts[0]
         except Exception as e:
-            logger.error(f"Failed to qualify contract for {symbol}: {e}")
+            app_logger.log_error(f"Failed to qualify contract for {symbol}: {e}", event)
             raise RuntimeError(f"Could not qualify contract for: {symbol}. Cannot proceed.")
 
         action = "BUY" if quantity > 0 else "SELL"        
@@ -257,11 +257,11 @@ class IBKRClient:
         order.account = account_id
         
         trade = self.ib.placeOrder(contract, order)
-        logger.info(f"Order placed: ID={trade.order.orderId}; {action} {abs(quantity)} shares of {symbol}")
+        app_logger.log_info(f"Order placed: ID={trade.order.orderId}; {action} {abs(quantity)} shares of {symbol}", event)
         
         return trade
     
-    async def cancel_all_orders(self, account_id: str) -> List[Dict]:
+    async def cancel_all_orders(self, account_id: str, event=None) -> List[Dict]:
         """Cancel all pending orders for the given account.
         
         This method cancels all pending orders and waits up to 60 seconds for 
@@ -302,17 +302,17 @@ class IBKRClient:
                         cancelled_orders.append(order_details)
                         
                         self.ib.cancelOrder(order)
-                        logger.debug(f"Cancelled order {order.orderId} for {account_id}: {order.action} {abs(order.totalQuantity)} {symbol}")
+                        app_logger.log_debug(f"Cancelled order {order.orderId} for {account_id}: {order.action} {abs(order.totalQuantity)} {symbol}", event)
                 
                 if cancelled_orders:
                     # Wait for all cancellations to be confirmed
                     await self._wait_for_orders_cancelled(account_id, max_wait_seconds=60)
                 
-                logger.info(f"Cancelled {len(cancelled_orders)} pending orders for account {account_id}")
+                app_logger.log_info(f"Cancelled {len(cancelled_orders)} pending orders for account {account_id}", event)
                 return cancelled_orders
                 
             except Exception as e:
-                logger.error(f"Failed to cancel orders for account {account_id}: {e}")
+                app_logger.log_error(f"Failed to cancel orders for account {account_id}: {e}", event)
                 raise
     
     async def _wait_for_orders_cancelled(self, account_id: str, max_wait_seconds: int = 60):
@@ -328,14 +328,14 @@ class IBKRClient:
             ]
             
             if not pending_orders:
-                logger.debug(f"All orders successfully cancelled for account {account_id}")
+                app_logger.log_debug(f"All orders successfully cancelled for account {account_id}")
                 return
             
             elapsed = asyncio.get_event_loop().time() - start_time
             if elapsed >= max_wait_seconds:
                 pending_ids = [trade.order.orderId for trade in pending_orders]
                 error_msg = f"Timeout waiting for order cancellations for account {account_id}. Still pending: {pending_ids}"
-                logger.error(error_msg)
+                app_logger.log_error(error_msg)
                 raise Exception(error_msg)
             
             await asyncio.sleep(10)  # Check every 10 seconds

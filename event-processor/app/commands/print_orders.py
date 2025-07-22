@@ -4,9 +4,9 @@ Print orders command implementation.
 
 from typing import Dict, Any
 from app.commands.base import EventCommand, EventCommandResult, CommandStatus
-from app.logger import EventLogger
+from app.logger import AppLogger
 
-event_logger = EventLogger(__name__)
+app_logger = AppLogger(__name__)
 
 
 class PrintOrdersCommand(EventCommand):
@@ -17,7 +17,7 @@ class PrintOrdersCommand(EventCommand):
     
     async def execute(self, services: Dict[str, Any]) -> EventCommandResult:
         """Execute print orders command"""
-        event_logger.log_info(f"Printing pending orders for account {self.event.account_id}", self.event)
+        app_logger.log_info(f"Printing pending orders for account {self.event.account_id}", self.event)
         
         try:
             ibkr_client = services.get('ibkr_client')
@@ -32,16 +32,16 @@ class PrintOrdersCommand(EventCommand):
             account_orders = [order for order in open_orders if order.account == self.event.account_id]
             
             if not account_orders:
-                event_logger.log_info(f"No pending orders found for account {self.event.account_id}", self.event)
+                app_logger.log_info(f"No pending orders found for account {self.event.account_id}", self.event)
             else:
-                event_logger.log_info(f"Pending orders for account {self.event.account_id}:", self.event)
+                app_logger.log_info(f"Pending orders for account {self.event.account_id}:", self.event)
                 
                 for order in account_orders:
                     symbol = 'Unknown'
                     if hasattr(order, 'contract') and order.contract:
                         symbol = getattr(order.contract, 'symbol', 'Unknown')
                     
-                    event_logger.log_info(f"  Order {order.orderId}: {order.action} {abs(order.totalQuantity)} {symbol} ({order.orderType})", self.event)
+                    app_logger.log_info(f"  Order {order.orderId}: {order.action} {abs(order.totalQuantity)} {symbol} ({order.orderType})", self.event)
             
             # Format order details for return
             order_details = []
@@ -65,7 +65,7 @@ class PrintOrdersCommand(EventCommand):
             )
             
         except Exception as e:
-            event_logger.log_error(f"Print orders failed: {e}", self.event)
+            app_logger.log_error(f"Print orders failed: {e}", self.event)
             
             return EventCommandResult(
                 status=CommandStatus.FAILED,

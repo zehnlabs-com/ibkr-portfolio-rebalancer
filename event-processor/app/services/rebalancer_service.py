@@ -6,9 +6,9 @@ from app.config import config
 from app.models.account_config import EventAccountConfig
 from app.services.ibkr_client import IBKRClient
 from app.services.allocation_service import AllocationService
-from app.logger import setup_logger
+from app.logger import AppLogger
 
-logger = setup_logger(__name__)
+app_logger = AppLogger(__name__)
 
 class RebalanceOrder:
     def __init__(self, symbol: str, quantity: int, action: str, market_value: float):
@@ -33,42 +33,43 @@ class RebalancerService:
     def __init__(self, ibkr_client: IBKRClient):
         self.ibkr_client = ibkr_client
     
-    async def rebalance_account(self, account_config: EventAccountConfig):
+    async def rebalance_account(self, account_config: EventAccountConfig, event=None):
         # Log queue position
         waiting_accounts = [acc_id for acc_id, lock in self._account_locks.items() if lock.locked()]
         if waiting_accounts:
-            logger.debug(f"Account {account_config.account_id} waiting for {len(waiting_accounts)} accounts: {waiting_accounts}")
+            app_logger.log_debug(f"Account {account_config.account_id} waiting for {len(waiting_accounts)} accounts: {waiting_accounts}", event)
         
         async with self._account_locks[account_config.account_id]:
-            logger.debug(f"Account {account_config.account_id} acquired lock, starting rebalance")
+            app_logger.log_debug(f"Account {account_config.account_id} acquired lock, starting rebalance", event)
             try:
-                logger.info(f"Starting LIVE rebalance for account {account_config.account_id}")
+                app_logger.log_info(f"Starting LIVE rebalance for account {account_config.account_id}", event)
                 
-                target_allocations = await AllocationService.get_allocations(account_config)
+                target_allocations = await AllocationService.get_allocations(account_config, event)
                 
-                current_positions = await self.ibkr_client.get_positions(account_config.account_id)
-                account_value = await self.ibkr_client.get_account_value(account_config.account_id)
+                current_positions = await self.ibkr_client.get_positions(account_config.account_id, event)
+                account_value = await self.ibkr_client.get_account_value(account_config.account_id, event=event)
                 
                 result = await self._calculate_rebalance_orders(
                     target_allocations, 
                     current_positions, 
                     account_value,
-                    account_config
+                    account_config,
+                    event
                 )
                 
                 # Execute sell orders first and wait for completion
-                cancelled_orders = await self._execute_sell_orders(account_config.account_id, result.orders, dry_run=False)
+                cancelled_orders = await self._execute_sell_orders(account_config.account_id, result.orders, dry_run=False, event=event)
                 
                 # Execute buy orders (no cash validation - trust pandas calculations)
-                await self._execute_buy_orders(account_config.account_id, result.orders, dry_run=False)
+                await self._execute_buy_orders(account_config.account_id, result.orders, dry_run=False, event=event)
                 
-                logger.info(f"Completed LIVE rebalance for account {account_config.account_id}")
+                app_logger.log_info(f"Completed LIVE rebalance for account {account_config.account_id}", event)
                 
                 # Include cancelled orders in the result
                 return RebalanceResult(result.orders, result.equity_info, cancelled_orders)
                 
             except Exception as e:
-                logger.error(f"Error in LIVE rebalance for account {account_config.account_id}: {e}")
+                app_logger.log_error(f"Error in LIVE rebalance for account {account_config.account_id}: {e}", event)
                 raise
     
     async def _calculate_rebalance_orders(
@@ -76,7 +77,8 @@ class RebalancerService:
         target_allocations: List[Dict[str, float]], 
         current_positions: List[Dict], 
         account_value: float,
-        account_config: EventAccountConfig
+        account_config: EventAccountConfig,
+        event=None
     ) -> RebalanceResult:
         
         # Calculate cash reserve scaling factor (like simple algorithm)
@@ -84,7 +86,7 @@ class RebalancerService:
         scaling_factor = 1.0 - cash_reserve_percent
         reserve_amount = account_value * cash_reserve_percent
         
-        logger.info(f"Account {account_config.account_id}: Account value: ${account_value:.2f}, Cash reserve: {account_config.rebalancing.cash_reserve_percentage}% (${reserve_amount:.2f}), Scaling factor: {scaling_factor:.3f}")
+        app_logger.log_info(f"Account {account_config.account_id}: Account value: ${account_value:.2f}, Cash reserve: {account_config.rebalancing.cash_reserve_percentage}% (${reserve_amount:.2f}), Scaling factor: {scaling_factor:.3f}", event)
         
         # Convert target allocations to DataFrame with scaled weights
         target_df = pd.DataFrame([
@@ -117,7 +119,7 @@ class RebalancerService:
         
         # Get market prices for all symbols
         all_symbols = portfolio_df['symbol'].unique().tolist()
-        market_prices = await self.ibkr_client.get_multiple_market_prices(all_symbols)
+        market_prices = await self.ibkr_client.get_multiple_market_prices(all_symbols, event)
         
         # Validate prices
         missing_prices = [symbol for symbol in all_symbols if symbol not in market_prices]
@@ -133,7 +135,7 @@ class RebalancerService:
         # Filter to only trades that are needed
         trades_df = portfolio_df[portfolio_df['shares_to_trade'] != 0].copy()
         
-        logger.info(f"\n{trades_df[['symbol', 'shares', 'market_value', 'target_value', 'value_diff', 'shares_to_trade']].to_string()}")
+        app_logger.log_info(f"\n{trades_df[['symbol', 'shares', 'market_value', 'target_value', 'value_diff', 'shares_to_trade']].to_string()}", event)
         
         # Convert to RebalanceOrder objects
         orders = []
@@ -160,36 +162,36 @@ class RebalancerService:
         
         return RebalanceResult(orders, equity_info)
     
-    async def _cancel_pending_orders(self, account_id: str):
+    async def _cancel_pending_orders(self, account_id: str, event=None):
         """Cancel all pending orders for the account before rebalancing"""
         try:
-            cancelled_orders = await self.ibkr_client.cancel_all_orders(account_id)
+            cancelled_orders = await self.ibkr_client.cancel_all_orders(account_id, event)
             if cancelled_orders:
-                logger.info(f"Cancelled {len(cancelled_orders)} pending orders for account {account_id}")
+                app_logger.log_info(f"Cancelled {len(cancelled_orders)} pending orders for account {account_id}", event)
             return cancelled_orders
         except Exception as e:
-            logger.error(f"Failed to cancel pending orders for account {account_id}: {e}")
+            app_logger.log_error(f"Failed to cancel pending orders for account {account_id}: {e}", event)
             raise
 
-    async def _execute_sell_orders(self, account_id: str, orders: List[RebalanceOrder], dry_run: bool = False):
+    async def _execute_sell_orders(self, account_id: str, orders: List[RebalanceOrder], dry_run: bool = False, event=None):
         """Execute sell orders using simple algorithm approach - concurrent placement, sequential waiting"""
         cancelled_orders = []
         sell_orders = [order for order in orders if order.action == 'SELL']
         
         if not sell_orders:
-            logger.info("No sell orders to execute")
+            app_logger.log_info("No sell orders to execute", event)
             return cancelled_orders
         
         mode_text = "DRY RUN" if dry_run else "LIVE"
-        logger.info(f"{mode_text} - Executing {len(sell_orders)} sell orders for account {account_id}")
+        app_logger.log_info(f"{mode_text} - Executing {len(sell_orders)} sell orders for account {account_id}", event)
         
         if dry_run:
             for order in sell_orders:
-                logger.info(f"DRY RUN - Would execute: {order}")
+                app_logger.log_info(f"DRY RUN - Would execute: {order}", event)
             return cancelled_orders
         
         # Cancel pending orders before executing live orders
-        cancelled_orders = await self._cancel_pending_orders(account_id)
+        cancelled_orders = await self._cancel_pending_orders(account_id, event)
         
         # Place ALL sell orders concurrently (like simple algorithm)
         sell_tasks = []
@@ -201,35 +203,36 @@ class RebalancerService:
                 symbol=order.symbol,
                 quantity=quantity,
                 order_type="MKT",
+                event=event,
                 time_in_force=config.order.time_in_force,
                 extended_hours=config.order.extended_hours_enabled
             )
             
             sell_tasks.append(trade)
-            logger.info(f"SELL order placed: {order} - Order ID: {trade.order.orderId}")
+            app_logger.log_info(f"SELL order placed: {order} - Order ID: {trade.order.orderId}", event)
         
         # Wait for ALL sells to complete sequentially (like simple algorithm)
         for trade in sell_tasks:
             await trade.filledEvent
-            logger.info(f"SELL Filled: {trade.order.orderId} - {trade.contract.symbol} {trade.order.totalQuantity}")
+            app_logger.log_info(f"SELL Filled: {trade.order.orderId} - {trade.contract.symbol} {trade.order.totalQuantity}", event)
         
-        logger.info("All SELL orders executed")
+        app_logger.log_info("All SELL orders executed", event)
         return cancelled_orders
     
-    async def _execute_buy_orders(self, account_id: str, orders: List[RebalanceOrder], dry_run: bool = False):
+    async def _execute_buy_orders(self, account_id: str, orders: List[RebalanceOrder], dry_run: bool = False, event=None):
         """Execute buy orders using simple algorithm approach - concurrent placement, sequential waiting"""
         buy_orders = [order for order in orders if order.action == 'BUY']
         
         if not buy_orders:
-            logger.info("No buy orders to execute")
+            app_logger.log_info("No buy orders to execute", event)
             return
         
         mode_text = "DRY RUN" if dry_run else "LIVE"
-        logger.info(f"{mode_text} - Executing {len(buy_orders)} buy orders for account {account_id}")
+        app_logger.log_info(f"{mode_text} - Executing {len(buy_orders)} buy orders for account {account_id}", event)
         
         if dry_run:
             for order in buy_orders:
-                logger.info(f"DRY RUN - Would execute: {order}")
+                app_logger.log_info(f"DRY RUN - Would execute: {order}", event)
             return
         
         # Place ALL buy orders concurrently (like simple algorithm)
@@ -240,51 +243,53 @@ class RebalancerService:
                 symbol=order.symbol,
                 quantity=order.quantity,
                 order_type="MKT",
+                event=event,
                 time_in_force=config.order.time_in_force,
                 extended_hours=config.order.extended_hours_enabled
             )
             
             buy_tasks.append(trade)
-            logger.info(f"BUY order placed: {order} - Order ID: {trade.order.orderId}")
+            app_logger.log_info(f"BUY order placed: {order} - Order ID: {trade.order.orderId}", event)
         
         # Wait for ALL buys to complete sequentially (like simple algorithm)
         for trade in buy_tasks:
             await trade.filledEvent
-            logger.info(f"BUY Filled: {trade.order.orderId} - {trade.contract.symbol} {trade.order.totalQuantity}")
+            app_logger.log_info(f"BUY Filled: {trade.order.orderId} - {trade.contract.symbol} {trade.order.totalQuantity}", event)
         
-        logger.info("All BUY orders executed")
+        app_logger.log_info("All BUY orders executed", event)
     
-    async def dry_run_rebalance(self, account_config: EventAccountConfig) -> RebalanceResult:
+    async def dry_run_rebalance(self, account_config: EventAccountConfig, event=None) -> RebalanceResult:
         # Log queue position
         waiting_accounts = [acc_id for acc_id, lock in self._account_locks.items() if lock.locked()]
         if waiting_accounts:
-            logger.debug(f"Account {account_config.account_id} waiting for {len(waiting_accounts)} accounts: {waiting_accounts}")
+            app_logger.log_debug(f"Account {account_config.account_id} waiting for {len(waiting_accounts)} accounts: {waiting_accounts}", event)
         
         async with self._account_locks[account_config.account_id]:
-            logger.debug(f"Account {account_config.account_id} acquired lock, starting dry run rebalance")
+            app_logger.log_debug(f"Account {account_config.account_id} acquired lock, starting dry run rebalance", event)
             try:
-                logger.info(f"Starting dry run rebalance for account {account_config.account_id}")
+                app_logger.log_info(f"Starting dry run rebalance for account {account_config.account_id}", event)
                 
-                target_allocations = await AllocationService.get_allocations(account_config)
+                target_allocations = await AllocationService.get_allocations(account_config, event)
                 
-                current_positions = await self.ibkr_client.get_positions(account_config.account_id)
-                account_value = await self.ibkr_client.get_account_value(account_config.account_id)
+                current_positions = await self.ibkr_client.get_positions(account_config.account_id, event)
+                account_value = await self.ibkr_client.get_account_value(account_config.account_id, event=event)
                 
                 result = await self._calculate_rebalance_orders(
                     target_allocations, 
                     current_positions, 
                     account_value,
-                    account_config
+                    account_config,
+                    event
                 )
                 
                 # Simulate sell orders first
-                await self._execute_sell_orders(account_config.account_id, result.orders, dry_run=True)
+                await self._execute_sell_orders(account_config.account_id, result.orders, dry_run=True, event=event)
                 
                 # Simulate buy orders
-                await self._execute_buy_orders(account_config.account_id, result.orders, dry_run=True)
+                await self._execute_buy_orders(account_config.account_id, result.orders, dry_run=True, event=event)
                 
                 return result
                 
             except Exception as e:
-                logger.error(f"Error in dry run rebalance for account {account_config.account_id}: {e}")
+                app_logger.log_error(f"Error in dry run rebalance for account {account_config.account_id}: {e}", event)
                 raise

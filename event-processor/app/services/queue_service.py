@@ -7,10 +7,10 @@ import redis.asyncio as redis
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from app.config import config
-from app.logger import setup_logger
+from app.logger import AppLogger
 from app.models.events import EventInfo
 
-logger = setup_logger(__name__)
+app_logger = AppLogger(__name__)
 
 
 class QueueService:
@@ -47,7 +47,7 @@ class QueueService:
                 # Extract exec_command from the nested data structure
                 exec_command = event_data.get('data', {}).get('exec')
                 if not exec_command:
-                    logger.error(f"Event missing exec command: {event_data}")
+                    app_logger.log_error(f"Event missing exec command: {event_data}")
                     return None
                 
                 # Parse datetime fields (assuming system timezone consistency)
@@ -75,17 +75,13 @@ class QueueService:
                     created_at=created_at
                 )
                 
-                logger.debug(f"Retrieved event from queue", extra={
-                    'event_id': event_info.event_id,
-                    'account_id': event_info.account_id,
-                    'exec_command': event_info.exec_command
-                })
+                app_logger.log_debug(f"Retrieved event from queue", event_info)
                 return event_info
             
             return None
             
         except Exception as e:
-            logger.error(f"Failed to get event from queue: {e}")
+            app_logger.log_error(f"Failed to get event from queue: {e}")
             return None
     
     async def requeue_event(self, event_info: EventInfo) -> EventInfo:
@@ -120,18 +116,12 @@ class QueueService:
             pipe.sadd("active_events_set", deduplication_key)
             await pipe.execute()
             
-            logger.info(f"Event requeued for retry", extra={
-                'event_id': event_info.event_id,
-                'account_id': account_id,
-                'exec_command': exec_command,
-                'times_queued': event_info.times_queued,
-                'deduplication_key': deduplication_key
-            })
+            app_logger.log_info(f"Event requeued for retry", event_info)
             
             return event_info
             
         except Exception as e:
-            logger.error(f"Failed to requeue event: {e}")
+            app_logger.log_error(f"Failed to requeue event: {e}")
             raise
     
     async def remove_from_queued(self, account_id: str, exec_command: str = None):
@@ -143,23 +133,16 @@ class QueueService:
                 # Remove specific account+command combination
                 deduplication_key = f"{account_id}:{exec_command}"
                 await redis.srem("active_events_set", deduplication_key)
-                logger.debug(f"Removed event from active set", extra={
-                    'account_id': account_id,
-                    'exec_command': exec_command,
-                    'deduplication_key': deduplication_key
-                })
+                app_logger.log_debug(f"Removed event from active set")
             else:
                 # Legacy support: remove all events for account
                 active_events = await redis.smembers("active_events_set")
                 keys_to_remove = [key for key in active_events if key.startswith(f"{account_id}:")]
                 if keys_to_remove:
                     await redis.srem("active_events_set", *keys_to_remove)
-                    logger.debug(f"Removed {len(keys_to_remove)} events for account from active set", extra={
-                        'account_id': account_id,
-                        'removed_keys': keys_to_remove
-                    })
+                    app_logger.log_debug(f"Removed {len(keys_to_remove)} events for account from active set")
         except Exception as e:
-            logger.error(f"Failed to remove from active events set: {e}")
+            app_logger.log_error(f"Failed to remove from active events set: {e}")
             raise
     
     async def get_queue_length(self) -> int:
@@ -168,7 +151,7 @@ class QueueService:
             redis = await self._get_redis()
             return await redis.llen("rebalance_queue")
         except Exception as e:
-            logger.error(f"Failed to get queue length: {e}")
+            app_logger.log_error(f"Failed to get queue length: {e}")
             return 0
     
     async def get_active_events(self) -> set:
@@ -177,7 +160,7 @@ class QueueService:
             redis = await self._get_redis()
             return await redis.smembers("active_events_set")
         except Exception as e:
-            logger.error(f"Failed to get active events: {e}")
+            app_logger.log_error(f"Failed to get active events: {e}")
             return set()
     
     async def get_queued_accounts(self) -> set:
@@ -193,7 +176,7 @@ class QueueService:
                     accounts.add(account_id)
             return accounts
         except Exception as e:
-            logger.error(f"Failed to get queued accounts: {e}")
+            app_logger.log_error(f"Failed to get queued accounts: {e}")
             return set()
     
     async def requeue_event_delayed(self, event_info: EventInfo) -> EventInfo:
@@ -230,19 +213,12 @@ class QueueService:
             pipe.srem("active_events_set", deduplication_key)
             await pipe.execute()
             
-            logger.info(f"Event added to delayed queue for retry", extra={
-                'event_id': event_info.event_id,
-                'account_id': account_id,
-                'exec_command': exec_command,
-                'times_queued': event_info.times_queued,
-                'deduplication_key': deduplication_key,
-                'retry_after': current_time + config.processing.retry_delay_seconds
-            })
+            app_logger.log_info(f"Event added to delayed queue for retry", event_info)
             
             return event_info
             
         except Exception as e:
-            logger.error(f"Failed to add event to delayed queue: {e}")
+            app_logger.log_error(f"Failed to add event to delayed queue: {e}")
             raise
     
     async def process_delayed_events(self):
@@ -263,10 +239,10 @@ class QueueService:
             )
             
             if not ready_events:
-                logger.debug("No delayed events ready for retry")
+                app_logger.log_debug("No delayed events ready for retry")
                 return
             
-            logger.info(f"Found {len(ready_events)} delayed events ready for retry")
+            app_logger.log_info(f"Found {len(ready_events)} delayed events ready for retry")
             
             # Move ready events to main queue and back to active set
             pipe = redis.pipeline()
@@ -283,19 +259,14 @@ class QueueService:
                 # Remove from delayed queue
                 pipe.zrem("rebalance_delayed_set", event_json)
                 
-                logger.debug(f"Moving delayed event to main queue", extra={
-                    'event_id': event_data.get('event_id'),
-                    'account_id': account_id,
-                    'exec_command': exec_command,
-                    'times_queued': event_data.get('times_queued')
-                })
+                app_logger.log_debug(f"Moving delayed event to main queue")
             
             await pipe.execute()
             
-            logger.info(f"Moved {len(ready_events)} delayed events to main queue for retry")
+            app_logger.log_info(f"Moved {len(ready_events)} delayed events to main queue for retry")
             
         except Exception as e:
-            logger.error(f"Failed to process delayed events: {e}")
+            app_logger.log_error(f"Failed to process delayed events: {e}")
     
     async def get_delayed_events_count(self) -> int:
         """Get count of events in delayed queue"""
@@ -303,7 +274,7 @@ class QueueService:
             redis = await self._get_redis()
             return await redis.zcard("rebalance_delayed_set")
         except Exception as e:
-            logger.error(f"Failed to get delayed events count: {e}")
+            app_logger.log_error(f"Failed to get delayed events count: {e}")
             return 0
     
     async def is_connected(self) -> bool:

@@ -4,9 +4,9 @@ Cancel orders command implementation.
 
 from typing import Dict, Any
 from app.commands.base import EventCommand, EventCommandResult, CommandStatus
-from app.logger import EventLogger
+from app.logger import AppLogger
 
-event_logger = EventLogger(__name__)
+app_logger = AppLogger(__name__)
 
 
 class CancelOrdersCommand(EventCommand):
@@ -17,7 +17,7 @@ class CancelOrdersCommand(EventCommand):
     
     async def execute(self, services: Dict[str, Any]) -> EventCommandResult:
         """Execute cancel orders command"""
-        event_logger.log_info(f"Cancelling all pending orders for account {self.event.account_id}", self.event)
+        app_logger.log_info(f"Cancelling all pending orders for account {self.event.account_id}", self.event)
         
         try:
             ibkr_client = services.get('ibkr_client')
@@ -30,9 +30,9 @@ class CancelOrdersCommand(EventCommand):
             cancelled_orders = await ibkr_client.cancel_all_orders(self.event.account_id)
             
             if not cancelled_orders:
-                event_logger.log_info(f"No pending orders found for account {self.event.account_id}", self.event)
+                app_logger.log_info(f"No pending orders found for account {self.event.account_id}", self.event)
             else:
-                event_logger.log_info(f"Cancelled {len(cancelled_orders)} orders for account {self.event.account_id}", self.event)
+                app_logger.log_info(f"Cancelled {len(cancelled_orders)} orders for account {self.event.account_id}", self.event)
             
             return EventCommandResult(
                 status=CommandStatus.SUCCESS,
@@ -41,7 +41,7 @@ class CancelOrdersCommand(EventCommand):
             )
             
         except Exception as e:
-            event_logger.log_error(f"Cancel orders failed: {e}", self.event)
+            app_logger.log_error(f"Cancel orders failed: {e}", self.event)
             
             return EventCommandResult(
                 status=CommandStatus.FAILED,
