@@ -50,15 +50,9 @@ AUTO_RESTART_TIME=09:00 PM
 - **Rebalancing events typically occur near market close**
 - **Login conflicts during this time will delay critical trades**
 
-### 🕐 Best Practices
-- **Check your positions BEFORE the last trading hour**
-- **Use mobile IBKR app for quick balance checks** (may cause brief disconnection)
-- **Log out immediately** if you need to access IBKR manually
-- **Monitor system logs** after manual logins to ensure reconnection
-
 ### 🔄 Automatic Recovery
 - Events that fail due to login conflicts are automatically requeued
-- System will reconnect and process pending events once you log out
+- System will reconnect and process pending events a few minutes after you log out
 - No manual intervention needed - just avoid conflicts during critical times
 
 ---
@@ -69,6 +63,9 @@ AUTO_RESTART_TIME=09:00 PM
 ```bash
 # Quick system health check
 curl http://localhost:8000/health
+
+# Detailed system health check
+curl http://localhost:8000/health/detailed
 
 # Check queue status
 curl http://localhost:8000/queue/status
