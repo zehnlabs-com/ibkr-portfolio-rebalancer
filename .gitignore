@@ -47,6 +47,7 @@ Thumbs.db
 
 # Docker
 .dockerignore
+docker-compose.override.yml
 
 # Logs
 *.log
@@ -55,3 +56,5 @@ logs/
 # Misc
 rest/
 test/
+CLAUDE.md
+

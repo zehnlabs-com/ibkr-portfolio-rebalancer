@@ -205,33 +205,73 @@ class IBKRClient:
     async def _fetch_single_snapshot_price(self, contract: 'Contract') -> Optional[Tuple[str, float]]:
         """
         Phase 1 helper: Fetches a price for one contract using a snapshot.
+        Improved error handling to avoid Error 300 issues.
         """
-        ticker = self.ib.reqMktData(
-            contract, genericTickList="", snapshot=True, regulatorySnapshot=False
-        )
-        price = float('nan')
-        
+        ticker = None
         try:
-            # Wait for ticker data with polling approach instead of waitUntil to avoid tzinfo bug
-            for _ in range(10):  # Try for up to 1 second (10 * 0.1s)
+            # Ensure contract is properly qualified to avoid Error 300
+            if not hasattr(contract, 'conId') or not contract.conId:
+                app_logger.log_warning(f"Contract {contract.symbol} not properly qualified, skipping snapshot")
+                return None
+                
+            # Request market data snapshot
+            ticker = self.ib.reqMktData(
+                contract, genericTickList="", snapshot=True, regulatorySnapshot=False
+            )
+            
+            if not ticker:
+                app_logger.log_warning(f"Failed to create ticker for {contract.symbol}")
+                return None
+            
+            price = float('nan')
+            
+            # Wait for ticker data with more generous timeout during market hours
+            max_wait_time = 30  # 3 seconds total (30 * 0.1s)
+            for i in range(max_wait_time):
                 await asyncio.sleep(0.1)
-                if not math.isnan(ticker.marketPrice()) or not math.isnan(ticker.last) or not math.isnan(ticker.close):
+                
+                # Check for valid market data in priority order
+                market_p = ticker.marketPrice()
+                last_p = ticker.last
+                close_p = ticker.close
+                bid_p = ticker.bid
+                ask_p = ticker.ask
+                
+                # Prefer live market price, then last trade, then mid-point of bid/ask, then close
+                if not math.isnan(market_p) and market_p > 0:
+                    price = market_p
+                    break
+                elif last_p and not math.isnan(last_p) and last_p > 0:
+                    price = last_p
+                    break
+                elif (bid_p and ask_p and not math.isnan(bid_p) and not math.isnan(ask_p) 
+                      and bid_p > 0 and ask_p > 0):
+                    price = (bid_p + ask_p) / 2
+                    break
+                elif close_p and not math.isnan(close_p) and close_p > 0:
+                    price = close_p
                     break
             
-            market_p = ticker.marketPrice()
-            if not math.isnan(market_p) and market_p > 0:
-                price = market_p
-            elif ticker.last and not math.isnan(ticker.last) and ticker.last > 0:
-                price = ticker.last
-            elif ticker.close and not math.isnan(ticker.close) and ticker.close > 0:
-                price = ticker.close
-
-            return (contract.symbol, price) if not math.isnan(price) else None
-        except asyncio.TimeoutError:
-            # This is an expected failure for some symbols, will be caught by Phase 2
+            if math.isnan(price) or price <= 0:
+                return None
+                
+            return (contract.symbol, price)
+            
+        except Exception as e:
+            app_logger.log_debug(f"Snapshot request failed for {contract.symbol}: {e}")
             return None
         finally:
-            self.ib.cancelMktData(contract)
+            # Properly cancel market data subscription to avoid Error 300
+            if ticker:
+                try:
+                    # Only attempt to cancel if ticker has a valid reqId
+                    if hasattr(ticker, 'reqId') and ticker.reqId is not None:
+                        self.ib.cancelMktData(ticker)
+                    else:
+                        app_logger.log_debug(f"Ticker for {contract.symbol} has no reqId, skipping cancelMktData")
+                except Exception as e:
+                    # Log but don't re-raise cancellation errors
+                    app_logger.log_debug(f"Error cancelling market data for {contract.symbol}: {e}")
 
     async def _fetch_single_historical_price(self, contract: 'Contract') -> Optional[Tuple[str, float]]:
         """
@@ -259,8 +299,8 @@ class IBKRClient:
     async def get_multiple_market_prices(self, symbols: List[str], event=None) -> Dict[str, float]:
         """
         Gets market prices using a robust, two-phase concurrent strategy.
-        Phase 1: Fast snapshot request for all symbols.
-        Phase 2: Slower historical data request for any symbols that failed Phase 1.
+        Phase 1: Concurrent snapshot requests for all symbols during market hours.
+        Phase 2: Historical data fallback for any symbols that failed Phase 1.
         """
         if not await self.ensure_connected():
             raise Exception("Unable to establish IBKR connection")
@@ -268,10 +308,17 @@ class IBKRClient:
         if not symbols:
             return {}
         
-        # Qualify all contracts first
+        # Qualify all contracts first to ensure proper contract specifications
         contracts = [Stock(s, 'SMART', 'USD') for s in symbols]
         try:
             qualified_contracts = await self.ib.qualifyContractsAsync(*contracts)
+            # Filter out any contracts that failed qualification
+            qualified_contracts = [c for c in qualified_contracts if hasattr(c, 'conId') and c.conId]
+            
+            if len(qualified_contracts) != len(symbols):
+                failed_symbols = [s for s in symbols if s not in [c.symbol for c in qualified_contracts]]
+                app_logger.log_warning(f"Failed to qualify contracts for: {failed_symbols}", event)
+                
         except Exception as e:
             app_logger.log_error(f"Failed to qualify contracts for symbols {symbols}: {e}", event)
             raise RuntimeError(f"Could not qualify contracts for: {symbols}. Cannot proceed.")
@@ -279,39 +326,54 @@ class IBKRClient:
         prices: Dict[str, float] = {}
         contracts_map = {c.symbol: c for c in qualified_contracts}
 
-        # --- Phase 1: Concurrent Snapshot ---
-        app_logger.log_info(f"Getting market prices using snapshot requests for {len(symbols)} symbols...")
-        snapshot_tasks = [self._fetch_single_snapshot_price(c) for c in qualified_contracts]
-        snapshot_results = await asyncio.gather(*snapshot_tasks)
+        # --- Phase 1: Concurrent Snapshot Requests ---
+        app_logger.log_info(f"Getting market prices using concurrent snapshot requests for {len(qualified_contracts)} symbols...")
         
-        for result in snapshot_results:
+        # Use gather with return_exceptions=True to handle individual failures gracefully
+        snapshot_tasks = [self._fetch_single_snapshot_price(c) for c in qualified_contracts]
+        snapshot_results = await asyncio.gather(*snapshot_tasks, return_exceptions=True)
+        
+        successful_snapshots = 0
+        for i, result in enumerate(snapshot_results):
+            if isinstance(result, Exception):
+                app_logger.log_debug(f"Snapshot exception for {qualified_contracts[i].symbol}: {result}")
+                continue
             if result:
                 symbol, price = result
                 prices[symbol] = price
+                successful_snapshots += 1
         
-        app_logger.log_debug(f"Phase 1 (Snapshot) got {len(prices)}/{len(symbols)} prices.")
+        app_logger.log_info(f"Phase 1 (Snapshot) successfully got {successful_snapshots}/{len(qualified_contracts)} prices")
 
         # --- Phase 2: Concurrent Historical Fallback ---
-        app_logger.log_info(f"Getting missing prices using historical data fallback for {len(remaining_symbols)} symbols...")
         remaining_symbols = [s for s in symbols if s not in prices]
         if remaining_symbols:
-            app_logger.log_info(f"Phase 2 (Historical) attempting to fetch {len(remaining_symbols)} missing prices.")
-            remaining_contracts = [contracts_map[s] for s in remaining_symbols]
+            app_logger.log_info(f"Phase 2 (Historical) attempting to fetch {len(remaining_symbols)} missing prices...")
+            remaining_contracts = [contracts_map[s] for s in remaining_symbols if s in contracts_map]
             
-            historical_tasks = [self._fetch_single_historical_price(c) for c in remaining_contracts]
-            historical_results = await asyncio.gather(*historical_tasks)
+            if remaining_contracts:
+                historical_tasks = [self._fetch_single_historical_price(c) for c in remaining_contracts]
+                historical_results = await asyncio.gather(*historical_tasks, return_exceptions=True)
 
-            for result in historical_results:
-                if result:
-                    symbol, price = result
-                    prices[symbol] = price
+                successful_historical = 0
+                for i, result in enumerate(historical_results):
+                    if isinstance(result, Exception):
+                        app_logger.log_debug(f"Historical exception for {remaining_contracts[i].symbol}: {result}")
+                        continue
+                    if result:
+                        symbol, price = result
+                        prices[symbol] = price
+                        successful_historical += 1
+                        
+                app_logger.log_info(f"Phase 2 (Historical) successfully got {successful_historical}/{len(remaining_contracts)} prices")
 
         # --- Final Check ---
         final_missing = [s for s in symbols if s not in prices]
         if final_missing:
-            # This is now a much more serious failure
+            app_logger.log_error(f"Could not fetch prices for: {final_missing} after all fallbacks", event)
             raise RuntimeError(f"Could not fetch price for: {final_missing} after all fallbacks.")
         
+        app_logger.log_info(f"Successfully retrieved prices for all {len(prices)} symbols")
         return prices
     
     
