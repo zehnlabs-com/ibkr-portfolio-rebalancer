@@ -83,7 +83,7 @@ After completing the platform-specific installation, verify everything is workin
 - Verify your ZehnLabs subscription is active
 - Ensure Interactive Brokers account is properly set up
 
-### Verify System Health
+## 📋 Verify System Health
 
 After starting the system, verify everything is working. You can use a browser to navigate to the URLs below or use the command line:
 
