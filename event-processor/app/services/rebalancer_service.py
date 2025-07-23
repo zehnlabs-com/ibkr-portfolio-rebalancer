@@ -198,7 +198,7 @@ class RebalancerService:
         for order in sell_orders:
             quantity = -order.quantity  # Negative for sell
             
-            trade = self.ibkr_client.place_order(
+            trade = await self.ibkr_client.place_order(
                 account_id=account_id,
                 symbol=order.symbol,
                 quantity=quantity,
@@ -238,7 +238,7 @@ class RebalancerService:
         # Place ALL buy orders concurrently (like simple algorithm)
         buy_tasks = []
         for order in buy_orders:
-            trade = self.ibkr_client.place_order(
+            trade = await self.ibkr_client.place_order(
                 account_id=account_id,
                 symbol=order.symbol,
                 quantity=order.quantity,

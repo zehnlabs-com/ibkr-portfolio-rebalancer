@@ -143,7 +143,7 @@ docker compose down
 git pull origin main
 
 # Rebuild and restart
-docker compose up --build -d
+docker compose up -d --build
 ```
 
 ---
