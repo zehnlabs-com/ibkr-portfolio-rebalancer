@@ -1,4 +1,4 @@
-# 🚀 Getting Started Guide - Cloud Deployment (Digital Ocean)
+# 🚀 Installation - Cloud Deployment (Digital Ocean)
 
 Deploy your IBKR Portfolio Rebalancer on a Digital Ocean droplet.
 
@@ -51,7 +51,7 @@ Deploy your IBKR Portfolio Rebalancer on a Digital Ocean droplet.
 
 ## 🐳 Step 3: Install Docker and Setup Application
 
-**From this point, follow the [Linux Getting Started Guide](getting-started-linux.md) starting from Step 2.**
+**From this point, follow the [Linux Installation Guide](linux.md) starting from Step 2.**
 
 The key commands are:
 ```bash
@@ -79,11 +79,8 @@ docker compose up -d
 - **🏥 Health Status**: `curl http://localhost:8000/health`
 - **📊 Queue Status**: `curl http://localhost:8000/queue/status`
 
-**Optional - IBKR Gateway GUI Access:**
-The IBKR Gateway GUI is available at `http://localhost:6080` for local troubleshooting. For remote access, consider using a reverse proxy or Cloudflare tunnel.
-
 ---
 
-**🎉 You're Ready!** Your IBKR Portfolio Rebalancer is now running 24/7 in the cloud. **Remember to read the [Operations Guide](operations.md) for critical operational procedures before relying on it for live trading.**
+**✅ Installation Complete!** Continue with the [Getting Started Guide](../getting-started.md#verify-installation) to verify your installation and next steps.
 
 *🔔 PRO TIP: Set up monitoring alerts for your droplet's resource usage in the Digital Ocean dashboard.*

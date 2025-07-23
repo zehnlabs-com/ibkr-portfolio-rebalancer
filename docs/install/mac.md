@@ -1,4 +1,4 @@
-# 🚀 Getting Started Guide - macOS
+# 🚀 Installation - macOS
 
 Get your IBKR Portfolio Rebalancer up and running on macOS with Docker Desktop.
 
@@ -89,38 +89,8 @@ This command will:
 - 🔨 Build the application containers
 - ⚡ Start all services
 
-## 📋 Step 7: View Logs and Verify Successful Start
-
-1. **Open Docker Desktop**
-2. **Go to the "Containers" tab**
-3. **Find and click on your project container**
-4. **After a couple of minutes, event-processor service should start**
-
-**✅ Look for these success indicators:**
-- No error messages in the logs
-- Services start without crashing
-
-**❌ If you see errors:**
-- Check your `.env` file credentials
-- Check your account ID
-- Verify your ZehnLabs subscription is active
-- Ensure Interactive Brokers account is properly set up
-
-## 🩺 Step 8: Verify System Health
-
-After starting the system, verify everything is working. You can use a browser to navigate to `http://localhost:8000/health` and `http://localhost:8000/queue/status` or use the command line as follows.
-
-
-```bash
-# System health check
-curl http://localhost:8000/health
-
-# Queue status
-curl http://localhost:8000/queue/status
-```
-
 ---
 
-**🎉 You're Ready!** Your IBKR Portfolio Rebalancer is now set up. **Remember to read the [Operations Guide](operations.md) for critical operational procedures before relying on it for live trading.**
+**✅ Installation Complete!** Continue with the [Getting Started Guide](../getting-started.md#verify-installation) to verify your installation and next steps.
 
 *🔔 PRO TIP: You can configure Docker Desktop to start automatically when you log in to your Mac.*

@@ -19,41 +19,92 @@ Before starting, ensure you have:
 
 ---
 
-> 📖 **Note**: Please note that IBKR API does not support fractional shares of ETFs. Portfolio Rebalancer automatically handles this limitation.
+> 📖 **Note**: Please note that IBKR API does not support fractional shares of ETFs. Portfolio Rebalancer automatically handles this limitation by rounding order quantities to whole numbers.
 
 ## 🖥️ Choose Your Platform
 
-Once you have the above prerequisites, select the guide that matches your platform:
+Once you have the above prerequisites, select the guide below that matches your platform. Once you have the system installed, continue with the next section below.
 
 ### 🪟 Windows (Docker Desktop)
-**[Getting Started - Windows](getting-started-windows.md)**
+**[Installation - Windows](install/windows.md)**
 - Windows 10/11 with WSL2 and Docker Desktop (Hyper-V also works)
 - Step-by-step PowerShell/Command Prompt instructions
 - Includes WSL2 setup and Docker Desktop configuration
 
 ### 🍎 macOS (Docker Desktop)
-**[Getting Started - macOS](getting-started-mac.md)**
+**[Installation - macOS](install/mac.md)**
 - macOS with Docker Desktop
 - Terminal-based setup instructions
 - Homebrew package manager integration
 
 ### 🐧 Linux (Docker Engine)
-**[Getting Started - Linux](getting-started-linux.md)**
+**[Installation - Linux](install/linux.md)**
 - Ubuntu, CentOS, Fedora, Arch Linux support
 - Native Docker and Docker Compose installation
 - Distribution-specific package management
 
 ### ☁️ Cloud Deployment - Digital Ocean (Ubuntu)
-**[Getting Started - Cloud](getting-started-cloud.md)**
+**[Installation - Cloud](install/cloud.md)**
 - Linux based cloud deployment
 - Digital Ocean Droplet setup
 - SSH based deployment
 
 ---
 
+## 📋 Verify Installation
+
+After completing the platform-specific installation, verify everything is working properly.
+
+### View Logs and Verify Successful Start
+
+1. **View running containers**:
+   ```bash
+   docker compose ps
+   ```
+
+2. **View logs for all services**:
+   ```bash
+   # View all logs
+   docker compose logs
+   
+   # View logs for specific service
+   docker compose logs event-processor
+   ```
+
+3. **After a couple of minutes, event-processor service should start**
+
+**✅ Look for these success indicators:**
+- No error messages in the logs
+- Services start without crashing
+
+**❌ If you see errors:**
+- Check your `.env` file credentials
+- Check your account ID
+- Verify your ZehnLabs subscription is active
+- Ensure Interactive Brokers account is properly set up
+
+### Verify System Health
+
+After starting the system, verify everything is working. You can use a browser to navigate to the URLs below or use the command line:
+
+```bash
+# System quick health check
+curl http://localhost:8000/health
+
+# System detailed health check
+curl http://localhost:8000/health/detailed
+
+# Queue status
+curl http://localhost:8000/queue/status
+```
+
+---
+
 ## 📊 Manual Rebalancing
 
-After your containers are running, you can manually trigger rebalancing for one or all of your accounts using the provided script:
+After your containers are running, you can manually trigger rebalancing for one or all of your accounts using the following commands. This will execute orders in your brokerage accounts according to the last published allocations.
+
+> ⚠️ **Important**: It is best to trigger manual rebalancing during market hours (RTH). When the market is closed, certain equity prices reported by the brokerage may not be accurate, causing generated orders to be miscalculated.
 
 **🎯 Process specific account:**
 ```bash
@@ -66,18 +117,12 @@ After your containers are running, you can manually trigger rebalancing for one 
 ```
 
 This tool reads your `accounts.yaml` configuration and attempts manual rebalance.
+---
+
+**🎉 You're Ready!** Your IBKR Portfolio Rebalancer is now set up. **Remember to read the [Operations Guide](operations.md) for critical operational procedures before relying on it for live trading.**
 
 ---
 
-## 🌐 Access Points (All Platforms)
-
-After setup, you'll have access to these endpoints:
-
-- **🏥 Health Status**: `http://localhost:8000/health` and `http://localhost:8000/health/detailed`
-- **📊 Queue Status**: `http://localhost:8000/queue/status`
-- **🖥️ IBKR Gateway GUI**: `http://localhost:6080` (for troubleshooting)
-
----
 
 ## 🔄 IMPORTANT: Staying Updated
 
@@ -127,6 +172,7 @@ If you encounter issues:
 1. **Check the Common Installation Issues above** for quick fixes
 2. **Review the [Troubleshooting Guide](troubleshooting.md)** for comprehensive solutions
 3. **Temporarily set  `LOG_LEVEL=DEBUG`** in your `.env` file for detailed logging
+4. **Community Support** Post a question to `https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/discussions`
 
 ---
 

@@ -89,19 +89,11 @@ curl http://localhost:8000/queue/events?type=delayed
 ```
 
 ### Manual Queue Operations
+If an event is stuck in a queue that you manually want to remove:
 
 ```bash
 # Remove problematic event
 curl -X DELETE http://localhost:8000/queue/events/{event-id}
-
-# Add an event manually (CAUTION: This should generally only be done on a paper account)
-curl -H "Content-Type: application/json" \
-  -d '{
-    "account_id": "DU123456", 
-    "exec_command": "rebalance",
-    "strategy_name": "etf-blend-200-35"
-  }' \
-  http://localhost:8000/queue/events
 ```
 
 ## Logging and Diagnostics
@@ -132,4 +124,16 @@ Then restart services:
 ```bash
 docker-compose restart
 ```
+
+---
+
+## ❌ Need Help?
+
+If you encounter issues:
+
+1. **Check the Common Issues above** for quick troubleshooting
+2. **Community Support** Post a question to `https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/discussions`
+
+---
+
 
