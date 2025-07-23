@@ -51,6 +51,24 @@ Once you have the above prerequisites, select the guide that matches your platfo
 
 ---
 
+## 📊 Manual Rebalancing
+
+After your containers are running, you can manually trigger rebalancing for one or all of your accounts using the provided script:
+
+**🎯 Process specific account:**
+```bash
+./tools/rebalance.sh -account U123456
+```
+
+**📋 Process all accounts:**
+```bash
+./tools/rebalance.sh -all
+```
+
+This tool reads your `accounts.yaml` configuration and attempts manual rebalance.
+
+---
+
 ## 🌐 Access Points (All Platforms)
 
 After setup, you'll have access to these endpoints:
