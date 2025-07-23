@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash 
 
 # Script to trigger rebalance commands for accounts
 # This is a convenience wrapper around enqueue.sh for rebalance operations
