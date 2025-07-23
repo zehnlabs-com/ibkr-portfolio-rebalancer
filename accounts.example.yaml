@@ -1,5 +1,8 @@
 # You can configure as many accounts in this file as needed.
 # Each strategy must have a valid subscription and can be traded in multiple accounts.
+#
+# IMPORTANT: After modifying this file, restart services to apply changes:
+#   docker compose restart
 
 # Account 1
 ############

@@ -15,6 +15,15 @@ The Event Broker is responsible for ingesting portfolio rebalancing events from 
 
 The service is configured through environment variables and a YAML configuration file:
 
+### Account Configuration
+
+Account settings are loaded from `accounts.yaml` at startup. **After modifying the file, restart services. You can do so in Docker Desktop or using the following command line:**
+
+```bash
+# Restart services to load new account settings
+docker compose restart
+```
+
 ### Environment Variables
 
 | Variable | Description | Required |

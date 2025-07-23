@@ -15,10 +15,8 @@ COPY event-broker/requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code and configuration files
+# Copy application code
 COPY event-broker/app/ ./app/
-COPY accounts.yaml .
-COPY event-broker/config.yaml .
 
 # Set Python path and timezone
 ENV PYTHONPATH=/app

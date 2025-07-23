@@ -1,4 +1,4 @@
-x-system-version: &system-version "0.0.2"
+x-system-version: &system-version "1.0.2"
 
 volumes:
   ib_data:
@@ -79,7 +79,8 @@ services:
         condition: service_healthy
     volumes:
       - ./event-broker/logs:/app/logs
-      - ./accounts.yaml:/accounts.yaml
+      - ./accounts.yaml:/app/config/accounts.yaml
+      - ./event-broker/config.yaml:/app/config/config.yaml
       - /etc/localtime:/etc/localtime:ro
     networks:
       - ibkr-network
@@ -104,7 +105,7 @@ services:
       SERVICE_VERSION: *system-version
       TZ: America/New_York
     volumes:
-      - ./event-processor/config:/app/config
+      - ./event-processor/config.yaml:/app/config/config.yaml
       - ./event-processor/logs:/app/logs
       - /etc/localtime:/etc/localtime:ro
     networks:
@@ -158,7 +159,7 @@ services:
   novnc:
     image: dougw/novnc:latest
     ports:
-      - "127.0.0.1:6080:8081"  # Web VNC access
+      - "127.0.0.1:6080:8081" 
     depends_on:
       - ibkr
     volumes:

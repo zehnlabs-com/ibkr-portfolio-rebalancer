@@ -132,7 +132,7 @@ class Config:
     def _load_config_file(self, config_file: str) -> Dict:
         """Load configuration from YAML file - REQUIRED, no fallbacks"""
         try:
-            config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), config_file)
+            config_path = os.path.join("/app/config", config_file)
             with open(config_path, 'r') as f:
                 config_data = yaml.safe_load(f)
             

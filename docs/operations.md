@@ -57,6 +57,19 @@ AUTO_RESTART_TIME=09:00 PM
 
 ---
 
+## 📋 Configuration Management
+
+### Account Configuration Updates
+
+When modifying the `accounts.yaml` file to add/remove accounts or change account settings, you will have to restart services. You can do so in Docker Desktop or using the following command line:
+
+```bash
+# After editing accounts.yaml, restart services to apply changes
+docker compose restart
+```
+
+---
+
 ## 🏥 Health Monitoring
 
 ### Health Check

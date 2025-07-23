@@ -15,8 +15,9 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy application code (excluding config files)
+COPY app/ ./app/
+COPY main.py .
 
 # Create non-root user for security
 RUN useradd -m -u 1000 trader && chown -R trader:trader /app

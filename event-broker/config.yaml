@@ -10,5 +10,5 @@ redis:
 
 # Application settings
 application:
-  accounts_file: "/accounts.yaml" # Path to account configuration file
+  accounts_file: "/app/config/accounts.yaml" # Path to account configuration file
 
