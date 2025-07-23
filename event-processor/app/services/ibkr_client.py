@@ -280,7 +280,7 @@ class IBKRClient:
         contracts_map = {c.symbol: c for c in qualified_contracts}
 
         # --- Phase 1: Concurrent Snapshot ---
-        app_logger.log_info("Getting market prices using snapshot requests...")
+        app_logger.log_info(f"Getting market prices using snapshot requests for {len(symbols)} symbols...")
         snapshot_tasks = [self._fetch_single_snapshot_price(c) for c in qualified_contracts]
         snapshot_results = await asyncio.gather(*snapshot_tasks)
         
@@ -292,7 +292,7 @@ class IBKRClient:
         app_logger.log_debug(f"Phase 1 (Snapshot) got {len(prices)}/{len(symbols)} prices.")
 
         # --- Phase 2: Concurrent Historical Fallback ---
-        app_logger.log_info("Getting missing prices using historical data fallback...")
+        app_logger.log_info(f"Getting missing prices using historical data fallback for {len(remaining_symbols)} symbols...")
         remaining_symbols = [s for s in symbols if s not in prices]
         if remaining_symbols:
             app_logger.log_info(f"Phase 2 (Historical) attempting to fetch {len(remaining_symbols)} missing prices.")
