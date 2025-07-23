@@ -1,8 +1,8 @@
 import asyncio
-import os
+import math
 import random
-from typing import List, Dict, Optional, Any
-from ib_async import IB, Stock, MarketOrder
+from typing import List, Dict, Optional, Tuple, Any
+from ib_async import IB, Stock, MarketOrder, Contract
 from app.config import config
 from app.logger import AppLogger
 
@@ -202,32 +202,115 @@ class IBKRClient:
         return prices[symbol]
     
     
+    async def _fetch_single_snapshot_price(self, contract: 'Contract') -> Optional[Tuple[str, float]]:
+        """
+        Phase 1 helper: Fetches a price for one contract using a snapshot.
+        """
+        ticker = self.ib.reqMktData(
+            contract, genericTickList="", snapshot=True, regulatorySnapshot=False
+        )
+        price = float('nan')
+        
+        try:
+            # Wait for ticker data with polling approach instead of waitUntil to avoid tzinfo bug
+            for _ in range(10):  # Try for up to 1 second (10 * 0.1s)
+                await asyncio.sleep(0.1)
+                if not math.isnan(ticker.marketPrice()) or not math.isnan(ticker.last) or not math.isnan(ticker.close):
+                    break
+            
+            market_p = ticker.marketPrice()
+            if not math.isnan(market_p) and market_p > 0:
+                price = market_p
+            elif ticker.last and not math.isnan(ticker.last) and ticker.last > 0:
+                price = ticker.last
+            elif ticker.close and not math.isnan(ticker.close) and ticker.close > 0:
+                price = ticker.close
+
+            return (contract.symbol, price) if not math.isnan(price) else None
+        except asyncio.TimeoutError:
+            # This is an expected failure for some symbols, will be caught by Phase 2
+            return None
+        finally:
+            self.ib.cancelMktData(contract)
+
+    async def _fetch_single_historical_price(self, contract: 'Contract') -> Optional[Tuple[str, float]]:
+        """
+        Phase 2 helper: Fetches the last closing price for one contract from historical data.
+        """
+        try:
+            # Request the last 1 day of data to get the most recent close
+            bars = await self.ib.reqHistoricalDataAsync(
+                contract,
+                endDateTime="",
+                durationStr="2 D",  # Request 2 days to ensure we get at least one bar
+                barSizeSetting="1 day",
+                whatToShow="TRADES",
+                useRTH=True,
+                formatDate=1
+            )
+            if bars:
+                # Return the close of the most recent bar
+                return (contract.symbol, bars[-1].close)
+            return None
+        except Exception as e:
+            app_logger.log_warning(f"Historical data fetch failed for {contract.symbol}: {e}")
+            return None
+
     async def get_multiple_market_prices(self, symbols: List[str], event=None) -> Dict[str, float]:
-        """Get market prices using a robust, qualified approach."""
+        """
+        Gets market prices using a robust, two-phase concurrent strategy.
+        Phase 1: Fast snapshot request for all symbols.
+        Phase 2: Slower historical data request for any symbols that failed Phase 1.
+        """
         if not await self.ensure_connected():
             raise Exception("Unable to establish IBKR connection")
         
         if not symbols:
             return {}
         
-        # 1. Create unqualified contract objects
+        # Qualify all contracts first
         contracts = [Stock(s, 'SMART', 'USD') for s in symbols]
-        
-        # 2. Qualify them to get the unique conId for each
         try:
             qualified_contracts = await self.ib.qualifyContractsAsync(*contracts)
         except Exception as e:
             app_logger.log_error(f"Failed to qualify contracts for symbols {symbols}: {e}", event)
             raise RuntimeError(f"Could not qualify contracts for: {symbols}. Cannot proceed.")
 
-        # 3. Request tickers using the now-qualified contracts
-        tickers = await self.ib.reqTickersAsync(*qualified_contracts)
+        prices: Dict[str, float] = {}
+        contracts_map = {c.symbol: c for c in qualified_contracts}
+
+        # --- Phase 1: Concurrent Snapshot ---
+        app_logger.log_info("Getting market prices using snapshot requests...")
+        snapshot_tasks = [self._fetch_single_snapshot_price(c) for c in qualified_contracts]
+        snapshot_results = await asyncio.gather(*snapshot_tasks)
         
-        prices = {t.contract.symbol: t.marketPrice() for t in tickers if t.marketPrice() > 0}
+        for result in snapshot_results:
+            if result:
+                symbol, price = result
+                prices[symbol] = price
         
-        missing_symbols = [s for s in symbols if s not in prices]
-        if missing_symbols:
-            raise RuntimeError(f"Could not fetch market price for: {missing_symbols}. Cannot proceed.")
+        app_logger.log_debug(f"Phase 1 (Snapshot) got {len(prices)}/{len(symbols)} prices.")
+
+        # --- Phase 2: Concurrent Historical Fallback ---
+        app_logger.log_info("Getting missing prices using historical data fallback...")
+        remaining_symbols = [s for s in symbols if s not in prices]
+        if remaining_symbols:
+            app_logger.log_info(f"Phase 2 (Historical) attempting to fetch {len(remaining_symbols)} missing prices.")
+            remaining_contracts = [contracts_map[s] for s in remaining_symbols]
+            
+            historical_tasks = [self._fetch_single_historical_price(c) for c in remaining_contracts]
+            historical_results = await asyncio.gather(*historical_tasks)
+
+            for result in historical_results:
+                if result:
+                    symbol, price = result
+                    prices[symbol] = price
+
+        # --- Final Check ---
+        final_missing = [s for s in symbols if s not in prices]
+        if final_missing:
+            # This is now a much more serious failure
+            raise RuntimeError(f"Could not fetch price for: {final_missing} after all fallbacks.")
         
         return prices
     
