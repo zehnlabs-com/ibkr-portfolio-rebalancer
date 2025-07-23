@@ -106,17 +106,18 @@ After your containers are running, you can manually trigger rebalancing for one 
 
 > ⚠️ **Important**: It is best to trigger manual rebalancing during market hours (RTH). When the market is closed, certain equity prices reported by the brokerage may not be accurate, causing generated orders to be miscalculated.
 
-**🎯 Process specific account:**
+**🎯 Specific account:**
 ```bash
 ./tools/rebalance.sh -account U123456
 ```
 
-**📋 Process all accounts:**
+**📋 All accounts:**
 ```bash
 ./tools/rebalance.sh -all
 ```
 
 This tool reads your `accounts.yaml` configuration and attempts manual rebalance.
+
 ---
 
 **🎉 You're Ready!** Your IBKR Portfolio Rebalancer is now set up. **Remember to read the [Operations Guide](operations.md) for critical operational procedures before relying on it for live trading.**
