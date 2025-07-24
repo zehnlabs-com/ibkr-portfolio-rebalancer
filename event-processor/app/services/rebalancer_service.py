@@ -67,8 +67,11 @@ class RebalancerService:
                     event
                 )
                 
+                # Cancel all pending orders before executing any trades
+                cancelled_orders = await self._cancel_pending_orders(account_config.account_id, event)
+                
                 # Execute sell orders first and wait for completion
-                cancelled_orders = await self._execute_sell_orders(account_config.account_id, result.orders, dry_run=False, event=event)
+                await self._execute_sell_orders(account_config.account_id, result.orders, dry_run=False, event=event)
                 
                 # Execute buy orders (no cash validation - trust pandas calculations)
                 await self._execute_buy_orders(account_config.account_id, result.orders, dry_run=False, event=event)
@@ -198,12 +201,11 @@ class RebalancerService:
 
     async def _execute_sell_orders(self, account_id: str, orders: List[RebalanceOrder], dry_run: bool = False, event=None):
         """Execute sell orders using simple algorithm approach - concurrent placement, sequential waiting"""
-        cancelled_orders = []
         sell_orders = [order for order in orders if order.action == 'SELL']
         
         if not sell_orders:
             app_logger.log_info("No sell orders to execute", event)
-            return cancelled_orders
+            return
         
         mode_text = "DRY RUN" if dry_run else "LIVE"
         app_logger.log_info(f"{mode_text} - Executing {len(sell_orders)} sell orders for account {account_id}", event)
@@ -211,10 +213,7 @@ class RebalancerService:
         if dry_run:
             for order in sell_orders:
                 app_logger.log_info(f"DRY RUN - Would execute: {order}", event)
-            return cancelled_orders
-        
-        # Cancel pending orders before executing live orders
-        cancelled_orders = await self._cancel_pending_orders(account_id, event)
+            return
         
         # Place ALL sell orders concurrently (like simple algorithm)
         sell_tasks = []
@@ -240,7 +239,6 @@ class RebalancerService:
             app_logger.log_info(f"SELL Filled: {trade.order.orderId} - {trade.contract.symbol} {trade.order.totalQuantity}", event)
         
         app_logger.log_info("All SELL orders executed", event)
-        return cancelled_orders
     
     async def _execute_buy_orders(self, account_id: str, orders: List[RebalanceOrder], dry_run: bool = False, event=None):
         """Execute buy orders using simple algorithm approach - concurrent placement, sequential waiting"""
