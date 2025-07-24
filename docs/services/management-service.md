@@ -110,13 +110,11 @@ The health endpoint provides system status for monitoring tools:
 ### Response Format
 ```json
 {
-  "healthy": true,
   "status": "healthy",
-  "details": {
-    "active_events": 0,
-    "retry_events": 0,
-    "events_with_retries": 0
-  }
+  "healthy": true,
+  "events_with_retries": 0,
+  "retry_events": 0,
+  "message": "System is healthy"
 }
 ```
 

@@ -41,7 +41,7 @@ docker compose restart
 
 ### Downstream
 - **Redis Queue**: Publishes events to `rebalance_queue` for processing
-- **Active Events Set**: Maintains `active_events` set for deduplication
+- **Active Events Set**: Maintains `active_events_set` set for deduplication
 
 ## Troubleshooting
 
