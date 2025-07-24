@@ -48,7 +48,7 @@ The Event Processor is the core execution engine that processes queued rebalanci
 - **Infinite Retries**: Events retry until successful or removed manually
 
 ### Queue Management
-- Failed events move to delayed queue
+- Failed events move to retry queue
 - FIFO processing maintains order fairness
 - All events eventually process (unless manually removed)
 
@@ -56,7 +56,7 @@ The Event Processor is the core execution engine that processes queued rebalanci
 
 ### Upstream
 - **Redis Queue**: Dequeues events from `rebalance_queue`
-- **Delayed Queue**: Processes retry events from `rebalance_delayed_set`
+- **Retry Queue**: Processes retry events from `rebalance_retry_set`
 
 ### Downstream  
 - **IBKR Gateway**: Executes trades via Interactive Brokers API
@@ -96,8 +96,8 @@ docker-compose logs -f event-processor
 # Monitor queue processing
 curl http://localhost:8000/queue/status
 
-# Check delayed/retry events
-curl http://localhost:8000/queue/events?type=delayed
+# Check retry events
+curl http://localhost:8000/queue/events?type=retry
 ```
 
 ## Docker Configuration

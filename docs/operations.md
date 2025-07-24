@@ -97,7 +97,7 @@ curl http://localhost:8000/queue/events?limit=10
 
 ### If You're Logged Into IBKR During Market Close
 1. **Log out immediately** from IBKR Client Portal/TWS
-2. **Check delayed events**: `curl http://localhost:8000/queue/events?type=delayed`
+2. **Check retry events**: `curl http://localhost:8000/queue/events?type=retry`
 3. **Monitor logs**: `docker-compose logs -f event-processor`
 4. **Events will automatically retry** - no manual intervention needed
 

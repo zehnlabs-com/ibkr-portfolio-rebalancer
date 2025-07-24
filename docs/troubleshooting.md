@@ -58,7 +58,7 @@ curl http://localhost:8000/queue/status
 
 **Events stuck in queue:**
 - **COMMON CAUSE**: Check if you're logged into IBKR manually - events fail during login conflicts
-- List problem events: `curl http://localhost:8000/queue/events?type=delayed`
+- List problem events: `curl http://localhost:8000/queue/events?type=retry`
 - Review retry counts and error messages
 - Check for IBKR connectivity issues
 - **Near Market Close**: Avoid manual IBKR logins during last hour of trading when rebalance events generally occur
@@ -84,8 +84,8 @@ curl http://localhost:8000/queue/status
 # List recent events
 curl http://localhost:8000/queue/events?limit=20
 
-# Show only delayed/retry events
-curl http://localhost:8000/queue/events?type=delayed
+# Show only retry events
+curl http://localhost:8000/queue/events?type=retry
 ```
 
 ### Manual Queue Operations

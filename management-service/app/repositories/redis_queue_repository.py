@@ -88,7 +88,7 @@ class RedisQueueRepository(IQueueRepository):
             raise
     
     async def remove_event(self, event_id: str) -> bool:
-        """Remove specific event from queue by event ID (searches both active and delayed queues)"""
+        """Remove specific event from queue by event ID (searches both active and retry queues)"""
         if not self.redis:
             raise RuntimeError("Redis connection not established")
             
@@ -115,17 +115,17 @@ class RedisQueueRepository(IQueueRepository):
                 except json.JSONDecodeError:
                     continue
             
-            # If not found in active queue, try delayed queue
-            delayed_events = await self.redis.zrange("rebalance_delayed_set", 0, -1)
+            # If not found in active queue, try retry queue
+            retry_events = await self.redis.zrange("rebalance_retry_set", 0, -1)
             
-            for event_json in delayed_events:
+            for event_json in retry_events:
                 try:
                     event_data = json.loads(event_json)
                     if event_data.get("event_id") == event_id:
-                        # Remove from delayed queue
-                        await self.redis.zrem("rebalance_delayed_set", event_json)
+                        # Remove from retry queue
+                        await self.redis.zrem("rebalance_retry_set", event_json)
                         
-                        logger.info(f"Removed event {event_id} from delayed queue")
+                        logger.info(f"Removed event {event_id} from retry queue")
                         return True
                 except json.JSONDecodeError:
                     continue
@@ -242,25 +242,25 @@ class RedisQueueRepository(IQueueRepository):
             logger.warning(f"Failed to get oldest event age: {e}")
             return None
     
-    async def get_delayed_events_count(self) -> int:
-        """Get count of delayed events"""
+    async def get_retry_events_count(self) -> int:
+        """Get count of retry events"""
         if not self.redis:
             raise RuntimeError("Redis connection not established")
             
         try:
-            return await self.redis.zcard("rebalance_delayed_set")
+            return await self.redis.zcard("rebalance_retry_set")
         except Exception as e:
-            logger.warning(f"Failed to get delayed events count: {e}")
+            logger.warning(f"Failed to get retry events count: {e}")
             return 0
     
-    async def get_delayed_events(self, limit: int = 100) -> List[Dict[str, Any]]:
-        """Get events from delayed queue"""
+    async def get_retry_events(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get events from retry queue"""
         if not self.redis:
             raise RuntimeError("Redis connection not established")
             
         try:
-            # Get events from delayed set (sorted by timestamp)
-            raw_events = await self.redis.zrange("rebalance_delayed_set", 0, limit - 1)
+            # Get events from retry set (sorted by timestamp)
+            raw_events = await self.redis.zrange("rebalance_retry_set", 0, limit - 1)
             
             events = []
             for event_json in raw_events:
@@ -274,8 +274,8 @@ class RedisQueueRepository(IQueueRepository):
                     times_queued = event_data.get("times_queued", 1)
                     created_at = event_data.get("created_at", "unknown")
                     
-                    # Get the score (timestamp when added to delayed queue)
-                    score = await self.redis.zscore("rebalance_delayed_set", event_json)
+                    # Get the score (timestamp when added to retry queue)
+                    score = await self.redis.zscore("rebalance_retry_set", event_json)
                     retry_after = None
                     if score:
                         # Add retry delay to the score to get when it will be retried
@@ -291,10 +291,10 @@ class RedisQueueRepository(IQueueRepository):
                         "data": event_data.get("data", {})
                     })
                 except json.JSONDecodeError as e:
-                    logger.warning(f"Failed to parse delayed event JSON: {e}")
+                    logger.warning(f"Failed to parse retry event JSON: {e}")
                     continue
             
             return events
         except Exception as e:
-            logger.error(f"Failed to get delayed events: {e}")
+            logger.error(f"Failed to get retry events: {e}")
             raise

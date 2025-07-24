@@ -41,7 +41,7 @@ class ProcessingConfig:
     startup_delay: int           # Seconds between startup retry attempts
     startup_initial_delay: int   # Initial delay at startup to allow services to stabilize
     retry_delay_seconds: int     # Seconds to wait before retrying failed events
-    retry_check_interval: int    # Seconds between checks for ready-to-retry delayed events
+    retry_check_interval: int    # Seconds between checks for ready-to-retry events
 
 @dataclass
 class AllocationConfig:

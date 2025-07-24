@@ -30,7 +30,7 @@ processing:
   startup_delay: 10           # Seconds between startup retry attempts
   startup_initial_delay: 30   # Initial delay at startup to allow other services to stabilize
   retry_delay_seconds: 60     # Seconds to wait before retrying failed events (prevents infinite loops)
-  retry_check_interval: 60    # Seconds between checks for ready-to-retry delayed events
+  retry_check_interval: 60    # Seconds between checks for ready-to-retry retry events
 
 # Strategy allocation API configuration
 allocation:

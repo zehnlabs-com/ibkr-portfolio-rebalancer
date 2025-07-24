@@ -19,7 +19,7 @@ class EventProcessor:
     def __init__(self, service_container: ServiceContainer):
         self.service_container = service_container
         self.running = False
-        self.delayed_processor_task = None
+        self.retry_processor_task = None
     
     async def start_processing(self):
         """Start the event processing loop"""
@@ -29,8 +29,8 @@ class EventProcessor:
             self.running = True
             app_logger.log_info("Event processing loop started successfully")
             
-            # Start delayed event processor task
-            self.delayed_processor_task = asyncio.create_task(self._delayed_event_processor())
+            # Start retry event processor task
+            self.retry_processor_task = asyncio.create_task(self._retry_event_processor())
             
             # Start main processing loop
             await self._main_loop()
@@ -47,11 +47,11 @@ class EventProcessor:
         app_logger.log_info("Stopping event processing loop...")
         self.running = False
         
-        # Cancel delayed processor task
-        if self.delayed_processor_task and not self.delayed_processor_task.done():
-            self.delayed_processor_task.cancel()
+        # Cancel retry processor task
+        if self.retry_processor_task and not self.retry_processor_task.done():
+            self.retry_processor_task.cancel()
             try:
-                await self.delayed_processor_task
+                await self.retry_processor_task
             except asyncio.CancelledError:
                 pass
         
@@ -125,7 +125,7 @@ class EventProcessor:
             
             # Requeue event automatically (goes to back of queue)
             queue_service = self.service_container.get_queue_service()
-            updated_event_info = await queue_service.requeue_event_delayed(event_info)
+            updated_event_info = await queue_service.requeue_event_retry(event_info)
             
             app_logger.log_info(f"Event requeued after failure: {error_message}", updated_event_info)
             
@@ -147,22 +147,22 @@ class EventProcessor:
         except Exception as e:
             app_logger.log_error(f"Failed to handle permanent failure for event {event_info.event_id}: {e}", event_info)
     
-    async def _delayed_event_processor(self):
-        """Background task to process delayed events periodically"""
-        app_logger.log_info("Starting delayed event processor")
+    async def _retry_event_processor(self):
+        """Background task to process retry events periodically"""
+        app_logger.log_info("Starting retry event processor")
         queue_service = self.service_container.get_queue_service()
         
         while self.running:
             try:
                 await asyncio.sleep(config.processing.retry_check_interval)
                 if self.running:  # Check again after sleep
-                    await queue_service.process_delayed_events()
+                    await queue_service.process_retry_events()
             except asyncio.CancelledError:
-                app_logger.log_info("Delayed event processor cancelled")
+                app_logger.log_info("Retry event processor cancelled")
                 break
             except Exception as e:
-                app_logger.log_error(f"Error in delayed event processor: {e}")
+                app_logger.log_error(f"Error in retry event processor: {e}")
                 # Continue running even if there's an error
                 await asyncio.sleep(10)
         
-        app_logger.log_info("Delayed event processor stopped")
+        app_logger.log_info("Retry event processor stopped")

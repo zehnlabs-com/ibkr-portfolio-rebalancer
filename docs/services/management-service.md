@@ -6,7 +6,7 @@ The Management Service provides a RESTful API for monitoring, and controlling th
 
 ## Key Responsibilities
 
-- **Queue Monitoring**: Real-time status of active and delayed events
+- **Queue Monitoring**: Real-time status of active and retry events
 - **Health Checking**: System health assessment for monitoring integrations
 - **Manual Management**: Add, remove, and inspect individual events
 - **Metrics Collection**: Queue statistics and processing metrics
@@ -66,8 +66,8 @@ curl http://localhost:8000/queue/events?limit=50
 # List only active events
 curl "http://localhost:8000/queue/events?type=active&limit=10"
 
-# List only delayed/retry events
-curl "http://localhost:8000/queue/events?type=delayed&limit=10"
+# List only retry events
+curl "http://localhost:8000/queue/events?type=retry&limit=10"
 ```
 
 ### Manual Event Management
@@ -103,8 +103,8 @@ curl -H "Content-Type: application/json" \
 The health endpoint provides system status for monitoring tools:
 
 ### Health States
-- **Healthy**: No events with retries (`times_queued > 1`) and no delayed events
-- **Unhealthy**: One or more events are being retried or delayed
+- **Healthy**: No events with retries (`times_queued > 1`) and no retry events
+- **Unhealthy**: One or more events are being retried or in retry queue
 - **Error**: Service cannot access queue or Redis is down
 
 ### Response Format
@@ -114,7 +114,7 @@ The health endpoint provides system status for monitoring tools:
   "status": "healthy",
   "details": {
     "active_events": 0,
-    "delayed_events": 0,
+    "retry_events": 0,
     "events_with_retries": 0
   }
 }
@@ -124,7 +124,7 @@ The health endpoint provides system status for monitoring tools:
 
 The `/queue/status` endpoint provides detailed metrics:
 - Active event count
-- Delayed event count  
+- Retry event count  
 - Events with retry attempts
 - Processing rate statistics
 - Redis connection status
@@ -132,7 +132,7 @@ The `/queue/status` endpoint provides detailed metrics:
 ## Integration Points
 
 ### Upstream
-- **Redis Queue**: Monitors all queue types (active, delayed)
+- **Redis Queue**: Monitors all queue types (active, retry)
 - **Event Tracking**: Accesses event retry counts and status
 
 ### Downstream

@@ -59,13 +59,13 @@ class IQueueRepository(ABC):
         pass
     
     @abstractmethod
-    async def get_delayed_events_count(self) -> int:
-        """Get count of delayed events"""
+    async def get_retry_events_count(self) -> int:
+        """Get count of retry events"""
         pass
     
     @abstractmethod
-    async def get_delayed_events(self, limit: int = 100) -> List[Dict[str, Any]]:
-        """Get events from delayed queue"""
+    async def get_retry_events(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get events from retry queue"""
         pass
 
 

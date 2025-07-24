@@ -11,7 +11,7 @@ Redis serves as the central message queue and caching layer for the entire syste
 
 ### Key Responsibilities
 - **Event Queue**: Stores pending rebalancing events (`rebalance_queue`)
-- **Delayed Queue**: Manages failed events awaiting retry (`rebalance_delayed_set`)
+- **Retry Queue**: Manages failed events awaiting retry (`rebalance_retry_set`)
 - **Active Events**: Tracks events currently being processed (`active_events`)
 - **Deduplication**: Prevents duplicate events using account+command keys
 - **Persistence**: Maintains data across service restarts
@@ -31,7 +31,7 @@ Redis serves as the central message queue and caching layer for the entire syste
 - FIFO queue of pending events
 - Event Processor uses `BRPOP` for blocking dequeue
 
-**Delayed Queue**: `rebalance_delayed_set` (Sorted Set)  
+**Retry Queue**: `rebalance_retry_set` (Sorted Set)  
 - Failed events with retry timestamps
 - Sorted by scheduled retry time
 
@@ -51,7 +51,7 @@ docker-compose exec redis redis-cli ping
 
 # Monitor queue sizes
 docker-compose exec redis redis-cli LLEN rebalance_queue
-docker-compose exec redis redis-cli ZCARD rebalance_delayed_set
+docker-compose exec redis redis-cli ZCARD rebalance_retry_set
 docker-compose exec redis redis-cli SCARD active_events
 
 # View queue contents (debugging)

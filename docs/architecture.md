@@ -59,12 +59,12 @@ Zehnlabs Events ──▶ Event Broker ──▶ Redis Queue ──▶ Event Pro
 
 ### Queue Architecture
 - **Active Queue**: Events ready for immediate processing
-- **Delayed Queue**: Failed events waiting for retry
+- **Retry Queue**: Failed events waiting for retry
 - **Deduplication**: Prevents duplicate processing using account+command keys
 - **Retry Tracking**: Each event maintains count of processing attempts
 
 ### Error Recovery
-When processing fails, events are automatically moved to a delayed queue and retried later. This ensures:
+When processing fails, events are automatically moved to a retry queue and retried later. This ensures:
 - No events are lost
 - Failed events don't block other processing
 - System continues operating even during IBKR connectivity issues
@@ -80,7 +80,7 @@ When processing fails, events are automatically moved to a delayed queue and ret
 The system provides comprehensive monitoring through:
 
 - **Health Endpoints**: Real-time system health via Management API
-- **Queue Metrics**: Active and delayed event counts with processing statistics
+- **Queue Metrics**: Active and retry event counts with processing statistics
 - **Service Logs**: Structured JSON logging across all services with configurable levels
 - **VNC Access**: Direct GUI access to IBKR Gateway for troubleshooting
 

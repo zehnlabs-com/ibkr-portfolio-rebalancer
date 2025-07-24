@@ -178,9 +178,9 @@ class QueueService:
             app_logger.log_error(f"Failed to get queued accounts: {e}")
             return set()
     
-    async def requeue_event_delayed(self, event_info: EventInfo) -> EventInfo:
+    async def requeue_event_retry(self, event_info: EventInfo) -> EventInfo:
         """
-        Put event in delayed queue for retry after configured delay
+        Put event in retry queue for retry after configured delay
         Increments times_queued counter and removes from active events
         """
         try:
@@ -205,26 +205,26 @@ class QueueService:
                 'created_at': event_info.created_at.isoformat() if event_info.created_at else None
             }
             
-            # Add to delayed queue with current timestamp as score
+            # Add to retry queue with current timestamp as score
             # Remove from active events set (no longer active until retry)
             current_time = int(time.time())
             pipe = redis.pipeline()
-            pipe.zadd("rebalance_delayed_set", {json.dumps(event_data): current_time})
+            pipe.zadd("rebalance_retry_set", {json.dumps(event_data): current_time})
             pipe.srem("active_events_set", deduplication_key)
             await pipe.execute()
             
-            app_logger.log_info(f"Event added to delayed queue for retry", event_info)
+            app_logger.log_info(f"Event added to retry queue for retry", event_info)
             
             return event_info
             
         except Exception as e:
-            app_logger.log_error(f"Failed to add event to delayed queue: {e}")
+            app_logger.log_error(f"Failed to add event to retry queue: {e}")
             raise
     
-    async def process_delayed_events(self):
+    async def process_retry_events(self):
         """
-        Process delayed events that are ready for retry
-        Move ready events from delayed queue to main queue
+        Process retry events that are ready for retry
+        Move ready events from retry queue to main queue
         """
         try:
             redis = await self._get_redis()
@@ -233,16 +233,16 @@ class QueueService:
             
             # Find events ready for retry (added before cutoff time)
             ready_events = await redis.zrangebyscore(
-                "rebalance_delayed_set", 
+                "rebalance_retry_set", 
                 0, 
                 cutoff_time
             )
             
             if not ready_events:
-                app_logger.log_debug("No delayed events ready for retry")
+                app_logger.log_debug("No retry events ready for retry")
                 return
             
-            app_logger.log_info(f"Found {len(ready_events)} delayed events ready for retry")
+            app_logger.log_info(f"Found {len(ready_events)} retry events ready for retry")
             
             # Move ready events to main queue and back to active set
             pipe = redis.pipeline()
@@ -256,25 +256,25 @@ class QueueService:
                 pipe.lpush("rebalance_queue", event_json)
                 pipe.sadd("active_events_set", deduplication_key)
                 
-                # Remove from delayed queue
-                pipe.zrem("rebalance_delayed_set", event_json)
+                # Remove from retry queue
+                pipe.zrem("rebalance_retry_set", event_json)
                 
-                app_logger.log_debug(f"Moving delayed event to main queue")
+                app_logger.log_debug(f"Moving retry event to main queue")
             
             await pipe.execute()
             
-            app_logger.log_info(f"Moved {len(ready_events)} delayed events to main queue for retry")
+            app_logger.log_info(f"Moved {len(ready_events)} retry events to main queue for retry")
             
         except Exception as e:
-            app_logger.log_error(f"Failed to process delayed events: {e}")
+            app_logger.log_error(f"Failed to process retry events: {e}")
     
-    async def get_delayed_events_count(self) -> int:
-        """Get count of events in delayed queue"""
+    async def get_retry_events_count(self) -> int:
+        """Get count of events in retry queue"""
         try:
             redis = await self._get_redis()
-            return await redis.zcard("rebalance_delayed_set")
+            return await redis.zcard("rebalance_retry_set")
         except Exception as e:
-            app_logger.log_error(f"Failed to get delayed events count: {e}")
+            app_logger.log_error(f"Failed to get retry events count: {e}")
             return 0
     
     async def is_connected(self) -> bool:

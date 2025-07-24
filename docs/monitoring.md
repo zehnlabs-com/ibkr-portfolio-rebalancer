@@ -66,8 +66,8 @@ The health endpoint returns JSON in this format:
 }
 ```
 
-**Healthy**: No events with retries or in delayed queue  
-**Unhealthy**: Events are being retried or delayed
+**Healthy**: No events with retries or in retry queue  
+**Unhealthy**: Events are being retried or in retry queue
 
 ## Security Considerations
 

@@ -18,19 +18,19 @@ class HealthService(IHealthService):
         self.queue_repository = queue_repository
     
     async def check_health(self) -> Dict[str, Any]:
-        """Check system health based on events with times_queued > 1 and delayed events"""
+        """Check system health based on events with times_queued > 1 and retry events"""
         try:
             events_with_retries = await self.health_repository.count_events_with_retries()
-            delayed_events_count = await self.queue_repository.get_delayed_events_count()
+            retry_events_count = await self.queue_repository.get_retry_events_count()
             
-            total_failing_events = events_with_retries + delayed_events_count
+            total_failing_events = events_with_retries + retry_events_count
             
             if total_failing_events == 0:
                 return {
                     "status": "healthy",
                     "healthy": True,
                     "events_with_retries": 0,
-                    "delayed_events": 0,
+                    "retry_events": 0,
                     "message": "No events require retry"
                 }
             else:
@@ -38,8 +38,8 @@ class HealthService(IHealthService):
                     "status": "unhealthy",
                     "healthy": False,
                     "events_with_retries": events_with_retries,
-                    "delayed_events": delayed_events_count,
-                    "message": f"{total_failing_events} events have failed ({events_with_retries} in queue with retries, {delayed_events_count} delayed)"
+                    "retry_events": retry_events_count,
+                    "message": f"{total_failing_events} events have failed ({events_with_retries} in queue with retries, {retry_events_count} in retry queue)"
                 }
         except Exception as e:
             logger.error(f"Health check failed: {e}")
@@ -47,7 +47,7 @@ class HealthService(IHealthService):
                 "status": "error",
                 "healthy": False,
                 "events_with_retries": 0,
-                "delayed_events": 0,
+                "retry_events": 0,
                 "message": f"Health check failed: {str(e)}"
             }
     
@@ -57,7 +57,7 @@ class HealthService(IHealthService):
             # Get queue metrics
             queue_length = await self.queue_repository.get_queue_length()
             active_events_count = await self.queue_repository.get_active_events_count()
-            delayed_events_count = await self.queue_repository.get_delayed_events_count()
+            retry_events_count = await self.queue_repository.get_retry_events_count()
             
             # Get events and analyze them
             events = await self.queue_repository.get_queue_events(limit=1000)  # Get more for analysis
@@ -77,7 +77,7 @@ class HealthService(IHealthService):
                 # Count retry distribution
                 retry_distribution[str(times_queued)] = retry_distribution.get(str(times_queued), 0) + 1
             
-            total_failing_events = events_with_retries + delayed_events_count
+            total_failing_events = events_with_retries + retry_events_count
             healthy = total_failing_events == 0
             
             return {
@@ -85,12 +85,12 @@ class HealthService(IHealthService):
                 "healthy": healthy,
                 "queue_length": queue_length,
                 "active_events_count": active_events_count,
-                "delayed_events_count": delayed_events_count,
+                "retry_events_count": retry_events_count,
                 "total_events": total_events,
                 "events_with_retries": events_with_retries,
                 "max_retry_count": max_retries,
                 "retry_distribution": retry_distribution,
-                "message": f"System {'healthy' if healthy else 'has issues'}: {events_with_retries} active events with retries, {delayed_events_count} delayed events"
+                "message": f"System {'healthy' if healthy else 'has issues'}: {events_with_retries} active events with retries, {retry_events_count} retry events"
             }
         except Exception as e:
             logger.error(f"Detailed health check failed: {e}")

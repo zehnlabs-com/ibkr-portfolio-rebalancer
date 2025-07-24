@@ -9,7 +9,7 @@ class QueueStatus(BaseModel):
     """Queue status response model"""
     queue_length: int
     active_events_count: int
-    delayed_events_count: int
+    retry_events_count: int
     oldest_event_age_seconds: Optional[int] = None
     events_with_retries: int
 
@@ -21,8 +21,8 @@ class QueueEvent(BaseModel):
     exec_command: str
     times_queued: int
     created_at: str
-    type: str  # "active" or "delayed"
-    retry_after: Optional[str] = None  # Only present for delayed events
+    type: str  # "active" or "retry"
+    retry_after: Optional[str] = None  # Only present for retry events
     data: Dict[str, Any]
 
 
