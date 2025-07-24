@@ -130,6 +130,21 @@ class RedisQueueRepository(IQueueRepository):
                 except json.JSONDecodeError:
                     continue
             
+            # If not found in retry queue, try delayed execution queue
+            delayed_events = await self.redis.zrange("delayed_execution_set", 0, -1)
+            
+            for event_json in delayed_events:
+                try:
+                    event_data = json.loads(event_json)
+                    if event_data.get("event_id") == event_id:
+                        # Remove from delayed execution queue
+                        await self.redis.zrem("delayed_execution_set", event_json)
+                        
+                        logger.info(f"Removed event {event_id} from delayed execution queue")
+                        return True
+                except json.JSONDecodeError:
+                    continue
+            
             return False
         except Exception as e:
             logger.error(f"Failed to remove event {event_id}: {e}")
@@ -297,4 +312,62 @@ class RedisQueueRepository(IQueueRepository):
             return events
         except Exception as e:
             logger.error(f"Failed to get retry events: {e}")
+            raise
+    
+    async def get_delayed_events_count(self) -> int:
+        """Get count of delayed events"""
+        if not self.redis:
+            raise RuntimeError("Redis connection not established")
+            
+        try:
+            return await self.redis.zcard("delayed_execution_set")
+        except Exception as e:
+            logger.warning(f"Failed to get delayed events count: {e}")
+            return 0
+    
+    async def get_delayed_events(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get events from delayed execution queue"""
+        if not self.redis:
+            raise RuntimeError("Redis connection not established")
+            
+        try:
+            # Get events from delayed set (sorted by execution timestamp)
+            events_with_scores = await self.redis.zrange(
+                "delayed_execution_set", 
+                0, 
+                limit - 1, 
+                withscores=True
+            )
+            
+            events = []
+            for event_json, score in events_with_scores:
+                try:
+                    event_data = json.loads(event_json)
+                    
+                    # Extract information
+                    event_id = event_data.get("event_id", "unknown")
+                    account_id = event_data.get("account_id", "unknown")
+                    exec_command = event_data.get("exec", "unknown")
+                    times_queued = event_data.get("times_queued", 1)
+                    created_at = event_data.get("created_at", "unknown")
+                    
+                    # Convert score (execution timestamp) to readable time
+                    execution_time = datetime.fromtimestamp(score).isoformat()
+                    
+                    events.append({
+                        "event_id": event_id,
+                        "account_id": account_id,
+                        "exec_command": exec_command,
+                        "times_queued": times_queued,
+                        "created_at": created_at,
+                        "execution_time": execution_time,
+                        "data": event_data.get("data", {})
+                    })
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Failed to parse delayed event JSON: {e}")
+                    continue
+            
+            return events
+        except Exception as e:
+            logger.error(f"Failed to get delayed events: {e}")
             raise

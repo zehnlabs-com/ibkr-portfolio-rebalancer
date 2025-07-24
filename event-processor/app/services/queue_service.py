@@ -285,3 +285,157 @@ class QueueService:
             return True
         except Exception:
             return False
+    
+    async def add_to_delayed_queue(self, event_info: EventInfo, next_execution_time: datetime) -> EventInfo:
+        """
+        Add event to delayed execution queue with specific execution time
+        
+        Args:
+            event_info: Event to delay
+            next_execution_time: When the event should be executed
+            
+        Returns:
+            Updated EventInfo object
+        """
+        try:
+            redis = await self._get_redis()
+            account_id = event_info.account_id
+            exec_command = event_info.exec_command
+            
+            deduplication_key = f"{account_id}:{exec_command}"
+            
+            # Convert EventInfo to dictionary format for queue storage
+            event_data = {
+                **event_info.payload,
+                'event_id': event_info.event_id,
+                'account_id': event_info.account_id,
+                'exec': event_info.exec_command,
+                'status': 'delayed',
+                'received_at': event_info.received_at.isoformat() if event_info.received_at else None,
+                'times_queued': event_info.times_queued,
+                'created_at': event_info.created_at.isoformat() if event_info.created_at else None,
+                'delayed_until': next_execution_time.isoformat()
+            }
+            
+            # Add to delayed execution queue with execution timestamp as score
+            # Remove from active events set (no longer active until ready for execution)
+            execution_timestamp = int(next_execution_time.timestamp())
+            pipe = redis.pipeline()
+            pipe.zadd("delayed_execution_set", {json.dumps(event_data): execution_timestamp})
+            pipe.srem("active_events_set", deduplication_key)
+            await pipe.execute()
+            
+            app_logger.log_info(f"Event added to delayed execution queue until {next_execution_time.strftime('%Y-%m-%d %H:%M:%S')}", event_info)
+            
+            return event_info
+            
+        except Exception as e:
+            app_logger.log_error(f"Failed to add event to delayed execution queue: {e}")
+            raise
+    
+    async def get_ready_delayed_events(self) -> List[str]:
+        """
+        Get events from delayed execution queue that are ready for execution
+        
+        Returns:
+            List of event JSON strings ready for execution
+        """
+        try:
+            redis = await self._get_redis()
+            current_timestamp = int(time.time())
+            
+            # Find events ready for execution (execution time <= current time)
+            ready_events = await redis.zrangebyscore(
+                "delayed_execution_set", 
+                0, 
+                current_timestamp
+            )
+            
+            return ready_events
+            
+        except Exception as e:
+            app_logger.log_error(f"Failed to get ready delayed events: {e}")
+            return []
+    
+    async def process_delayed_events(self):
+        """
+        Process delayed events that are ready for execution
+        Move ready events from delayed queue to main queue
+        """
+        try:
+            redis = await self._get_redis()
+            ready_events = await self.get_ready_delayed_events()
+            
+            if not ready_events:
+                app_logger.log_debug("No delayed events ready for execution")
+                return
+            
+            app_logger.log_info(f"Found {len(ready_events)} delayed events ready for execution")
+            
+            # Move ready events to main queue and back to active set
+            pipe = redis.pipeline()
+            for event_json in ready_events:
+                event_data = json.loads(event_json)
+                account_id = event_data['account_id']
+                exec_command = event_data.get('exec')
+                deduplication_key = f"{account_id}:{exec_command}"
+                
+                # Reset status from 'delayed' back to original status
+                if 'delayed_until' in event_data:
+                    del event_data['delayed_until']
+                event_data['status'] = event_data.get('original_status', 'pending')
+                
+                # Add to main queue and active set
+                pipe.lpush("rebalance_queue", json.dumps(event_data))
+                pipe.sadd("active_events_set", deduplication_key)
+                
+                # Remove from delayed execution queue
+                pipe.zrem("delayed_execution_set", event_json)
+                
+                app_logger.log_debug(f"Moving delayed event to main queue for execution")
+            
+            await pipe.execute()
+            
+            app_logger.log_info(f"Moved {len(ready_events)} delayed events to main queue for execution")
+            
+        except Exception as e:
+            app_logger.log_error(f"Failed to process delayed events: {e}")
+    
+    async def get_delayed_events_count(self) -> int:
+        """Get count of events in delayed execution queue"""
+        try:
+            redis = await self._get_redis()
+            return await redis.zcard("delayed_execution_set")
+        except Exception as e:
+            app_logger.log_error(f"Failed to get delayed events count: {e}")
+            return 0
+    
+    async def get_delayed_events(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get events from delayed execution queue with details"""
+        try:
+            redis = await self._get_redis()
+            
+            # Get events with scores (execution timestamps)
+            events_with_scores = await redis.zrange(
+                "delayed_execution_set", 
+                0, 
+                limit - 1, 
+                withscores=True
+            )
+            
+            events = []
+            for event_json, score in events_with_scores:
+                try:
+                    event_data = json.loads(event_json)
+                    # Add execution timestamp info
+                    event_data['execution_timestamp'] = score
+                    event_data['execution_time'] = datetime.fromtimestamp(score).isoformat()
+                    events.append(event_data)
+                except json.JSONDecodeError:
+                    continue
+            
+            return events
+            
+        except Exception as e:
+            app_logger.log_error(f"Failed to get delayed events: {e}")
+            return []

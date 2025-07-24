@@ -67,6 +67,16 @@ class IQueueRepository(ABC):
     async def get_retry_events(self, limit: int = 100) -> List[Dict[str, Any]]:
         """Get events from retry queue"""
         pass
+    
+    @abstractmethod
+    async def get_delayed_events_count(self) -> int:
+        """Get count of delayed events"""
+        pass
+    
+    @abstractmethod
+    async def get_delayed_events(self, limit: int = 100) -> List[Dict[str, Any]]:
+        """Get events from delayed execution queue"""
+        pass
 
 
 class IHealthRepository(ABC):

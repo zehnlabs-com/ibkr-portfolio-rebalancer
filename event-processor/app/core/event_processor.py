@@ -20,6 +20,7 @@ class EventProcessor:
         self.service_container = service_container
         self.running = False
         self.retry_processor_task = None
+        self.delayed_processor_task = None
     
     async def start_processing(self):
         """Start the event processing loop"""
@@ -31,6 +32,9 @@ class EventProcessor:
             
             # Start retry event processor task
             self.retry_processor_task = asyncio.create_task(self._retry_event_processor())
+            
+            # Start delayed event processor task
+            self.delayed_processor_task = asyncio.create_task(self._delayed_event_processor())
             
             # Start main processing loop
             await self._main_loop()
@@ -52,6 +56,14 @@ class EventProcessor:
             self.retry_processor_task.cancel()
             try:
                 await self.retry_processor_task
+            except asyncio.CancelledError:
+                pass
+        
+        # Cancel delayed processor task
+        if self.delayed_processor_task and not self.delayed_processor_task.done():
+            self.delayed_processor_task.cancel()
+            try:
+                await self.delayed_processor_task
             except asyncio.CancelledError:
                 pass
         
@@ -166,3 +178,24 @@ class EventProcessor:
                 await asyncio.sleep(10)
         
         app_logger.log_info("Retry event processor stopped")
+    
+    async def _delayed_event_processor(self):
+        """Background task to process delayed events periodically"""
+        app_logger.log_info("Starting delayed event processor")
+        queue_service = self.service_container.get_queue_service()
+        
+        while self.running:
+            try:
+                # Check every minute for delayed events ready for execution
+                await asyncio.sleep(60)
+                if self.running:  # Check again after sleep
+                    await queue_service.process_delayed_events()
+            except asyncio.CancelledError:
+                app_logger.log_info("Delayed event processor cancelled")
+                break
+            except Exception as e:
+                app_logger.log_error(f"Error in delayed event processor: {e}")
+                # Continue running even if there's an error
+                await asyncio.sleep(10)
+        
+        app_logger.log_info("Delayed event processor stopped")

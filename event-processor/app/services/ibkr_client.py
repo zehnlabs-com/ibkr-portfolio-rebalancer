@@ -1,6 +1,7 @@
 import asyncio
 import math
 import random
+from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Tuple, Any
 from ib_async import IB, Stock, MarketOrder, Contract
 from app.config import config
@@ -495,5 +496,229 @@ class IBKRClient:
             # The reqCurrentTimeAsync() was causing hangs due to event loop issues
             return True
     
+    async def get_contract_details(self, symbols: List[str], event=None) -> Dict[str, Any]:
+        """
+        Get contract details for multiple symbols including trading hours information
+        
+        Returns:
+            Dict mapping symbol to contract details containing tradingHours, liquidHours, timeZone
+        """
+        if not await self.ensure_connected():
+            raise Exception("Unable to establish IBKR connection")
+        
+        if not symbols:
+            return {}
+        
+        try:
+            contracts = [Stock(symbol, 'SMART', 'USD') for symbol in symbols]
+            contract_details = {}
+            
+            for contract in contracts:
+                try:
+                    # Get contract details
+                    details_list = await self.ib.reqContractDetailsAsync(contract)
+                    
+                    if details_list:
+                        # Take the first matching contract details
+                        details = details_list[0]
+                        
+                        contract_details[contract.symbol] = {
+                            'tradingHours': details.tradingHours,
+                            'liquidHours': details.liquidHours,
+                            'timeZone': details.timeZoneId,
+                            'contractDetails': details
+                        }
+                        
+                        app_logger.log_debug(f"Got contract details for {contract.symbol}: timeZone={details.timeZoneId}", event)
+                    else:
+                        app_logger.log_warning(f"No contract details found for {contract.symbol}", event)
+                        
+                except Exception as e:
+                    app_logger.log_error(f"Failed to get contract details for {contract.symbol}: {e}", event)
+                    # Continue with other symbols
+                    
+            return contract_details
+            
+        except Exception as e:
+            app_logger.log_error(f"Failed to get contract details: {e}", event)
+            raise
+    
+    def _parse_trading_hours(self, trading_hours_str: str) -> List[Dict[str, Any]]:
+        """
+        Parse IBKR trading hours string format
+        
+        Format: 'YYYYMMDD:HHMM-YYYYMMDD:HHMM;YYYYMMDD:CLOSED;...'
+        
+        Returns:
+            List of trading sessions with start_time, end_time, is_closed
+        """
+        if not trading_hours_str:
+            return []
+        
+        sessions = []
+        for session_str in trading_hours_str.split(';'):
+            session_str = session_str.strip()
+            if not session_str:
+                continue
+                
+            if ':CLOSED' in session_str:
+                # Closed session
+                date_str = session_str.split(':')[0]
+                sessions.append({
+                    'date': date_str,
+                    'is_closed': True,
+                    'start_time': None,
+                    'end_time': None
+                })
+            elif '-' in session_str:
+                # Active trading session
+                try:
+                    start_part, end_part = session_str.split('-')
+                    start_date, start_time = start_part.split(':')
+                    end_date, end_time = end_part.split(':')
+                    
+                    sessions.append({
+                        'date': start_date,
+                        'is_closed': False,
+                        'start_time': f"{start_date}:{start_time}",
+                        'end_time': f"{end_date}:{end_time}"
+                    })
+                except ValueError as e:
+                    app_logger.log_warning(f"Failed to parse trading session: {session_str}")
+                    continue
+        
+        return sessions
+    
+    def _is_within_trading_hours(self, sessions: List[Dict[str, Any]], current_time: datetime) -> Tuple[bool, Optional[datetime]]:
+        """
+        Check if current time is within any trading session
+        
+        Args:
+            sessions: List of trading sessions from _parse_trading_hours
+            current_time: Current datetime (should be in America/New_York timezone)
+            
+        Returns:
+            Tuple of (is_within_hours, next_session_start_time)
+        """
+        current_date_str = current_time.strftime('%Y%m%d')
+        current_time_str = current_time.strftime('%H%M')
+        
+        # Check if we're currently in a trading session
+        for session in sessions:
+            if session.get('is_closed', True):
+                continue
+                
+            start_time_str = session.get('start_time', '')
+            end_time_str = session.get('end_time', '')
+            
+            if not start_time_str or not end_time_str:
+                continue
+                
+            try:
+                # Parse start and end times
+                start_date, start_time = start_time_str.split(':')
+                end_date, end_time = end_time_str.split(':')
+                
+                # Convert to datetime objects
+                start_dt = datetime.strptime(f"{start_date}:{start_time}", "%Y%m%d:%H%M")
+                end_dt = datetime.strptime(f"{end_date}:{end_time}", "%Y%m%d:%H%M")
+                
+                # Check if current time is within this session
+                if start_dt <= current_time <= end_dt:
+                    return True, None
+                    
+            except ValueError:
+                continue
+        
+        # Find next trading session start time
+        next_start = None
+        for session in sessions:
+            if session.get('is_closed', True):
+                continue
+                
+            start_time_str = session.get('start_time', '')
+            if not start_time_str:
+                continue
+                
+            try:
+                start_date, start_time = start_time_str.split(':')
+                start_dt = datetime.strptime(f"{start_date}:{start_time}", "%Y%m%d:%H%M")
+                
+                if start_dt > current_time:
+                    if next_start is None or start_dt < next_start:
+                        next_start = start_dt
+                        
+            except ValueError:
+                continue
+        
+        return False, next_start
+    
+    async def check_trading_hours(self, symbols: List[str], event=None) -> Tuple[bool, Optional[datetime], Dict[str, bool]]:
+        """
+        Check if all symbols are currently within their trading hours
+        
+        Args:
+            symbols: List of symbols to check
+            event: Event context for logging
+            
+        Returns:
+            Tuple of (all_within_hours, earliest_next_start, symbol_status_dict)
+        """
+        if not symbols:
+            return True, None, {}
+        
+        try:
+            # Get contract details for all symbols
+            contract_details = await self.get_contract_details(symbols, event)
+            
+            current_time = datetime.now()  # System is in America/New_York timezone
+            all_within_hours = True
+            earliest_next_start = None
+            symbol_status = {}
+            
+            for symbol in symbols:
+                details = contract_details.get(symbol)
+                if not details:
+                    app_logger.log_error(f"No contract details available for {symbol}", event)
+                    symbol_status[symbol] = False
+                    all_within_hours = False
+                    continue
+                
+                # Determine which hours to use based on EXTENDED_HOURS_ENABLED
+                hours_str = details['liquidHours'] if not config.order.extended_hours_enabled else details['tradingHours']
+                
+                if not hours_str:
+                    app_logger.log_warning(f"No trading hours available for {symbol}", event)
+                    symbol_status[symbol] = False
+                    all_within_hours = False
+                    continue
+                
+                # Parse trading hours
+                sessions = self._parse_trading_hours(hours_str)
+                is_within, next_start = self._is_within_trading_hours(sessions, current_time)
+                
+                symbol_status[symbol] = is_within
+                
+                if not is_within:
+                    all_within_hours = False
+                    app_logger.log_info(f"Symbol {symbol} is outside trading hours", event)
+                    
+                    if next_start and (earliest_next_start is None or next_start < earliest_next_start):
+                        earliest_next_start = next_start
+                else:
+                    app_logger.log_debug(f"Symbol {symbol} is within trading hours", event)
+            
+            hours_type = "liquid hours" if not config.order.extended_hours_enabled else "trading hours"
+            if all_within_hours:
+                app_logger.log_info(f"All symbols are within {hours_type}", event)
+            else:
+                next_str = earliest_next_start.strftime("%Y-%m-%d %H:%M:%S") if earliest_next_start else "unknown"
+                app_logger.log_info(f"Some symbols outside {hours_type}, earliest next start: {next_str}", event)
+            
+            return all_within_hours, earliest_next_start, symbol_status
+            
+        except Exception as e:
+            app_logger.log_error(f"Failed to check trading hours: {e}", event)
+            raise
     
     

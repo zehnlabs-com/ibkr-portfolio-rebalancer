@@ -8,6 +8,8 @@ The Event Processor is the core execution engine that processes queued rebalanci
 
 - **Event Processing**: Dequeues events from Redis and processes them sequentially
 - **Trade Execution**: Executes buy/sell orders through IBKR Gateway
+- **Trading Hours Validation**: Validates market hours before executing trades
+- **Delayed Execution**: Schedules events for execution during market hours
 - **Error Recovery**: Implements sophisticated retry logic with automatic requeuing
 - **Portfolio Management**: Calculates trades based on target allocations
 
@@ -39,6 +41,12 @@ The Event Processor is the core execution engine that processes queued rebalanci
 - Automatic retry for temporary failures
 - Cash reserve management for improved fill rates
 
+### Trading Hours Validation
+- **Contract Details**: Fetches trading hours for each symbol via IBKR API
+- **Hours Selection**: Uses `LiquidHours` by default, `TradingHours` when `EXTENDED_HOURS_ENABLED=true`
+- **Pre-execution Check**: Validates all symbols before getting market prices
+- **Timezone Handling**: All times processed in America/New_York timezone
+
 ## Error Handling & Retry Logic
 
 ### Retry Behavior
@@ -49,6 +57,8 @@ The Event Processor is the core execution engine that processes queued rebalanci
 
 ### Queue Management
 - Failed events move to retry queue
+- **Trading Hours Events**: Events outside trading hours move to delayed execution queue
+- **Delayed Processing**: Background processor checks every minute for ready delayed events
 - FIFO processing maintains order fairness
 - All events eventually process (unless manually removed)
 
@@ -57,6 +67,7 @@ The Event Processor is the core execution engine that processes queued rebalanci
 ### Upstream
 - **Redis Queue**: Dequeues events from `rebalance_queue`
 - **Retry Queue**: Processes retry events from `rebalance_retry_set`
+- **Delayed Queue**: Processes delayed events from `delayed_execution_set`
 
 ### Downstream  
 - **IBKR Gateway**: Executes trades via Interactive Brokers API
@@ -98,6 +109,9 @@ curl http://localhost:8000/queue/status
 
 # Check retry events
 curl http://localhost:8000/queue/events?type=retry
+
+# Check delayed events
+curl http://localhost:8000/queue/events?type=delayed
 ```
 
 ## Docker Configuration

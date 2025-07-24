@@ -2,6 +2,7 @@ import asyncio
 import pandas as pd
 from typing import List, Dict, Optional
 from collections import defaultdict
+from datetime import datetime
 from app.config import config
 from app.models.account_config import EventAccountConfig
 from app.services.ibkr_client import IBKRClient
@@ -9,6 +10,15 @@ from app.services.allocation_service import AllocationService
 from app.logger import AppLogger
 
 app_logger = AppLogger(__name__)
+
+class TradingHoursException(Exception):
+    """Exception raised when symbols are outside trading hours"""
+    
+    def __init__(self, message: str, next_start_time: Optional[datetime] = None, symbol_status: Optional[Dict[str, bool]] = None):
+        super().__init__(message)
+        self.message = message
+        self.next_start_time = next_start_time
+        self.symbol_status = symbol_status or {}
 
 class RebalanceOrder:
     def __init__(self, symbol: str, quantity: int, action: str, market_value: float):
@@ -117,8 +127,21 @@ class RebalancerService:
         # Calculate target values based on account value
         portfolio_df['target_value'] = account_value * portfolio_df['target_weight']
         
-        # Get market prices for all symbols
+        # Check trading hours for all symbols before getting prices
         all_symbols = portfolio_df['symbol'].unique().tolist()
+        
+        # Validate trading hours
+        all_within_hours, next_start_time, symbol_status = await self.ibkr_client.check_trading_hours(all_symbols, event)
+        
+        if not all_within_hours:
+            # Some symbols are outside trading hours - raise special exception
+            raise TradingHoursException(
+                message="One or more symbols are outside trading hours",
+                next_start_time=next_start_time,
+                symbol_status=symbol_status
+            )
+        
+        # Get market prices for all symbols
         market_prices = await self.ibkr_client.get_multiple_market_prices(all_symbols, event)
         
         # Validate prices

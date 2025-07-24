@@ -32,10 +32,10 @@ class QueueHandlers:
     async def get_queue_events(self, limit: int = 100, event_type: str = None) -> List[QueueEvent]:
         """Get events from queue with optional type filtering"""
         try:
-            if event_type and event_type not in ["active", "retry"]:
+            if event_type and event_type not in ["active", "retry", "delayed"]:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid event type. Must be 'active' or 'retry'"
+                    detail="Invalid event type. Must be 'active', 'retry', or 'delayed'"
                 )
             
             events = await self.queue_service.get_queue_events(limit=limit, event_type=event_type)

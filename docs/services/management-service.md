@@ -6,7 +6,7 @@ The Management Service provides a RESTful API for monitoring, and controlling th
 
 ## Key Responsibilities
 
-- **Queue Monitoring**: Real-time status of active and retry events
+- **Queue Monitoring**: Real-time status of active, retry, and delayed events
 - **Health Checking**: System health assessment for monitoring integrations
 - **Manual Management**: Add, remove, and inspect individual events
 - **Metrics Collection**: Queue statistics and processing metrics
@@ -68,6 +68,9 @@ curl "http://localhost:8000/queue/events?type=active&limit=10"
 
 # List only retry events
 curl "http://localhost:8000/queue/events?type=retry&limit=10"
+
+# List only delayed events
+curl "http://localhost:8000/queue/events?type=delayed&limit=10"
 ```
 
 ### Manual Event Management
@@ -122,15 +125,28 @@ The health endpoint provides system status for monitoring tools:
 
 The `/queue/status` endpoint provides detailed metrics:
 - Active event count
-- Retry event count  
+- Retry event count
+- **Delayed event count** (events waiting for trading hours)
 - Events with retry attempts
 - Processing rate statistics
 - Redis connection status
 
+### Sample Response
+```json
+{
+  "queue_length": 0,
+  "active_events_count": 0,
+  "retry_events_count": 0,
+  "delayed_events_count": 2,
+  "oldest_event_age_seconds": null,
+  "events_with_retries": 0
+}
+```
+
 ## Integration Points
 
 ### Upstream
-- **Redis Queue**: Monitors all queue types (active, retry)
+- **Redis Queue**: Monitors all queue types (active, retry, delayed)
 - **Event Tracking**: Accesses event retry counts and status
 
 ### Downstream
