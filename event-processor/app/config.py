@@ -19,8 +19,7 @@ class IBKRConfig:
     host: str                      # IBKR Gateway/TWS hostname
     port: int                      # IBKR API port number
     trading_mode: str              # Trading mode: 'paper' or 'live'
-    connection_retry: RetryConfig  # Connection retry configuration
-    order_retry: RetryConfig       # Order submission retry configuration
+    connection_retry: RetryConfig  # Connection retry configuration    
     order_completion_timeout: int  # Seconds to wait for sell orders to complete
 
 @dataclass
@@ -74,9 +73,8 @@ class Config:
             host=os.getenv("IB_HOST", ibkr_config["host"]),  # Use IB_HOST like old code
             port=4003 if trading_mode == "live" else 4004,  # 4003 for live, 4004 for paper
             trading_mode=trading_mode,  # From environment
-            connection_retry=self._load_retry_config(ibkr_config["connection_retry"]),
-            order_retry=self._load_retry_config(ibkr_config["order_retry"]),
-            order_completion_timeout=ibkr_config.get("order_completion_timeout", 60)
+            connection_retry=self._load_retry_config(ibkr_config["connection_retry"]),            
+            order_completion_timeout=ibkr_config.get("order_completion_timeout", 300)
         )
         
         # Redis config

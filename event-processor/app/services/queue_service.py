@@ -3,6 +3,8 @@ Redis Queue Service for Event Processor
 """
 import json
 import time
+import yaml
+import os
 import redis.asyncio as redis
 from typing import Dict, Any, Optional, List
 from datetime import datetime
@@ -25,6 +27,43 @@ class QueueService:
         if self.redis is None:
             self.redis = await redis.from_url(self._redis_url, decode_responses=True)
         return self.redis
+    
+    def _load_account_config(self, account_id: str) -> Dict[str, Any]:
+        """
+        Load account configuration from accounts.yaml
+        
+        Args:
+            account_id: The account ID to look up
+            
+        Returns:
+            Dict containing account configuration or empty dict if not found
+        """
+        try:
+            accounts_path = os.path.join("/app", "accounts.yaml")
+            if not os.path.exists(accounts_path):
+                app_logger.log_warning(f"accounts.yaml not found at {accounts_path}")
+                return {}
+            
+            with open(accounts_path, 'r') as f:
+                accounts_data = yaml.safe_load(f)
+            
+            if not accounts_data:
+                return {}
+            
+            # Find account configuration
+            for account in accounts_data:
+                if account.get('account_id') == account_id:
+                    return {
+                        'strategy_name': account.get('notification', {}).get('channel', ''),
+                        'cash_reserve_percent': account.get('rebalancing', {}).get('cash_reserve_percent', 1.0)
+                    }
+            
+            app_logger.log_warning(f"Account {account_id} not found in accounts.yaml")
+            return {}
+            
+        except Exception as e:
+            app_logger.log_error(f"Failed to load account config for {account_id}: {e}")
+            return {}
         
     async def get_next_event(self) -> Optional[EventInfo]:
         """
@@ -473,13 +512,18 @@ class QueueService:
                     # Parse account_id and exec_command from deduplication key
                     account_id, exec_command = event_key.split(':', 1)
                     
-                    # Create minimal event data for reprocessing
+                    # Load account configuration from accounts.yaml
+                    account_config = self._load_account_config(account_id)
+                    
+                    # Create event data for reprocessing with required account properties
                     recovery_event_data = {
                         'event_id': f"recovery_{int(time.time())}_{account_id}_{exec_command}",
                         'account_id': account_id,
                         'exec': exec_command,
                         'created_at': datetime.now().isoformat(),
                         'times_queued': 1,
+                        'strategy_name': account_config.get('strategy_name', ''),
+                        'cash_reserve_percent': account_config.get('cash_reserve_percent', 1.0),
                     }
                     
                     # Add back to rebalance queue and active events set

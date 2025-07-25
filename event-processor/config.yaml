@@ -15,13 +15,13 @@ ibkr:
     max_retries: 3        # Number of connection retry attempts before giving up
     delay: 5              # Seconds to wait between connection retry attempts
   
-  # Order retry configuration - handles temporary order submission failures
+  # Order 
   order_retry:
     max_retries: 2        # Number of order retry attempts (kept low to avoid duplicates)
     delay: 1              # Seconds to wait between order retry attempts
   
-  # Order completion timeout - how long to wait for sell orders to complete before failing event
-  order_completion_timeout: 60  # Seconds to wait for sell orders to complete before timing out
+  # Order completion timeout - how long to wait for orders to complete before failing event
+  order_completion_timeout: 300  # Seconds to wait for sell orders to complete before timing out
 
 # Event processing behavior configuration
 processing:

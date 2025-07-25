@@ -202,7 +202,7 @@ class RebalancerService:
             raise
 
     async def _execute_sell_orders(self, account_id: str, orders: List[RebalanceOrder], dry_run: bool = False, event=None):
-        """Execute sell orders using simple algorithm approach - concurrent placement, sequential waiting"""
+        """Execute sell orders with concurrent placement and concurrent waiting - fail fast on any rejection"""
         sell_orders = [order for order in orders if order.action == 'SELL']
         
         if not sell_orders:
@@ -235,15 +235,17 @@ class RebalancerService:
             sell_tasks.append(trade)
             app_logger.log_info(f"SELL order placed: {order} - Order ID: {trade.order.orderId}", event)
         
-        # Wait for ALL sells to complete sequentially (like simple algorithm)
-        for trade in sell_tasks:
-            await trade.filledEvent
-            app_logger.log_info(f"SELL Filled: {trade.order.orderId} - {trade.contract.symbol} {trade.order.totalQuantity}", event)
-        
-        app_logger.log_info("All SELL orders executed", event)
+        # Wait for ALL sells to complete concurrently - any failure will fail immediately
+        try:
+            await asyncio.gather(*[self._wait_for_order_completion(trade, event) for trade in sell_tasks])
+            app_logger.log_info("All SELL orders executed successfully", event)
+        except Exception as e:
+            # Any single order failure will cause this exception immediately
+            app_logger.log_error(f"SELL order execution failed: {e}", event)
+            raise
     
     async def _execute_buy_orders(self, account_id: str, orders: List[RebalanceOrder], dry_run: bool = False, event=None):
-        """Execute buy orders using simple algorithm approach - concurrent placement, sequential waiting"""
+        """Execute buy orders with concurrent placement and concurrent waiting - fail fast on any rejection"""
         buy_orders = [order for order in orders if order.action == 'BUY']
         
         if not buy_orders:
@@ -274,12 +276,49 @@ class RebalancerService:
             buy_tasks.append(trade)
             app_logger.log_info(f"BUY order placed: {order} - Order ID: {trade.order.orderId}", event)
         
-        # Wait for ALL buys to complete sequentially (like simple algorithm)
-        for trade in buy_tasks:
-            await trade.filledEvent
-            app_logger.log_info(f"BUY Filled: {trade.order.orderId} - {trade.contract.symbol} {trade.order.totalQuantity}", event)
+        # Wait for ALL buys to complete concurrently - any failure will fail immediately
+        try:
+            await asyncio.gather(*[self._wait_for_order_completion(trade, event) for trade in buy_tasks])
+            app_logger.log_info("All BUY orders executed successfully", event)
+        except Exception as e:
+            # Any single order failure will cause this exception immediately
+            app_logger.log_error(f"BUY order execution failed: {e}", event)
+            raise
+    
+    async def _wait_for_order_completion(self, trade, event=None):
+        """Wait for order to complete and fail immediately if not filled"""
+        if trade.isDone():
+            # Check status immediately for already completed orders
+            if trade.orderStatus.status != 'Filled':
+                raise Exception(f"Order {trade.order.orderId} failed with status: {trade.orderStatus.status}")
+            return
         
-        app_logger.log_info("All BUY orders executed", event)
+        # Create completion event that fires on either fill or cancellation
+        completion_event = asyncio.Event()
+        
+        def on_completion():
+            completion_event.set()
+        
+        # Listen to both fill and cancellation events
+        trade.filledEvent += on_completion
+        trade.cancelledEvent += on_completion
+        
+        try:
+            # Wait for completion with configurable timeout
+            timeout = config.ibkr.order_completion_timeout
+            await asyncio.wait_for(completion_event.wait(), timeout=timeout)
+            
+            # As soon as order completes, fail immediately if not filled
+            if trade.orderStatus.status != 'Filled':
+                raise Exception(f"Order {trade.order.orderId} failed with status: {trade.orderStatus.status}")
+                
+        except asyncio.TimeoutError:
+            app_logger.log_error(f"Order {trade.order.orderId} timed out after {timeout}s - Status: {trade.orderStatus.status}", event)
+            raise Exception(f"Order {trade.order.orderId} timed out after {timeout}s")
+        finally:
+            # Clean up event handlers
+            trade.filledEvent -= on_completion
+            trade.cancelledEvent -= on_completion
     
     async def dry_run_rebalance(self, account_config: EventAccountConfig, event=None) -> RebalanceResult:
         # Log queue position

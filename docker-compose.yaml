@@ -107,6 +107,7 @@ services:
     volumes:
       - ./event-processor/config.yaml:/app/config/config.yaml
       - ./event-processor/logs:/app/logs
+      - ./accounts.yaml:/app/accounts.yaml
       - /etc/localtime:/etc/localtime:ro
     networks:
       - ibkr-network
