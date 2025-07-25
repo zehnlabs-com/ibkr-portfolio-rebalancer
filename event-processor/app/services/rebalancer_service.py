@@ -67,14 +67,27 @@ class RebalancerService:
                     event
                 )
                 
+                # Extract market prices from calculation for later use
+                all_symbols = [allocation['symbol'] for allocation in target_allocations]
+                market_prices = await self.ibkr_client.get_multiple_market_prices(all_symbols, event)
+                
                 # Cancel all pending orders before executing any trades
                 cancelled_orders = await self._cancel_pending_orders(account_config.account_id, event)
                 
                 # Execute sell orders first and wait for completion
                 await self._execute_sell_orders(account_config.account_id, result.orders, dry_run=False, event=event)
                 
-                # Execute buy orders (no cash validation - trust pandas calculations)
-                await self._execute_buy_orders(account_config.account_id, result.orders, dry_run=False, event=event)
+                # Recalculate buy orders based on actual available cash after sells
+                buy_orders = await self._recalculate_buy_orders_for_available_cash(
+                    account_config.account_id,
+                    target_allocations,
+                    account_config,
+                    market_prices,
+                    event
+                )
+                
+                # Execute recalculated buy orders
+                await self._execute_buy_orders(account_config.account_id, buy_orders, dry_run=False, event=event)
                 
                 app_logger.log_info(f"Completed LIVE rebalance for account {account_config.account_id}", event)
                 
@@ -189,6 +202,52 @@ class RebalancerService:
         }
         
         return RebalanceResult(orders, equity_info)
+    
+    async def _recalculate_buy_orders_for_available_cash(
+        self, 
+        account_id: str, 
+        target_allocations: List[Dict[str, float]], 
+        account_config: EventAccountConfig,
+        market_prices: Dict[str, float],
+        event=None
+    ) -> List[RebalanceOrder]:
+        """Recalculate buy orders based on actual available cash after sells execute"""
+        
+        # Get actual available cash after sells
+        available_cash = await self.ibkr_client.get_cash_balance(account_id)
+        app_logger.log_info(f"Available cash for buy orders: ${available_cash:.2f}", event)
+        
+        # Apply cash reserve scaling factor
+        cash_reserve_percent = account_config.cash_reserve_percent / 100.0
+        scaling_factor = 1.0 - cash_reserve_percent
+        
+        buy_orders = []
+        total_allocated_cash = 0.0
+        
+        # Recalculate allocations based on available cash
+        for allocation in target_allocations:
+            symbol = allocation['symbol']
+            target_cash_amount = available_cash * allocation['allocation'] * scaling_factor
+            current_price = market_prices[symbol]
+            
+            shares_to_buy = int(target_cash_amount / current_price)
+            
+            if shares_to_buy > 0:
+                actual_cash_amount = shares_to_buy * current_price
+                total_allocated_cash += actual_cash_amount
+                
+                buy_orders.append(RebalanceOrder(
+                    symbol=symbol,
+                    quantity=shares_to_buy,
+                    action='BUY',
+                    market_value=actual_cash_amount
+                ))
+                
+                app_logger.log_info(f"Cash-based order: BUY {shares_to_buy} shares of {symbol} (${actual_cash_amount:.2f})", event)
+        
+        app_logger.log_info(f"Total allocated cash: ${total_allocated_cash:.2f} of ${available_cash:.2f} available", event)
+        
+        return buy_orders
     
     async def _cancel_pending_orders(self, account_id: str, event=None):
         """Cancel all pending orders for the account before rebalancing"""
