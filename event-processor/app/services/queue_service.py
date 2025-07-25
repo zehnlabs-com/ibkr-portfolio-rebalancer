@@ -439,3 +439,65 @@ class QueueService:
         except Exception as e:
             app_logger.log_error(f"Failed to get delayed events: {e}")
             return []
+    
+    async def recover_stuck_active_events(self) -> int:
+        """
+        Recover events stuck in active_events_set after service restart
+        
+        When the event processor restarts, events may be stuck in the active_events_set
+        because they were being processed when the service went down. This method
+        moves all such events back to the rebalance_queue for reprocessing.
+        
+        Returns:
+            int: Number of events recovered
+        """
+        try:
+            redis = await self._get_redis()
+            
+            # Get all events currently in active_events_set
+            active_event_keys = await redis.smembers("active_events_set")
+            
+            if not active_event_keys:
+                return 0
+            
+            app_logger.log_info(f"Found {len(active_event_keys)} active events during startup")
+            
+            # For each active event key, we need to reconstruct and requeue the event
+            # Since we only have the deduplication key (account_id:exec_command), 
+            # we create a minimal event structure for reprocessing
+            recovered_count = 0
+            
+            pipe = redis.pipeline()
+            for event_key in active_event_keys:
+                try:
+                    # Parse account_id and exec_command from deduplication key
+                    account_id, exec_command = event_key.split(':', 1)
+                    
+                    # Create minimal event data for reprocessing
+                    recovery_event_data = {
+                        'event_id': f"recovery_{int(time.time())}_{account_id}_{exec_command}",
+                        'account_id': account_id,
+                        'exec': exec_command,
+                        'created_at': datetime.now().isoformat(),
+                        'times_queued': 1,
+                    }
+                    
+                    # Add back to rebalance queue and active events set
+                    pipe.lpush("rebalance_queue", json.dumps(recovery_event_data))
+                    # Keep in active_events_set since it's now queued for processing
+                    
+                    recovered_count += 1
+                    app_logger.log_debug(f"Recovering stuck event: {event_key}")
+                    
+                except Exception as e:
+                    app_logger.log_error(f"Failed to recover stuck event {event_key}: {e}")
+                    continue
+            
+            await pipe.execute()
+            
+            app_logger.log_info(f"Successfully queued {recovered_count} events to rebalance queue")
+            return recovered_count
+            
+        except Exception as e:
+            app_logger.log_error(f"Failed to recover stuck active events: {e}")
+            return 0

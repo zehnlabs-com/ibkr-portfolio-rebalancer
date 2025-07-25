@@ -28,6 +28,12 @@ class ApplicationService:
             # Set up signal handlers
             self.signal_handler.setup_signal_handlers()
             
+            # Recover any events stuck in active_events_set from previous service restart
+            queue_service = self.service_container.get_queue_service()
+            recovered_count = await queue_service.recover_stuck_active_events()
+            if recovered_count > 0:
+                app_logger.log_info(f"Startup recovery completed: {recovered_count} events recovered")
+            
             self.running = True
             app_logger.log_info("Application services started successfully")
             
