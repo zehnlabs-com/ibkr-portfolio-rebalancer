@@ -91,7 +91,8 @@ class RebalancerService:
         current_positions: List[Dict], 
         account_value: float,
         account_config: EventAccountConfig,
-        event=None
+        event=None,
+        skip_trading_hours_check: bool = False
     ) -> RebalanceResult:
         
         # Calculate cash reserve scaling factor (like simple algorithm)
@@ -133,16 +134,17 @@ class RebalancerService:
         # Check trading hours for all symbols before getting prices
         all_symbols = portfolio_df['symbol'].unique().tolist()
         
-        # Validate trading hours
-        all_within_hours, next_start_time, symbol_status = await self.ibkr_client.check_trading_hours(all_symbols, event)
-        
-        if not all_within_hours:
-            # Some symbols are outside trading hours - raise special exception
-            raise TradingHoursException(
-                message="One or more symbols are outside trading hours",
-                next_start_time=next_start_time,
-                symbol_status=symbol_status
-            )
+        if not skip_trading_hours_check:
+            # Validate trading hours
+            all_within_hours, next_start_time, symbol_status = await self.ibkr_client.check_trading_hours(all_symbols, event)
+            
+            if not all_within_hours:
+                # Some symbols are outside trading hours - raise special exception
+                raise TradingHoursException(
+                    message="One or more symbols are outside trading hours",
+                    next_start_time=next_start_time,
+                    symbol_status=symbol_status
+                )
         
         # Get market prices for all symbols
         market_prices = await self.ibkr_client.get_multiple_market_prices(all_symbols, event)
@@ -300,7 +302,8 @@ class RebalancerService:
                     current_positions, 
                     account_value,
                     account_config,
-                    event
+                    event,
+                    skip_trading_hours_check=True
                 )
                 
                 # Simulate sell orders first
