@@ -179,19 +179,25 @@ class IBKRClient:
             raise Exception("Unable to establish IBKR connection")
         
         try:
-            portfolio_items = self.ib.portfolio()
-            result = []
+            app_logger.log_debug(f"Requesting positions for account {account_id}", event)
+            positions = await self.ib.reqPositionsAsync()
             
-            for item in portfolio_items:
-                if hasattr(item, 'account') and item.account == account_id:
+            result = []
+            for position in positions:
+                if position.account == account_id and position.position != 0:
+                    # Calculate market value if not available
+                    market_value = getattr(position, 'marketValue', position.position * position.avgCost)
+                    
                     result.append({
-                        'symbol': item.contract.symbol,
-                        'position': item.position,
-                        'market_value': item.marketValue,
-                        'avg_cost': item.averageCost
+                        'symbol': position.contract.symbol,
+                        'position': position.position,
+                        'market_value': market_value,
+                        'avg_cost': position.avgCost
                     })
             
+            app_logger.log_debug(f"Found {len(result)} positions for account {account_id}", event)
             return result
+            
         except Exception as e:
             app_logger.log_error(f"Failed to get positions: {e}", event)
             raise

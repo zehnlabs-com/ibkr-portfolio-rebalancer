@@ -293,32 +293,25 @@ class RebalancerService:
                 raise Exception(f"Order {trade.order.orderId} failed with status: {trade.orderStatus.status}")
             return
         
-        # Create completion event that fires on either fill or cancellation
-        completion_event = asyncio.Event()
+        # Poll for completion instead of relying on events
+        timeout = config.ibkr.order_completion_timeout
+        start_time = asyncio.get_event_loop().time()
         
-        def on_completion():
-            completion_event.set()
-        
-        # Listen to both fill and cancellation events
-        trade.filledEvent += on_completion
-        trade.cancelledEvent += on_completion
-        
-        try:
-            # Wait for completion with configurable timeout
-            timeout = config.ibkr.order_completion_timeout
-            await asyncio.wait_for(completion_event.wait(), timeout=timeout)
+        while True:
+            # Check if order is done
+            if trade.isDone():
+                if trade.orderStatus.status != 'Filled':
+                    raise Exception(f"Order {trade.order.orderId} failed with status: {trade.orderStatus.status}")
+                return
             
-            # As soon as order completes, fail immediately if not filled
-            if trade.orderStatus.status != 'Filled':
-                raise Exception(f"Order {trade.order.orderId} failed with status: {trade.orderStatus.status}")
-                
-        except asyncio.TimeoutError:
-            app_logger.log_error(f"Order {trade.order.orderId} timed out after {timeout}s - Status: {trade.orderStatus.status}", event)
-            raise Exception(f"Order {trade.order.orderId} timed out after {timeout}s")
-        finally:
-            # Clean up event handlers
-            trade.filledEvent -= on_completion
-            trade.cancelledEvent -= on_completion
+            # Check timeout
+            elapsed = asyncio.get_event_loop().time() - start_time
+            if elapsed >= timeout:
+                app_logger.log_error(f"Order {trade.order.orderId} timed out after {timeout}s - Status: {trade.orderStatus.status}", event)
+                raise Exception(f"Order {trade.order.orderId} timed out after {timeout}s")
+            
+            # Wait a short time before checking again
+            await asyncio.sleep(0.1)
     
     async def dry_run_rebalance(self, account_config: EventAccountConfig, event=None) -> RebalanceResult:
         # Log queue position
