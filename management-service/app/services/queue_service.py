@@ -34,16 +34,12 @@ class QueueService(IQueueService):
             # Get oldest event age
             oldest_event_age = await self.queue_repository.get_oldest_event_age()
             
-            # Get events with retries count
-            events_with_retries = await self.queue_repository.count_events_with_retries()
-            
             return {
                 "queue_length": queue_length,
                 "active_events_count": active_events_count,
                 "retry_events_count": retry_events_count,
                 "delayed_events_count": delayed_events_count,
-                "oldest_event_age_seconds": oldest_event_age,
-                "events_with_retries": events_with_retries
+                "oldest_event_age_seconds": oldest_event_age
             }
         except Exception as e:
             logger.error(f"Failed to get queue status: {e}")

@@ -12,7 +12,6 @@ class QueueStatus(BaseModel):
     retry_events_count: int
     delayed_events_count: int
     oldest_event_age_seconds: Optional[int] = None
-    events_with_retries: int
 
 
 class QueueEvent(BaseModel):

@@ -106,8 +106,8 @@ curl -H "Content-Type: application/json" \
 The health endpoint provides system status for monitoring tools:
 
 ### Health States
-- **Healthy**: No events with retries (`times_queued > 1`) and no retry events
-- **Unhealthy**: One or more events are being retried or in retry queue
+- **Healthy**: No events in retry queue (`retry_events_count == 0`)
+- **Unhealthy**: One or more events are in retry queue waiting for retry
 - **Error**: Service cannot access queue or Redis is down
 
 ### Response Format
@@ -115,31 +115,28 @@ The health endpoint provides system status for monitoring tools:
 {
   "status": "healthy",
   "healthy": true,
-  "events_with_retries": 0,
-  "retry_events": 0,
-  "message": "System is healthy"
+  "retry_events_count": 0,
+  "message": "No events require retry"
 }
 ```
 
 ## Queue Status Information
 
 The `/queue/status` endpoint provides detailed metrics:
-- Active event count
-- Retry event count
-- **Delayed event count** (events waiting for trading hours)
-- Events with retry attempts
-- Processing rate statistics
-- Redis connection status
+- **Queue length**: Events in main processing queue
+- **Active events count**: Events currently being tracked
+- **Retry events count**: Events in retry queue waiting for retry
+- **Delayed events count**: Events waiting for trading hours
+- **Oldest event age**: Age of oldest event in seconds
 
 ### Sample Response
 ```json
 {
-  "queue_length": 0,
-  "active_events_count": 0,
+  "queue_length": 15,
+  "active_events_count": 12,
   "retry_events_count": 0,
-  "delayed_events_count": 2,
-  "oldest_event_age_seconds": null,
-  "events_with_retries": 0
+  "delayed_events_count": 3,
+  "oldest_event_age_seconds": 45
 }
 ```
 

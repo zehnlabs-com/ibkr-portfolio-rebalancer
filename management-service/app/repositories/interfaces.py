@@ -48,10 +48,6 @@ class IQueueRepository(ABC):
         """Get active event keys"""
         pass
     
-    @abstractmethod
-    async def count_events_with_retries(self) -> int:
-        """Count events with times_queued > 1"""
-        pass
     
     @abstractmethod
     async def get_oldest_event_age(self) -> Optional[int]:
@@ -92,10 +88,6 @@ class IHealthRepository(ABC):
         """Disconnect from health data source"""
         pass
     
-    @abstractmethod
-    async def count_events_with_retries(self) -> int:
-        """Count events with retries"""
-        pass
     
     @abstractmethod
     async def get_problematic_events(self, min_retries: int = 2) -> List[Dict[str, Any]]:

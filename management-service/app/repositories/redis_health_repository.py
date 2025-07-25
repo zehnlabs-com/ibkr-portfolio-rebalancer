@@ -35,29 +35,6 @@ class RedisHealthRepository(IHealthRepository):
             await self.redis.close()
             logger.info("HealthRepository disconnected from Redis")
     
-    async def count_events_with_retries(self) -> int:
-        """Count events with times_queued > 1"""
-        if not self.redis:
-            raise RuntimeError("Redis connection not established")
-            
-        try:
-            # Get all events from queue
-            raw_events = await self.redis.lrange("rebalance_queue", 0, -1)
-            
-            count = 0
-            for event_json in raw_events:
-                try:
-                    event_data = json.loads(event_json)
-                    times_queued = event_data.get("times_queued", 1)
-                    if times_queued > 1:
-                        count += 1
-                except json.JSONDecodeError:
-                    continue
-            
-            return count
-        except Exception as e:
-            logger.warning(f"Failed to count events with retries: {e}")
-            return 0
     
     async def get_problematic_events(self, min_retries: int = 2) -> List[Dict[str, Any]]:
         """Get events that have been retried multiple times"""
