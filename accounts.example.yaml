@@ -15,8 +15,8 @@
     channel: "etf-blend-200-35" 
   rebalancing:
     # Percentage of equity to reserve as a buffer for quickly changing prices.
-    # Valid values are 0% to 10% (values outside this range default to 1%)
-    cash_reserve_percent: 2.0
+    # Valid values are 0% to 100%, default 0%
+    cash_reserve_percent: 1.0
 
 # Account 2
 ############
@@ -29,5 +29,5 @@
     channel: "etf-blend-301-20" # Strtagey name, all lowercase, spaces replaced with hyphens
   rebalancing:
     # Percentage of equity to reserve as a buffer for quickly changing prices.
-    # Valid values are 0% to 10% (values outside this range default to 1%)
-    cash_reserve_percent: 2.5
+    # Valid values are 0% to 100%, default 0%
+    cash_reserve_percent: 1.0

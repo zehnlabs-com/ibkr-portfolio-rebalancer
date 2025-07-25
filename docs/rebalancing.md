@@ -68,12 +68,12 @@ Each account can have its own reserve percentage configured in `accounts.yaml`:
 ```yaml
 - account_id: "DU123456"
   rebalancing:
-    cash_reserve_percent: 1.0  # 1% reserve (default)
+    cash_reserve_percent: 1.0  # 1% reserve (default 0.0)
 ```
 
 **Validation:**
-- **Range**: 0% to 10% (values outside this range default to 1%)
-- **Default**: 1% if not specified or invalid
+- **Range**: 0% to 100% (values outside this range default to 0%)
+- **Default**: 0% if not specified or invalid
 
 **Reserve Calculation:**
 The cash reserve is calculated based on **total account value**, not available cash:

@@ -9,5 +9,5 @@ class EventAccountConfig:
         """Initialize from flat event payload data"""
         self.account_id = data.get('account_id')
         self.strategy_name = data.get('strategy_name')  
-        self.cash_reserve_percent = data.get('cash_reserve_percent', 1.0)
+        self.cash_reserve_percent = data.get('cash_reserve_percent', 0.0)
         

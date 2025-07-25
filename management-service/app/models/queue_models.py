@@ -33,7 +33,7 @@ class AddEventRequest(BaseModel):
     exec_command: str    
     eventId: str = "00000000-0000-0000-0000-000000000000"
     strategy_name: str
-    cash_reserve_percent: float = 1.0
+    cash_reserve_percent: float = 0.0
     
     def to_data_dict(self) -> Dict[str, Any]:
         """Convert to data dictionary excluding base fields"""

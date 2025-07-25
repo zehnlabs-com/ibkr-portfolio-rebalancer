@@ -55,7 +55,7 @@ class QueueService:
                 if account.get('account_id') == account_id:
                     return {
                         'strategy_name': account.get('notification', {}).get('channel', ''),
-                        'cash_reserve_percent': account.get('rebalancing', {}).get('cash_reserve_percent', 1.0)
+                        'cash_reserve_percent': account.get('rebalancing', {}).get('cash_reserve_percent', 0.0)
                     }
             
             app_logger.log_warning(f"Account {account_id} not found in accounts.yaml")
@@ -523,7 +523,7 @@ class QueueService:
                         'created_at': datetime.now().isoformat(),
                         'times_queued': 1,
                         'strategy_name': account_config.get('strategy_name', ''),
-                        'cash_reserve_percent': account_config.get('cash_reserve_percent', 1.0),
+                        'cash_reserve_percent': account_config.get('cash_reserve_percent', 0.0),
                     }
                     
                     # Add back to rebalance queue and active events set

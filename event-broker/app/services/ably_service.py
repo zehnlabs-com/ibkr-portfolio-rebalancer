@@ -21,7 +21,7 @@ class AccountConfig:
         self.strategy_name = data.get('notification', {}).get('channel')
         # Add rebalancing configuration
         rebalancing_data = data.get('rebalancing', {})
-        self.cash_reserve_percent = rebalancing_data.get('cash_reserve_percent', rebalancing_data.get('equity_reserve_percentage', 1.0))
+        self.cash_reserve_percent = rebalancing_data.get('cash_reserve_percent', rebalancing_data.get('equity_reserve_percentage', 0.0))
 
 
 class AblyEventSubscriber:
