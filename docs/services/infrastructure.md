@@ -11,8 +11,9 @@ Redis serves as the central message queue and caching layer for the entire syste
 
 ### Key Responsibilities
 - **Event Queue**: Stores pending rebalancing events (`rebalance_queue`)
-- **Retry Queue**: Manages failed events awaiting retry (`rebalance_retry_set`)
 - **Active Events**: Tracks events currently being processed (`active_events_set`)
+- **Retry Queue**: Manages failed events awaiting retry (`rebalance_retry_set`)
+- **Delayed Execution**: Schedules events for future execution when markets closed (`delayed_execution_set`)
 - **Deduplication**: Prevents duplicate events using account+command keys
 - **Persistence**: Maintains data across service restarts
 
@@ -28,20 +29,27 @@ Redis serves as the central message queue and caching layer for the entire syste
 ### Data Structures
 
 **Main Queue**: `rebalance_queue` (List)
-- FIFO queue of pending events
+- FIFO queue of pending events ready for immediate execution
 - Event Processor uses `BRPOP` for blocking dequeue
-
-**Retry Queue**: `rebalance_retry_set` (Sorted Set)  
-- Failed events with retry timestamps
-- Sorted by scheduled retry time
+- Event Broker uses `LPUSH` (high priority) or `RPUSH` (normal priority)
 
 **Active Events**: `active_events_set` (Set)
-- Tracks `account_id:command` combinations in progress
-- Prevents duplicate processing
+- Tracks `account_id:exec_command` combinations currently in progress
+- Prevents duplicate processing of same account+command
+- Key format: `{account_id}:{exec_command}` (e.g., "U123456:rebalance")
+- Added when enqueued → Removed when completed/delayed/failed
 
-**Event Storage**: `event:{event_id}` (Hash)
-- Individual event data and metadata
-- Includes retry count and processing history
+**Retry Queue**: `rebalance_retry_set` (Sorted Set)  
+- Failed events waiting for retry after delay period
+- Score: Unix timestamp when event was added to retry queue
+- Events older than `retry_delay_seconds` moved back to main queue
+- Used for temporary failures (connection issues, etc.)
+
+**Delayed Execution**: `delayed_execution_set` (Sorted Set)
+- Events delayed due to trading hours, scheduled for future execution
+- Score: Unix timestamp of when event should be executed
+- Used when markets are closed - events scheduled for next market open
+- Automatically moved to main queue when execution time arrives
 
 ### Health Monitoring
 
@@ -51,11 +59,15 @@ docker-compose exec redis redis-cli ping
 
 # Monitor queue sizes
 docker-compose exec redis redis-cli LLEN rebalance_queue
-docker-compose exec redis redis-cli ZCARD rebalance_retry_set
 docker-compose exec redis redis-cli SCARD active_events_set
+docker-compose exec redis redis-cli ZCARD rebalance_retry_set
+docker-compose exec redis redis-cli ZCARD delayed_execution_set
 
 # View queue contents (debugging)
 docker-compose exec redis redis-cli LRANGE rebalance_queue 0 -1
+docker-compose exec redis redis-cli SMEMBERS active_events_set
+docker-compose exec redis redis-cli ZRANGE rebalance_retry_set 0 -1 WITHSCORES
+docker-compose exec redis redis-cli ZRANGE delayed_execution_set 0 -1 WITHSCORES
 ```
 
 ### Docker Configuration
