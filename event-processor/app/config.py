@@ -42,6 +42,7 @@ class ProcessingConfig:
     startup_initial_delay: int   # Initial delay at startup to allow services to stabilize
     retry_delay_seconds: int     # Seconds to wait before retrying failed events
     retry_check_interval: int    # Seconds between checks for ready-to-retry events
+    max_concurrent_events: int   # Maximum number of events to process concurrently
 
 @dataclass
 class AllocationConfig:
@@ -97,7 +98,8 @@ class Config:
             startup_delay=processing_config["startup_delay"],
             startup_initial_delay=processing_config["startup_initial_delay"],
             retry_delay_seconds=processing_config.get("retry_delay_seconds", 60),
-            retry_check_interval=processing_config.get("retry_check_interval", 60)
+            retry_check_interval=processing_config.get("retry_check_interval", 60),
+            max_concurrent_events=processing_config.get("max_concurrent_events", 3)
         )
         
         # Allocation config

@@ -21,6 +21,8 @@ class EventProcessor:
         self.running = False
         self.retry_processor_task = None
         self.delayed_processor_task = None
+        self.processing_tasks = set()
+        self.semaphore = None
     
     async def start_processing(self):
         """Start the event processing loop"""
@@ -28,7 +30,11 @@ class EventProcessor:
         
         try:
             self.running = True
-            app_logger.log_info("Event processing loop started successfully")
+            
+            # Initialize semaphore for concurrent processing
+            max_concurrent = config.processing.max_concurrent_events
+            self.semaphore = asyncio.Semaphore(max_concurrent)
+            app_logger.log_info(f"Event processing loop started with max {max_concurrent} concurrent events")
             
             # Start retry event processor task
             self.retry_processor_task = asyncio.create_task(self._retry_event_processor())
@@ -51,6 +57,15 @@ class EventProcessor:
         app_logger.log_info("Stopping event processing loop...")
         self.running = False
         
+        # Cancel all active processing tasks
+        for task in list(self.processing_tasks):
+            if not task.done():
+                task.cancel()
+        
+        # Wait for all processing tasks to complete
+        if self.processing_tasks:
+            await asyncio.gather(*self.processing_tasks, return_exceptions=True)
+        
         # Cancel retry processor task
         if self.retry_processor_task and not self.retry_processor_task.done():
             self.retry_processor_task.cancel()
@@ -70,23 +85,34 @@ class EventProcessor:
         app_logger.log_info("Event processing loop stopped")
     
     async def _main_loop(self):
-        """Main event processing loop"""
+        """Main event processing loop with concurrent processing"""
         app_logger.log_info("Starting main processing loop")
         
         queue_service = self.service_container.get_queue_service()
         
         while self.running:
             try:
-                app_logger.log_debug("Checking for events in queue...")
-                # Get event from queue with timeout
-                event_info = await queue_service.get_next_event()
+                # Clean up completed tasks
+                completed_tasks = {task for task in self.processing_tasks if task.done()}
+                self.processing_tasks -= completed_tasks
                 
-                if event_info:
-                    app_logger.log_debug(f"Processing event: {event_info.event_id}", event_info)
-                    await self.process_event(event_info)
+                # Check if we can start more tasks
+                if len(self.processing_tasks) < config.processing.max_concurrent_events:
+                    app_logger.log_debug("Checking for events in queue...")
+                    # Get event from queue with timeout
+                    event_info = await queue_service.get_next_event()
+                    
+                    if event_info:
+                        app_logger.log_debug(f"Starting concurrent processing for event: {event_info.event_id}", event_info)
+                        # Create task for concurrent processing
+                        task = asyncio.create_task(self._process_event_with_semaphore(event_info))
+                        self.processing_tasks.add(task)
+                    else:
+                        app_logger.log_debug("No events available, waiting...")
+                        await asyncio.sleep(5)
                 else:
-                    app_logger.log_debug("No events available, waiting...")
-                    await asyncio.sleep(5)
+                    # At max capacity, wait a bit before checking again
+                    await asyncio.sleep(1)
                     
             except Exception as e:
                 app_logger.log_error(f"Error in main loop: {e}")
@@ -199,3 +225,12 @@ class EventProcessor:
                 await asyncio.sleep(10)
         
         app_logger.log_info("Delayed event processor stopped")
+    
+    async def _process_event_with_semaphore(self, event_info: EventInfo):
+        """Process event with semaphore to limit concurrency"""
+        async with self.semaphore:
+            app_logger.log_debug(f"Acquired semaphore for event: {event_info.event_id}", event_info)
+            try:
+                await self.process_event(event_info)
+            finally:
+                app_logger.log_debug(f"Released semaphore for event: {event_info.event_id}", event_info)

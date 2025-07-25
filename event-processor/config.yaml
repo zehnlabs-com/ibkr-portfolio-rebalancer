@@ -31,6 +31,7 @@ processing:
   startup_initial_delay: 30   # Initial delay at startup to allow other services to stabilize
   retry_delay_seconds: 60     # Seconds to wait before retrying failed events (prevents infinite loops)
   retry_check_interval: 60    # Seconds between checks for ready-to-retry retry events
+  max_concurrent_events: 24   # Maximum number of events to process concurrently
 
 # Strategy allocation API configuration
 allocation:
