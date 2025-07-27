@@ -51,3 +51,9 @@ class AddEventResponse(BaseModel):
 class RemoveEventResponse(BaseModel):
     """Remove event response model"""
     message: str
+
+
+class ClearQueuesResponse(BaseModel):
+    """Clear queues response model"""
+    message: str
+    cleared_counts: Dict[str, int]

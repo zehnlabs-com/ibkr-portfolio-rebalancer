@@ -6,7 +6,7 @@ from typing import List
 from fastapi import HTTPException, status, Depends
 
 from app.services.interfaces import IQueueService
-from app.models.queue_models import QueueStatus, QueueEvent, AddEventRequest, AddEventResponse, RemoveEventResponse
+from app.models.queue_models import QueueStatus, QueueEvent, AddEventRequest, AddEventResponse, RemoveEventResponse, ClearQueuesResponse
 
 logger = logging.getLogger(__name__)
 
@@ -86,4 +86,21 @@ class QueueHandlers:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to add event: {str(e)}"
+            )
+    
+    async def clear_all_queues(self) -> ClearQueuesResponse:
+        """Clear all events from all queues"""
+        try:
+            cleared_counts = await self.queue_service.clear_all_queues()
+            total_cleared = sum(cleared_counts.values())
+            
+            return ClearQueuesResponse(
+                message=f"Successfully cleared {total_cleared} events from all queues",
+                cleared_counts=cleared_counts
+            )
+        except Exception as e:
+            logger.error(f"Failed to clear all queues: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to clear all queues: {str(e)}"
             )

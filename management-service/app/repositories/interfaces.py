@@ -73,6 +73,11 @@ class IQueueRepository(ABC):
     async def get_delayed_events(self, limit: int = 100) -> List[Dict[str, Any]]:
         """Get events from delayed execution queue"""
         pass
+    
+    @abstractmethod
+    async def clear_all_queues(self) -> Dict[str, int]:
+        """Clear all events from all queues and return counts of cleared events"""
+        pass
 
 
 class IHealthRepository(ABC):

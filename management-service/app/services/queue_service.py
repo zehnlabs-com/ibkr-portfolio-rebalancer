@@ -105,3 +105,11 @@ class QueueService(IQueueService):
         except Exception as e:
             logger.error(f"Failed to add event: {e}")
             raise
+    
+    async def clear_all_queues(self) -> Dict[str, int]:
+        """Clear all events from all queues and return counts of cleared events"""
+        try:
+            return await self.queue_repository.clear_all_queues()
+        except Exception as e:
+            logger.error(f"Failed to clear all queues: {e}")
+            raise

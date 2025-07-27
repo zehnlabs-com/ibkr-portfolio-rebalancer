@@ -42,6 +42,7 @@ The service maps port **8000** for HTTP API access.
 |----------|--------|-------------|
 | `/queue/events/{event_id}` | DELETE | Remove specific event |
 | `/queue/events` | POST | Add event manually |
+| `/queue/events` | DELETE | Clear all events from all queues |
 
 ## API Usage Examples
 
@@ -99,6 +100,9 @@ curl -H "Content-Type: application/json" \
     "cash_reserve_percent": 1.0
   }' \
   http://localhost:8000/queue/events
+
+# Clear all events from all queues
+curl -X DELETE http://localhost:8000/queue/events
 ```
 
 ## Health Check Integration

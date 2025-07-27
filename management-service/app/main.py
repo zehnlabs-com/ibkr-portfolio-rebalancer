@@ -8,7 +8,7 @@ from fastapi import FastAPI, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.container import container
-from app.models.queue_models import QueueStatus, QueueEvent, AddEventRequest, AddEventResponse, RemoveEventResponse
+from app.models.queue_models import QueueStatus, QueueEvent, AddEventRequest, AddEventResponse, RemoveEventResponse, ClearQueuesResponse
 from app.models.health_models import HealthStatus, DetailedHealthStatus
 from app.config.settings import settings
 
@@ -79,6 +79,11 @@ async def remove_event(event_id: str):
 async def add_event(event_request: AddEventRequest):
     """Add event to queue"""
     return await container.queue_handlers.add_event(event_request)
+
+@app.delete("/queue/events", response_model=ClearQueuesResponse)  
+async def clear_all_queues():
+    """Clear all events from all queues"""
+    return await container.queue_handlers.clear_all_queues()
 
 # Startup and shutdown events
 @app.on_event("startup")

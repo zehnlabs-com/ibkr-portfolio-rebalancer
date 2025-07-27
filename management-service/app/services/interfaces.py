@@ -27,6 +27,11 @@ class IQueueService(ABC):
     async def add_event(self, account_id: str, exec_command: str, data: Dict[str, Any]) -> str:
         """Add event to queue"""
         pass
+    
+    @abstractmethod
+    async def clear_all_queues(self) -> Dict[str, int]:
+        """Clear all events from all queues and return counts of cleared events"""
+        pass
 
 
 class IHealthService(ABC):

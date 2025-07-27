@@ -348,3 +348,39 @@ class RedisQueueRepository(IQueueRepository):
         except Exception as e:
             logger.error(f"Failed to get delayed events: {e}")
             raise
+    
+    async def clear_all_queues(self) -> Dict[str, int]:
+        """Clear all events from all queues and return counts of cleared events"""
+        if not self.redis:
+            raise RuntimeError("Redis connection not established")
+            
+        try:
+            # Get current counts before clearing
+            active_count = await self.redis.llen("rebalance_queue")
+            retry_count = await self.redis.zcard("rebalance_retry_set")
+            delayed_count = await self.redis.zcard("delayed_execution_set")
+            active_events_count = await self.redis.scard("active_events_set")
+            
+            # Clear all queues atomically
+            pipe = self.redis.pipeline()
+            pipe.delete("rebalance_queue")
+            pipe.delete("rebalance_retry_set")
+            pipe.delete("delayed_execution_set")
+            pipe.delete("active_events_set")
+            await pipe.execute()
+            
+            cleared_counts = {
+                "active_queue": active_count,
+                "retry_queue": retry_count,
+                "delayed_queue": delayed_count,
+                "active_events_set": active_events_count
+            }
+            
+            logger.info(f"Cleared all queues", extra={
+                "cleared_counts": cleared_counts
+            })
+            
+            return cleared_counts
+        except Exception as e:
+            logger.error(f"Failed to clear all queues: {e}")
+            raise
