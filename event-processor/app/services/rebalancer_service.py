@@ -272,8 +272,6 @@ class RebalancerService:
         app_logger.log_info(f"{mode_text} - Executing {len(sell_orders)} sell orders for account {account_id}", event)
         
         if dry_run:
-            for order in sell_orders:
-                app_logger.log_info(f"DRY RUN - Would execute: {order}", event)
             return
         
         # Place ALL sell orders concurrently (like simple algorithm)
@@ -315,8 +313,6 @@ class RebalancerService:
         app_logger.log_info(f"{mode_text} - Executing {len(buy_orders)} buy orders for account {account_id}", event)
         
         if dry_run:
-            for order in buy_orders:
-                app_logger.log_info(f"DRY RUN - Would execute: {order}", event)
             return
         
         # Place ALL buy orders concurrently (like simple algorithm)

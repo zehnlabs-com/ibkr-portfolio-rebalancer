@@ -334,8 +334,6 @@ class IBKRClient:
         contracts_map = {c.symbol: c for c in qualified_contracts}
 
         # --- Phase 1: Concurrent Snapshot Requests ---
-        app_logger.log_info(f"Getting market prices using concurrent snapshot requests for {len(qualified_contracts)} symbols...")
-        
         # Use gather with return_exceptions=True to handle individual failures gracefully
         snapshot_tasks = [self._fetch_single_snapshot_price(c) for c in qualified_contracts]
         snapshot_results = await asyncio.gather(*snapshot_tasks, return_exceptions=True)
@@ -349,20 +347,17 @@ class IBKRClient:
                 symbol, price = result
                 prices[symbol] = price
                 successful_snapshots += 1
-        
-        app_logger.log_info(f"Phase 1 (Snapshot) successfully got {successful_snapshots}/{len(qualified_contracts)} prices")
 
         # --- Phase 2: Concurrent Historical Fallback ---
+        successful_historical = 0
         remaining_symbols = [s for s in symbols if s not in prices]
         if remaining_symbols:
-            app_logger.log_info(f"Phase 2 (Historical) attempting to fetch {len(remaining_symbols)} missing prices...")
             remaining_contracts = [contracts_map[s] for s in remaining_symbols if s in contracts_map]
             
             if remaining_contracts:
                 historical_tasks = [self._fetch_single_historical_price(c) for c in remaining_contracts]
                 historical_results = await asyncio.gather(*historical_tasks, return_exceptions=True)
 
-                successful_historical = 0
                 for i, result in enumerate(historical_results):
                     if isinstance(result, Exception):
                         app_logger.log_debug(f"Historical exception for {remaining_contracts[i].symbol}: {result}")
@@ -371,8 +366,6 @@ class IBKRClient:
                         symbol, price = result
                         prices[symbol] = price
                         successful_historical += 1
-                        
-                app_logger.log_info(f"Phase 2 (Historical) successfully got {successful_historical}/{len(remaining_contracts)} prices")
 
         # --- Final Check ---
         final_missing = [s for s in symbols if s not in prices]
@@ -380,7 +373,9 @@ class IBKRClient:
             app_logger.log_error(f"Could not fetch prices for: {final_missing} after all fallbacks", event)
             raise RuntimeError(f"Could not fetch price for: {final_missing} after all fallbacks.")
         
-        app_logger.log_info(f"Successfully retrieved prices for all {len(prices)} symbols")
+        # Single consolidated completion log
+        phase2_msg = f", Phase 2 (Historical): {successful_historical}/{len(remaining_symbols) if remaining_symbols else 0}" if remaining_symbols else ""
+        app_logger.log_info(f"Market prices retrieved for {len(symbols)} symbols - Phase 1 (Snapshot): {successful_snapshots}/{len(qualified_contracts)}{phase2_msg}")
         return prices
     
     
