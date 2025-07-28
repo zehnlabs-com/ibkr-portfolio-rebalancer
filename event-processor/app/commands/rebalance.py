@@ -24,6 +24,7 @@ class RebalanceCommand(EventCommand):
         try:
             rebalancer_service = services.get('rebalancer_service')
             queue_service = services.get('queue_service')
+            notification_service = services.get('notification_service')
             
             if not rebalancer_service:
                 return EventCommandResult(
@@ -64,7 +65,7 @@ class RebalanceCommand(EventCommand):
             
             if e.next_start_time:
                 # Add event to delayed execution queue
-                await queue_service.add_to_delayed_queue(self.event, e.next_start_time)
+                await queue_service.add_to_delayed_queue(self.event, e.next_start_time, notification_service)
                 
                 return EventCommandResult(
                     status=CommandStatus.SUCCESS,

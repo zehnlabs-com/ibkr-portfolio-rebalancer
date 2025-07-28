@@ -28,6 +28,10 @@ class ApplicationService:
             # Set up signal handlers
             self.signal_handler.setup_signal_handlers()
             
+            # Start notification service
+            notification_service = self.service_container.get_notification_service()
+            await notification_service.start()
+            
             # Recover any events stuck in active_events_set from previous service restart
             queue_service = self.service_container.get_queue_service()
             recovered_count = await queue_service.recover_stuck_active_events()
@@ -47,6 +51,10 @@ class ApplicationService:
             return            
         
         self.running = False
+        
+        # Stop notification service
+        notification_service = self.service_container.get_notification_service()
+        await notification_service.stop()
 
         app_logger.log_info("Application services stopped successfully")
         

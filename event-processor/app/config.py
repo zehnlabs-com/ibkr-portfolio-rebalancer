@@ -60,6 +60,14 @@ class OrderConfig:
     """Order execution configuration (from environment variables)"""
     time_in_force: str           # Order time-in-force: 'DAY' or 'GTC'
     extended_hours_enabled: bool # Enable extended hours trading
+
+@dataclass
+class NotificationConfig:
+    """Notification service configuration"""
+    enabled: bool              # Enable/disable notifications
+    server_url: str           # ntfy.sh server URL
+    auth_token: Optional[str] # Optional auth token
+    buffer_seconds: int       # Notification buffer time in seconds
     
 class Config:
     def __init__(self, config_file: str = "config.yaml"):
@@ -118,6 +126,14 @@ class Config:
         self.order = OrderConfig(
             time_in_force=os.getenv("TIME_IN_FORCE", "DAY"),
             extended_hours_enabled=os.getenv("EXTENDED_HOURS_ENABLED", "false").lower() == "true"
+        )
+        
+        # Notification config (from environment variables)
+        self.notification = NotificationConfig(
+            enabled=os.getenv("NOTIFICATIONS_ENABLED", "true").lower() == "true",
+            server_url=os.getenv("NTFY_SERVER_URL", "https://ntfy.sh"),
+            auth_token=os.getenv("NTFY_AUTH_TOKEN"),
+            buffer_seconds=int(os.getenv("NOTIFICATION_BUFFER_SECONDS", "60"))
         )
         
         # Allocations API config (from YAML only)

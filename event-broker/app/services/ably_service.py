@@ -211,9 +211,6 @@ class AblyEventSubscriber:
             else:
                 logger.warning("Redis connectivity check failed")
                 
-            # PostgreSQL connectivity check removed
-            logger.info("PostgreSQL audit logging disabled")
-                
         except Exception as e:
             logger.error(f"Failed to verify services health: {e}")
             # Don't raise here - we want to continue even if health check fails initially
