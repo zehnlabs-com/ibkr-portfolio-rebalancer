@@ -4,13 +4,15 @@ from typing import List, Dict
 from app.config import config
 from app.models.account_config import EventAccountConfig
 from app.logger import AppLogger
+from app.services.replacement_service import ReplacementService
 
 app_logger = AppLogger(__name__)
 
 
 class AllocationService:
-    @staticmethod
-    async def get_allocations(account_config: EventAccountConfig, event=None) -> List[Dict[str, float]]:        
+    def __init__(self):
+        self.replacement_service = ReplacementService()
+    async def get_allocations(self, account_config: EventAccountConfig, event=None) -> List[Dict[str, float]]:        
         allocations_url = f"{config.allocations_base_url}/{account_config.strategy_name}/allocations"
         
         api_key = config.allocations_api_key
@@ -78,6 +80,16 @@ class AllocationService:
                     app_logger.log_info(f"Strategy: {strategy_name} ({strategy_long_name})", event)
                     if last_rebalance:
                         app_logger.log_info(f"Last rebalance: {last_rebalance}", event)
+                    
+                    # Apply ETF replacements with scaling if account has replacement set configured
+                    if account_config.replacement_set:
+                        app_logger.log_info(f"Applying replacement set '{account_config.replacement_set}' for account {account_config.account_id}", event)
+                        allocations = self.replacement_service.apply_replacements_with_scaling(
+                            allocations=allocations,
+                            replacement_set_name=account_config.replacement_set,
+                            event=event
+                        )
+                        app_logger.log_info(f"Applied replacements - final allocation count: {len(allocations)}", event)
                     
                     return allocations
                     

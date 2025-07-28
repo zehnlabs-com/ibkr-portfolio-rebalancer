@@ -98,7 +98,10 @@ class AblyEventSubscriber:
         """Load account configurations from YAML file"""
         try:
             with open(config.ACCOUNTS_FILE, 'r') as f:
-                accounts_data = yaml.safe_load(f)
+                yaml_data = yaml.safe_load(f)
+            
+            # Extract accounts array from new YAML structure
+            accounts_data = yaml_data.get('accounts', [])
             
             self.accounts = []
             # accounts_data is a list of account configurations

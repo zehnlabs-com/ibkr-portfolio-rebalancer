@@ -42,6 +42,7 @@ class RebalancerService:
     
     def __init__(self, ibkr_client: IBKRClient):
         self.ibkr_client = ibkr_client
+        self.allocation_service = AllocationService()
     
     async def rebalance_account(self, account_config: EventAccountConfig, event=None):
         # Log queue position
@@ -54,7 +55,7 @@ class RebalancerService:
             try:
                 app_logger.log_info(f"Starting LIVE rebalance for account {account_config.account_id}", event)
                 
-                target_allocations = await AllocationService.get_allocations(account_config, event)
+                target_allocations = await self.allocation_service.get_allocations(account_config, event)
                 
                 current_positions = await self.ibkr_client.get_positions(account_config.account_id, event)
                 account_value = await self.ibkr_client.get_account_value(account_config.account_id, event=event)
@@ -379,7 +380,7 @@ class RebalancerService:
             try:
                 app_logger.log_info(f"Starting dry run rebalance for account {account_config.account_id}", event)
                 
-                target_allocations = await AllocationService.get_allocations(account_config, event)
+                target_allocations = await self.allocation_service.get_allocations(account_config, event)
                 
                 current_positions = await self.ibkr_client.get_positions(account_config.account_id, event)
                 account_value = await self.ibkr_client.get_account_value(account_config.account_id, event=event)

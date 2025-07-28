@@ -45,17 +45,21 @@ class QueueService:
                 return {}
             
             with open(accounts_path, 'r') as f:
-                accounts_data = yaml.safe_load(f)
+                yaml_data = yaml.safe_load(f)
             
-            if not accounts_data:
+            if not yaml_data:
                 return {}
+            
+            # Extract accounts array from new YAML structure
+            accounts_data = yaml_data.get('accounts', [])
             
             # Find account configuration
             for account in accounts_data:
                 if account.get('account_id') == account_id:
                     return {
                         'strategy_name': account.get('notification', {}).get('channel', ''),
-                        'cash_reserve_percent': account.get('rebalancing', {}).get('cash_reserve_percent', 0.0)
+                        'cash_reserve_percent': account.get('rebalancing', {}).get('cash_reserve_percent', 0.0),
+                        'replacement_set': account.get('replacement_set')
                     }
             
             app_logger.log_warning(f"Account {account_id} not found in accounts.yaml")
@@ -524,6 +528,7 @@ class QueueService:
                         'times_queued': 1,
                         'strategy_name': account_config.get('strategy_name', ''),
                         'cash_reserve_percent': account_config.get('cash_reserve_percent', 0.0),
+                        'replacement_set': account_config.get('replacement_set'),
                     }
                     
                     # Add back to rebalance queue and active events set

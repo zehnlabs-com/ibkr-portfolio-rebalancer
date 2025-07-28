@@ -4,30 +4,58 @@
 # IMPORTANT: After modifying this file, restart services to apply changes:
 #   docker compose restart
 
-# Account 1
-############
-  #IBKR account ID
-- account_id: "U123456" 
-  notification:
-    # Name of the strategy that this account will trade.
-    # All lowercase letters, spaces replaced with hyphens.
-    # You must have a valid subscription for this strategy.    
-    channel: "etf-blend-200-35" 
-  rebalancing:
-    # Percentage of equity to reserve as a buffer for quickly changing prices.
-    # Valid values are 0% to 100%, default 0%
-    cash_reserve_percent: 1.0
-
-# Account 2
-############
+accounts:
+  # Account 1
+  ############
   # IBKR account ID
-- account_id: "U654321"
-  notification:
-    # Name of the strategy that this account will trade.
-    # All lowercase letters, spaces replaced with hyphens.
-    # You must have a valid subscription for this strategy.
-    channel: "etf-blend-301-20" # Strtagey name, all lowercase, spaces replaced with hyphens
-  rebalancing:
-    # Percentage of equity to reserve as a buffer for quickly changing prices.
-    # Valid values are 0% to 100%, default 0%
-    cash_reserve_percent: 1.0
+  - account_id: "U123456"
+    # Optional: specify replacement_set for IRA accounts that cannot trade certain ETFs
+    # replacement_set: ira
+    notification:
+      # Name of the strategy that this account will trade.
+      # All lowercase letters, spaces replaced with hyphens.
+      # You must have a valid subscription for this strategy.    
+      channel: "etf-blend-200-35"
+    rebalancing:
+      # Percentage of equity to reserve as a buffer for quickly changing prices.
+      # Valid values are 0% to 100%, default 0%
+      cash_reserve_percent: 1.0
+
+  # Account 2  
+  ############
+  # IBKR account ID
+  - account_id: "U654321"
+    # Optional: specify replacement_set for IRA accounts that cannot trade certain ETFs
+    # replacement_set: ira
+    notification:
+      # Name of the strategy that this account will trade.
+      # All lowercase letters, spaces replaced with hyphens.
+      # You must have a valid subscription for this strategy.
+      channel: "etf-blend-301-20" # Strategy name, all lowercase, spaces replaced with hyphens
+    rebalancing:
+      # Percentage of equity to reserve as a buffer for quickly changing prices.
+      # Valid values are 0% to 100%, default 0%
+      cash_reserve_percent: 1.0
+
+# ETF Replacement Sets for IRA Account Restrictions
+# Configure replacement rules for accounts that cannot trade certain ETFs
+replacement_sets:
+    ira:
+        - source: DBC
+          target: PDBC
+          scale: 1.0
+        - source: UUP
+          target: USDU
+          scale: 1.0
+        - source: VIXY
+          target: VXX
+          scale: 1.0
+        - source: VIXM
+          target: VXZ
+          scale: 1.0
+        - source: UVXY
+          target: VXX
+          scale: 1.5
+        - source: SVXY
+          target: USMV
+          scale: 1.0        

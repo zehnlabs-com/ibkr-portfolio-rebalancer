@@ -66,9 +66,10 @@ The system maintains a configurable cash reserve applied after sell orders compl
 Each account can have its own reserve percentage configured in `accounts.yaml`:
 
 ```yaml
-- account_id: "DU123456"
-  rebalancing:
-    cash_reserve_percent: 1.0  # 1% reserve (default 0.0)
+accounts:
+  - account_id: "DU123456"
+    rebalancing:
+      cash_reserve_percent: 1.0  # 1% reserve (default 0.0)
 ```
 
 **Validation:**
