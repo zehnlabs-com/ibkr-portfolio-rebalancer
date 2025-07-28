@@ -13,6 +13,7 @@ Before starting, ensure you have:
 🏦 **IBKR Pro account** with API access enabled  (IBKR Lite won't work)  
 📊 **Trading permissions** for `Complex or Leveraged Exchange-Traded Products` in your IBKR account  
 💰 **Dividend Election** set to `Reinvest` in your IBKR account  
+🚫 **Symbol Trading Verification** - Certain accounts (especially IRA accounts) do not allow all symbols to be traded. Please verify that your account allows all symbols in your respective strategies by attempting to manually buy 1 quantity of all symbols listed under the "Execution Metrics" of your chosen strategy. If certain symbols are not allowed in your account, you can specify replacement symbols in `accounts.yaml` configuration file.  
 📱 **IBKR Key (Mobile App)** configured as MFA - **CRITICAL** for authentication  
 🎯 **Zehnlabs strategy subscription** - active subscription to [Zehnlabs Tactical Asset Allocation strategies](https://fintech.zehnlabs.com)  
 🔑 **ZehnLabs API keys** - get them from Telegram bot `@FintechZL_bot` (send `/api`)  
