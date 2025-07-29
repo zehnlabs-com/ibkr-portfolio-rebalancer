@@ -33,7 +33,7 @@ The service maps port **8000** for HTTP API access.
 |----------|--------|-------------|
 | `/health` | GET | System health check |
 | `/queue/status` | GET | Queue statistics and metrics |
-| `/queue/events` | GET | List events with optional filtering |
+| `/queue/events` | GET | List events with optional filtering by type (active, retry, delayed) |
 
 ### Queue Management
 
