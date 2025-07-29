@@ -3,14 +3,6 @@ import yaml
 from typing import Dict, Optional
 from dataclasses import dataclass
 import logging
-import re
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
-
-    # Note: Account configuration dataclasses removed - account configs now come from event payloads
-
 @dataclass
 class RetryConfig:
     """Retry behavior configuration for network operations"""
@@ -93,7 +85,7 @@ class Config:
         # Redis config
         redis_config = config_data["redis"]  # Required section
         self.redis = RedisConfig(
-            host=os.getenv("REDIS_HOST", redis_config["host"]),
+            host=redis_config["host"],
             port=redis_config["port"],
             db=redis_config["db"],
             max_connections=redis_config["max_connections"]
