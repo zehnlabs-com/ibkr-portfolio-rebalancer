@@ -14,6 +14,7 @@ class ApplicationService:
     
     def __init__(self):
         self.service_container = ServiceContainer()
+        self.user_notification_service = self.service_container.get_user_notification_service()
         self.signal_handler = SignalHandler(self.stop)
         self.running = False
     
@@ -28,9 +29,8 @@ class ApplicationService:
             # Set up signal handlers
             self.signal_handler.setup_signal_handlers()
             
-            # Start notification service
-            notification_service = self.service_container.get_notification_service()
-            await notification_service.start()
+            # Start user notification service            
+            await self.user_notification_service.start()
             
             # Recover any events stuck in active_events_set from previous service restart
             queue_service = self.service_container.get_queue_service()
@@ -52,9 +52,8 @@ class ApplicationService:
         
         self.running = False
         
-        # Stop notification service
-        notification_service = self.service_container.get_notification_service()
-        await notification_service.stop()
+        # Stop user notification service
+        await self.user_notification_service.stop()
 
         app_logger.log_info("Application services stopped successfully")
         

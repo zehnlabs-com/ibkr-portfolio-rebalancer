@@ -5,7 +5,7 @@ Service container for dependency injection.
 from typing import Dict, Any, Optional, TypeVar, Type
 from app.services.queue_service import QueueService
 from app.services.ibkr_client import IBKRClient
-from app.services.notification_service import NotificationService
+from app.services.notification_service import UserNotificationService
 from app.commands.factory import CommandFactory
 from app.logger import AppLogger
 
@@ -30,7 +30,7 @@ class ServiceContainer:
         
         # Initialize core services        
         self._services['ibkr_client'] = IBKRClient()
-        self._services['notification_service'] = NotificationService()
+        self._services['user_notification_service'] = UserNotificationService()
         self._services['command_factory'] = CommandFactory()
         self._services['queue_service'] = QueueService(self)
         
@@ -80,9 +80,9 @@ class ServiceContainer:
         """Get the command factory instance"""
         return self.get_service('command_factory')
     
-    def get_notification_service(self) -> NotificationService:
-        """Get the notification service instance"""
-        return self.get_service('notification_service')
+    def get_user_notification_service(self) -> UserNotificationService:
+        """Get the user notification service instance"""
+        return self.get_service('user_notification_service')
     
     def is_initialized(self) -> bool:
         """Check if container is initialized"""

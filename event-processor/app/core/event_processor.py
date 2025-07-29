@@ -18,7 +18,7 @@ class EventProcessor:
     
     def __init__(self, service_container: ServiceContainer):
         self.service_container = service_container
-        self.notification_service = service_container.get_notification_service()
+        self.user_notification_service = service_container.get_user_notification_service()
         self.running = False
         self.retry_processor_task = None
         self.delayed_processor_task = None
@@ -127,7 +127,7 @@ class EventProcessor:
         
         try:
             # Send event started notification
-            await self.notification_service.send_notification(event_info, 'event_started')
+            await self.user_notification_service.send_notification(event_info, 'event_started')
             
             # Times queued tracking now handled in Redis only
             
@@ -149,7 +149,7 @@ class EventProcessor:
                 
                 # Send success notification (different types for first vs retry)
                 success_event_type = 'event_success_first' if event_info.times_queued <= 1 else 'event_success_retry'
-                await self.notification_service.send_notification(event_info, success_event_type)
+                await self.user_notification_service.send_notification(event_info, success_event_type)
                 
                 # Remove from active events set after successful processing
                 await queue_service.remove_from_queued(event_info.account_id, event_info.exec_command)
@@ -167,7 +167,7 @@ class EventProcessor:
         try:
             # Determine error type for notification
             error_type = 'event_connection_error' if 'connection' in error_message.lower() or 'timeout' in error_message.lower() else 'event_critical_error'
-            await self.notification_service.send_notification(event_info, error_type, {'error_message': error_message})
+            await self.user_notification_service.send_notification(event_info, error_type, {'error_message': error_message})
             
             # Failure tracking now handled in Redis only
             
@@ -186,7 +186,7 @@ class EventProcessor:
     async def _handle_permanent_failure(self, event_info: EventInfo, error_message: str):
         """Handle permanent failures by discarding event and logging error"""
         try:
-            await self.notification_service.send_notification(event_info, 'event_critical_error', {'error_message': error_message})
+            await self.user_notification_service.send_notification(event_info, 'event_critical_error', {'error_message': error_message})
             
             # Remove from active events (no requeue)
             queue_service = self.service_container.get_queue_service()

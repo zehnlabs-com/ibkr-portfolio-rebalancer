@@ -24,7 +24,6 @@ class RebalanceCommand(EventCommand):
         try:
             rebalancer_service = services.get('rebalancer_service')
             queue_service = services.get('queue_service')
-            notification_service = services.get('notification_service')
             
             if not rebalancer_service:
                 return EventCommandResult(

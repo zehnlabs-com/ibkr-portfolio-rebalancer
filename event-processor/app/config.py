@@ -62,8 +62,8 @@ class OrderConfig:
     extended_hours_enabled: bool # Enable extended hours trading
 
 @dataclass
-class NotificationConfig:
-    """Notification service configuration"""
+class UserNotificationConfig:
+    """User notification service configuration"""
     enabled: bool              # Enable/disable notifications
     server_url: str           # ntfy.sh server URL
     auth_token: Optional[str] # Optional auth token
@@ -128,8 +128,8 @@ class Config:
             extended_hours_enabled=os.getenv("EXTENDED_HOURS_ENABLED", "false").lower() == "true"
         )
         
-        # Notification config (from environment variables)
-        self.notification = NotificationConfig(
+        # User notification config (from environment variables)
+        self.user_notification = UserNotificationConfig(
             enabled=os.getenv("NOTIFICATIONS_ENABLED", "true").lower() == "true",
             server_url=os.getenv("NTFY_SERVER_URL", "https://ntfy.sh"),
             auth_token=os.getenv("NTFY_AUTH_TOKEN"),

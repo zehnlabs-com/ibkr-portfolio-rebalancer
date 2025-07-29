@@ -22,7 +22,7 @@ class QueueService:
         self.redis = None
         self._redis_url = f"redis://{config.redis.host}:{config.redis.port}/{config.redis.db}"
         self.service_container = service_container
-        self.notification_service = service_container.get_notification_service()
+        self.user_notification_service = service_container.get_user_notification_service()
     
     async def _get_redis(self):
         """Get or create Redis connection"""
@@ -259,7 +259,7 @@ class QueueService:
             await pipe.execute()
             
             # Send retry notification
-            await self.notification_service.send_notification(event_info, 'event_retry')
+            await self.user_notification_service.send_notification(event_info, 'event_retry')
             
             app_logger.log_info(f"Event added to retry queue for retry", event_info)
             
@@ -374,7 +374,7 @@ class QueueService:
             await pipe.execute()
             
             # Send delayed notification
-            await self.notification_service.send_notification(event_info, 'event_delayed', {'delayed_until': next_execution_time.strftime('%H:%M')})
+            await self.user_notification_service.send_notification(event_info, 'event_delayed', {'delayed_until': next_execution_time.strftime('%H:%M')})
             
             app_logger.log_info(f"Event added to delayed execution queue until {next_execution_time.strftime('%Y-%m-%d %H:%M:%S')}", event_info)
             

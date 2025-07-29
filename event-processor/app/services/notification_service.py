@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Notification Service for ntfy.sh integration with Redis-backed buffering
+User Notification Service for ntfy.sh integration with Redis-backed buffering
 """
 import json
 import asyncio  
@@ -18,7 +18,7 @@ app_logger = AppLogger(__name__)
 
 
 @dataclass
-class NotificationEvent:
+class UserNotificationEvent:
     """Individual notification event"""
     event_type: str
     message: str
@@ -26,9 +26,9 @@ class NotificationEvent:
     details: Dict[str, Any]
 
 
-class NotificationService:
+class UserNotificationService:
     """
-    Redis-backed notification service with buffering for ntfy.sh
+    Redis-backed user notification service with buffering for ntfy.sh
     Groups notifications by account and flushes periodically to prevent spam
     """
     
@@ -39,10 +39,10 @@ class NotificationService:
         self.running = False
         
         # Notification settings from config
-        self.server_url = config.notification.server_url
-        self.auth_token = config.notification.auth_token
-        self.buffer_seconds = config.notification.buffer_seconds
-        self.enabled = config.notification.enabled
+        self.server_url = config.user_notification.server_url
+        self.auth_token = config.user_notification.auth_token
+        self.buffer_seconds = config.user_notification.buffer_seconds
+        self.enabled = config.user_notification.enabled
         
         # Priority mapping
         self.priority_map = {
@@ -59,7 +59,7 @@ class NotificationService:
         return self.redis
     
     async def start(self):
-        """Start the notification service and background flush task"""
+        """Start the user notification service and background flush task"""
         if not self.enabled:
             app_logger.log_info("Notifications disabled, skipping start")
             return
@@ -69,7 +69,7 @@ class NotificationService:
         self.flush_task = asyncio.create_task(self._flush_loop())
     
     async def stop(self):
-        """Stop the notification service"""
+        """Stop the user notification service"""
         if not self.running:
             return
             
@@ -171,7 +171,7 @@ class NotificationService:
             
             # Create notification event
             timestamp = datetime.now()
-            notification = NotificationEvent(
+            notification = UserNotificationEvent(
                 event_type=event_type,
                 message=self._format_event_message(event_type, details, timestamp),
                 timestamp=timestamp,
@@ -318,7 +318,7 @@ class NotificationService:
             for notification_json in reversed(notifications_data):  # Reverse to get chronological order
                 try:
                     notification_data = json.loads(notification_json)
-                    notifications.append(NotificationEvent(
+                    notifications.append(UserNotificationEvent(
                         event_type=notification_data['event_type'],
                         message=notification_data['message'],
                         timestamp=datetime.fromisoformat(notification_data['timestamp']),
@@ -338,7 +338,7 @@ class NotificationService:
         except Exception as e:
             app_logger.log_error(f"Failed to flush notifications for account {account_id}: {e}")
     
-    async def _send_grouped_notification(self, account_id: str, notifications: List[NotificationEvent]):
+    async def _send_grouped_notification(self, account_id: str, notifications: List[UserNotificationEvent]):
         """Send grouped notification for an account"""
         try:
             # Title with account ID
@@ -365,7 +365,7 @@ class NotificationService:
         except Exception as e:
             app_logger.log_error(f"Failed to send grouped notification for account {account_id}: {e}")
     
-    def _determine_priority_and_tags(self, notifications: List[NotificationEvent]) -> tuple[str, str]:
+    def _determine_priority_and_tags(self, notifications: List[UserNotificationEvent]) -> tuple[str, str]:
         """Determine priority and emoji tags for grouped notifications"""
         has_error = any('error' in notification.event_type for notification in notifications)
         has_warning = any(notification.event_type in ['event_delayed', 'event_retry', 'event_success_retry'] 
