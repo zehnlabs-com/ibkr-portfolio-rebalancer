@@ -12,6 +12,7 @@ The Event Processor is the core execution engine that processes queued rebalanci
 - **Delayed Execution**: Schedules events for execution during market hours
 - **Error Recovery**: Implements sophisticated retry logic with automatic requeuing
 - **Portfolio Management**: Calculates trades based on target allocations
+- **User Notifications**: Sends real-time notifications about event processing via [ntfy.sh](../user-notifications.md)
 
 ## Configuration
 

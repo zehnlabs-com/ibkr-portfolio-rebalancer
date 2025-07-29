@@ -12,6 +12,7 @@ This software is provided "as-is" without any warranty. Community support is the
 - **🏦 Multi-Account Support**: Allows multiple IBKR accounts and multiple strategies
 - **🛡️ Robust Error Handling**: Indefinite event retention with automatic retry and queue management
 - **📱 Management Service**: RESTful API for queue monitoring and manual intervention
+- **🔔 Mobile Notifications**: Real-time push notifications to your phone via ntfy.sh
 
 ## 📚 Documentation
 
@@ -28,6 +29,7 @@ This software is provided "as-is" without any warranty. Community support is the
 - **[IBKR Gateway](docs/services/ibkr-gateway.md)** - Interactive Brokers connection
 - **[Infrastructure](docs/services/infrastructure.md)** - Redis and NoVNC services
 - **[Rebalancing Algorithm](docs/rebalancing.md)** - Trading logic and cash reserves
+- **[User Notifications](docs/user-notifications.md)** - Real-time system notifications via ntfy.sh
 
 ### 🔧 Development & Troubleshooting  
 - **[Development](docs/development.md)** - Local development setup
