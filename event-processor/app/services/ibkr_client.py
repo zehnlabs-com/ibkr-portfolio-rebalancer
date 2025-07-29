@@ -493,9 +493,17 @@ class IBKRClient:
             if not self.ib.isConnected():
                 return await self.connect()
             
-            # Simple connection check - if isConnected() returns True, trust it
-            # The reqCurrentTimeAsync() was causing hangs due to event loop issues
-            return True
+            # Active validation with timeout to detect stale connections
+            try:
+                await asyncio.wait_for(
+                    self.ib.reqCurrentTimeAsync(), 
+                    timeout=5.0
+                )
+                return True
+            except (asyncio.TimeoutError, Exception) as e:
+                app_logger.log_warning(f"Stale connection detected ({type(e).__name__}: {e}), reconnecting...")
+                self.connected = False
+                return await self.connect()
     
     async def get_contract_details(self, symbols: List[str], event=None) -> Dict[str, Any]:
         """
