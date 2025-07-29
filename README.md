@@ -42,9 +42,6 @@ Check if the system is running properly:
 # System health check
 curl http://localhost:8000/health
 
-# Detailed health check
-curl http://localhost:8000/health/detailed
-
 # Queue status and metrics
 curl http://localhost:8000/queue/status
 

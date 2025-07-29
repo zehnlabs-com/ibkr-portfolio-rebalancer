@@ -17,34 +17,6 @@ class HealthService(IHealthService):
         self.health_repository = health_repository
         self.queue_repository = queue_repository
     
-    async def check_health(self) -> Dict[str, Any]:
-        """Check system health based on retry events"""
-        try:
-            retry_events_count = await self.queue_repository.get_retry_events_count()
-            
-            if retry_events_count == 0:
-                return {
-                    "status": "healthy",
-                    "healthy": True,
-                    "retry_events_count": 0,
-                    "message": "No events require retry"
-                }
-            else:
-                return {
-                    "status": "unhealthy",
-                    "healthy": False,
-                    "retry_events_count": retry_events_count,
-                    "message": f"{retry_events_count} events in retry queue"
-                }
-        except Exception as e:
-            logger.error(f"Health check failed: {e}")
-            return {
-                "status": "error",
-                "healthy": False,
-                "retry_events_count": 0,
-                "message": f"Health check failed: {str(e)}"
-            }
-    
     async def get_detailed_health(self) -> Dict[str, Any]:
         """Get detailed health information"""
         try:
@@ -70,6 +42,10 @@ class HealthService(IHealthService):
             return {
                 "status": "error",
                 "healthy": False,
+                "queue_length": 0,
+                "active_events_count": 0,
+                "retry_events_count": 0,
+                "delayed_events_count": 0,
                 "message": f"Detailed health check failed: {str(e)}"
             }
     

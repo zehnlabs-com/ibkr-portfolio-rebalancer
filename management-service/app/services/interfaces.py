@@ -38,11 +38,6 @@ class IHealthService(ABC):
     """Abstract interface for health checking business logic"""
     
     @abstractmethod
-    async def check_health(self) -> Dict[str, Any]:
-        """Check system health"""
-        pass
-    
-    @abstractmethod
     async def get_detailed_health(self) -> Dict[str, Any]:
         """Get detailed health information"""
         pass

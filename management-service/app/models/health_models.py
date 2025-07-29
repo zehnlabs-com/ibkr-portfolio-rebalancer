@@ -5,14 +5,6 @@ from typing import Dict, Any, List
 from pydantic import BaseModel
 
 
-class HealthStatus(BaseModel):
-    """Health check response model"""
-    status: str
-    healthy: bool
-    retry_events_count: int
-    message: str
-
-
 class DetailedHealthStatus(BaseModel):
     """Detailed health check response model"""
     status: str

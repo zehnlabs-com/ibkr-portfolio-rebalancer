@@ -89,11 +89,8 @@ After completing the platform-specific installation, verify everything is workin
 After starting the system, verify everything is working. You can use a browser to navigate to the URLs below or use the command line:
 
 ```bash
-# System quick health check
+# System health check
 curl http://localhost:8000/health
-
-# System detailed health check
-curl http://localhost:8000/health/detailed
 
 # Queue status
 curl http://localhost:8000/queue/status

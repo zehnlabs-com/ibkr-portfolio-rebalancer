@@ -74,11 +74,8 @@ docker compose restart
 
 ### Health Check
 ```bash
-# Quick system health check
+# System health check
 curl http://localhost:8000/health
-
-# Detailed system health check
-curl http://localhost:8000/health/detailed
 
 # Check queue status
 curl http://localhost:8000/queue/status

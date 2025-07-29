@@ -8,11 +8,8 @@ Start with these commands to get an overview of system status:
 # Check all services are running
 docker-compose ps
 
-# Quick health check
+# Health check
 curl http://localhost:8000/health
-
-# Detailed health check
-curl http://localhost:8000/health/detailed
 
 # Queue status overview
 curl http://localhost:8000/queue/status

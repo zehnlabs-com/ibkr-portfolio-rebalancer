@@ -31,8 +31,7 @@ The service maps port **8000** for HTTP API access.
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/health` | GET | Basic system health check |
-| `/health/detailed` | GET | Detailed system health information |
+| `/health` | GET | System health check |
 | `/queue/status` | GET | Queue statistics and metrics |
 | `/queue/events` | GET | List events with optional filtering |
 
@@ -49,11 +48,8 @@ The service maps port **8000** for HTTP API access.
 ### Health Monitoring
 
 ```bash
-# Basic health check
+# Health check
 curl http://localhost:8000/health
-
-# Detailed health check
-curl http://localhost:8000/health/detailed
 
 # Queue status and statistics
 curl http://localhost:8000/queue/status

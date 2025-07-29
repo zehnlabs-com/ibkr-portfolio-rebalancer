@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.container import container
 from app.models.queue_models import QueueStatus, QueueEvent, AddEventRequest, AddEventResponse, RemoveEventResponse, ClearQueuesResponse
-from app.models.health_models import HealthStatus, DetailedHealthStatus
+from app.models.health_models import DetailedHealthStatus
 from app.config.settings import settings
 
 # Configure logging
@@ -45,14 +45,9 @@ async def root():
     return {"message": "Portfolio Rebalancer Management Service", "version": VERSION}
 
 # Health endpoints (public)
-@app.get("/health", response_model=HealthStatus)
+@app.get("/health", response_model=DetailedHealthStatus)
 async def health_check():
     """Health check endpoint"""
-    return await container.health_handlers.health_check()
-
-@app.get("/health/detailed", response_model=DetailedHealthStatus)
-async def detailed_health_check():
-    """Detailed health check endpoint"""
     return await container.health_handlers.detailed_health_check()
 
 # Queue status endpoints (public)
