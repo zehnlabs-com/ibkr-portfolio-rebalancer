@@ -18,11 +18,11 @@ app_logger = AppLogger(__name__)
 class QueueService:
     """Redis queue service for consuming rebalance events"""
     
-    def __init__(self, service_container):
+    def __init__(self, service_container, user_notification_service):
         self.redis = None
         self._redis_url = f"redis://{config.redis.host}:{config.redis.port}/{config.redis.db}"
         self.service_container = service_container
-        self.user_notification_service = service_container.get_user_notification_service()
+        self.user_notification_service = user_notification_service
     
     async def _get_redis(self):
         """Get or create Redis connection"""

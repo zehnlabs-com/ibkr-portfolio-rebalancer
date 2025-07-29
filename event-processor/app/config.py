@@ -4,6 +4,10 @@ from typing import Dict, Optional
 from dataclasses import dataclass
 import logging
 import re
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
     # Note: Account configuration dataclasses removed - account configs now come from event payloads
 

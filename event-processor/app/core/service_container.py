@@ -22,19 +22,21 @@ class ServiceContainer:
         self._initialized = False
     
     def initialize(self):
-        """Initialize all services with their dependencies"""
+        """Initialize all services with their dependencies in proper order"""
         if self._initialized:
             return
             
         app_logger.log_info("Initializing service container...")
         
-        # Initialize core services        
+        # Phase 1: Initialize services with no dependencies
         self._services['ibkr_client'] = IBKRClient()
         self._services['user_notification_service'] = UserNotificationService()
         self._services['command_factory'] = CommandFactory()
-        self._services['queue_service'] = QueueService(self)
         
-        # Initialize rebalancer service with dependencies
+        # Phase 2: Initialize services that depend on Phase 1 services
+        self._services['queue_service'] = QueueService(self, self._services['user_notification_service'])
+        
+        # Phase 3: Initialize services with complex dependencies
         # Import here to avoid circular dependencies
         try:
             from app.services.rebalancer_service import RebalancerService
