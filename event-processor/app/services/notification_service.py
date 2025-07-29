@@ -117,6 +117,32 @@ class NotificationService:
         extra_details = {'error_message': error_message} if error_message else {}
         await self._send_immediate_notification(event, 'event_critical_error', extra_details)
     
+    async def send_notification(self, event_info: EventInfo, event_type: str, extra_details: Optional[Dict[str, Any]] = None):
+        """Route notification to appropriate method based on event type"""
+        try:
+            if event_type == 'event_started':
+                await self.notify_event_started(event_info)
+            elif event_type == 'event_success_first':
+                await self.notify_event_completed(event_info)
+            elif event_type == 'event_success_retry':
+                await self.notify_event_completed_with_retry(event_info)
+            elif event_type == 'event_delayed':
+                delayed_until = event_info.payload.get('delayed_until', 'unknown')
+                await self.notify_event_execution_delayed(event_info, delayed_until)
+            elif event_type == 'event_retry':
+                await self.notify_event_will_retry(event_info)  
+            elif event_type == 'event_connection_error':
+                error_message = extra_details.get('error_message') if extra_details else None
+                await self.notify_event_connection_error(event_info, error_message)
+            elif event_type == 'event_critical_error':
+                error_message = extra_details.get('error_message') if extra_details else None
+                await self.notify_event_critical_error(event_info, error_message)
+            else:
+                app_logger.log_warning(f"Unknown event type for notification: {event_type}")
+            
+        except Exception as e:
+            app_logger.log_warning(f"Failed to send notification: {e}")
+    
     async def _queue_notification_internal(self, event: EventInfo, event_type: str, extra_details: Optional[Dict[str, Any]] = None):
         """
         Internal method to queue a notification for later batch sending

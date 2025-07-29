@@ -18,6 +18,7 @@ class EventProcessor:
     
     def __init__(self, service_container: ServiceContainer):
         self.service_container = service_container
+        self.notification_service = service_container.get_notification_service()
         self.running = False
         self.retry_processor_task = None
         self.delayed_processor_task = None
@@ -123,11 +124,10 @@ class EventProcessor:
         app_logger.log_debug("Processing event", event_info)
         
         queue_service = self.service_container.get_queue_service()
-        notification_service = self.service_container.get_notification_service()
         
         try:
             # Send event started notification
-            await self._send_event_notification(notification_service, event_info, 'event_started')
+            await self.notification_service.send_notification(event_info, 'event_started')
             
             # Times queued tracking now handled in Redis only
             
@@ -149,7 +149,7 @@ class EventProcessor:
                 
                 # Send success notification (different types for first vs retry)
                 success_event_type = 'event_success_first' if event_info.times_queued <= 1 else 'event_success_retry'
-                await self._send_event_notification(notification_service, event_info, success_event_type)
+                await self.notification_service.send_notification(event_info, success_event_type)
                 
                 # Remove from active events set after successful processing
                 await queue_service.remove_from_queued(event_info.account_id, event_info.exec_command)
@@ -165,11 +165,9 @@ class EventProcessor:
     async def _handle_failed_event(self, event_info: EventInfo, error_message: str):
         """Handle failed events by requeuing them automatically"""
         try:
-            notification_service = self.service_container.get_notification_service()
-            
             # Determine error type for notification
             error_type = 'event_connection_error' if 'connection' in error_message.lower() or 'timeout' in error_message.lower() else 'event_critical_error'
-            await self._send_event_notification(notification_service, event_info, error_type, {'error_message': error_message})
+            await self.notification_service.send_notification(event_info, error_type, {'error_message': error_message})
             
             # Failure tracking now handled in Redis only
             
@@ -178,7 +176,7 @@ class EventProcessor:
             
             # Requeue event automatically (goes to back of queue)
             queue_service = self.service_container.get_queue_service()
-            updated_event_info = await queue_service.requeue_event_retry(event_info, notification_service)
+            updated_event_info = await queue_service.requeue_event_retry(event_info)
             
             app_logger.log_info(f"Event requeued after failure: {error_message}", updated_event_info)
             
@@ -188,8 +186,7 @@ class EventProcessor:
     async def _handle_permanent_failure(self, event_info: EventInfo, error_message: str):
         """Handle permanent failures by discarding event and logging error"""
         try:
-            notification_service = self.service_container.get_notification_service()
-            await self._send_event_notification(notification_service, event_info, 'event_critical_error', {'error_message': error_message})
+            await self.notification_service.send_notification(event_info, 'event_critical_error', {'error_message': error_message})
             
             # Remove from active events (no requeue)
             queue_service = self.service_container.get_queue_service()
@@ -243,33 +240,6 @@ class EventProcessor:
                 await asyncio.sleep(10)
         
         app_logger.log_info("Delayed event processor stopped")
-    
-    async def _send_event_notification(self, notification_service, event_info: EventInfo, event_type: str, extra_details: Dict[str, Any] = None):
-        """Send notification for an event"""
-        try:
-            # Route to appropriate notification method based on event type
-            if event_type == 'event_started':
-                await notification_service.notify_event_started(event_info)
-            elif event_type == 'event_success_first':
-                await notification_service.notify_event_completed(event_info)
-            elif event_type == 'event_success_retry':
-                await notification_service.notify_event_completed_with_retry(event_info)
-            elif event_type == 'event_delayed':
-                delayed_until = event_info.payload.get('delayed_until', 'unknown')
-                await notification_service.notify_event_execution_delayed(event_info, delayed_until)
-            elif event_type == 'event_retry':
-                await notification_service.notify_event_will_retry(event_info)  
-            elif event_type == 'event_connection_error':
-                error_message = extra_details.get('error_message') if extra_details else None
-                await notification_service.notify_event_connection_error(event_info, error_message)
-            elif event_type == 'event_critical_error':
-                error_message = extra_details.get('error_message') if extra_details else None
-                await notification_service.notify_event_critical_error(event_info, error_message)
-            else:
-                app_logger.log_warning(f"Unknown event type for notification: {event_type}")
-            
-        except Exception as e:
-            app_logger.log_warning(f"Failed to send notification: {e}")
     
     async def _process_event_with_semaphore(self, event_info: EventInfo):
         """Process event with semaphore to limit concurrency"""

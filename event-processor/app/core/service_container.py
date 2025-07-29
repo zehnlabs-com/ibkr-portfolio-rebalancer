@@ -28,11 +28,11 @@ class ServiceContainer:
             
         app_logger.log_info("Initializing service container...")
         
-        # Initialize core services
-        self._services['queue_service'] = QueueService()
+        # Initialize core services        
         self._services['ibkr_client'] = IBKRClient()
         self._services['notification_service'] = NotificationService()
         self._services['command_factory'] = CommandFactory()
+        self._services['queue_service'] = QueueService(self)
         
         # Initialize rebalancer service with dependencies
         # Import here to avoid circular dependencies

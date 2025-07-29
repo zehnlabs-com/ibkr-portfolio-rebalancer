@@ -65,7 +65,7 @@ class RebalanceCommand(EventCommand):
             
             if e.next_start_time:
                 # Add event to delayed execution queue
-                await queue_service.add_to_delayed_queue(self.event, e.next_start_time, notification_service)
+                await queue_service.add_to_delayed_queue(self.event, e.next_start_time)
                 
                 return EventCommandResult(
                     status=CommandStatus.SUCCESS,
