@@ -24,7 +24,7 @@ Configure notifications in your `.env` file or docker-compose:
 
 ### Important: Channel Prefix Security
 
-**Set `USER_NOTIFICATIONS_CHANNEL_PREFIX` to something unique!** Since by default `https://ntfy.sh` public server is used, a unique prefix will ensure no collisions.
+**Set `USER_NOTIFICATIONS_CHANNEL_PREFIX` to something unique!** Since by default `https://ntfy.sh` public server is used, a unique prefix will minimize the chance of someone else subscribing to the same channel. This is a good precautionary measure; since channel names include accounts, they're already unique.
 
 Use something personal like:
 - `MARY-2025`
