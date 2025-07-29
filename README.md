@@ -19,7 +19,6 @@ This software is provided "as-is" without any warranty. Community support is the
 ### 🚀 Getting Started
 - **[Getting Started](docs/getting-started.md)** - Detailed installation instructions  
 - **[Operations Guide](docs/operations.md)** - Weekly and daily operational procedures
-- **[Remote Monitoring](docs/monitoring.md)** - Remote health monitoring
 
 ### ⚙️ Design and Architecture
 - **[Architecture](docs/architecture.md)** - System design and service overview

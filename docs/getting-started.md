@@ -101,6 +101,12 @@ curl http://localhost:8000/queue/status
 
 ---
 
+## 📱 Setup User Notifications
+
+You can optionally configure real-time push notifications to your phone for system events. See the **[User Notifications Guide](user-notifications.md)** for complete setup instructions.
+
+---
+
 ## 📊 Manual Rebalancing
 
 After your containers are running, you can manually trigger rebalancing for one or all of your accounts using the following commands. This will execute orders in your brokerage accounts according to the last published allocations.
@@ -182,7 +188,8 @@ If you encounter issues:
 
 ## 🚨 **MUST Read:**
 - **[Operations Guide](operations.md)** - Critical weekly procedures and login restrictions
-- **[Remote Monitoring](monitoring.md)** - Monitoring and alerts 
+- **[User Notifications](user-notifications.md)** - Real-time system notifications setup
+ 
 
 ## ❌ Troubleshooting
 - **[Troubleshooting Guide](troubleshooting.md)** - Common issues and solutions
