@@ -43,6 +43,7 @@ class UserNotificationService:
         self.auth_token = config.user_notification.auth_token
         self.buffer_seconds = config.user_notification.buffer_seconds
         self.enabled = config.user_notification.enabled
+        self.channel_prefix = config.user_notification.channel_prefix
         
         # Priority mapping
         self.priority_map = {
@@ -399,7 +400,7 @@ class UserNotificationService:
     async def _send_to_ntfy(self, account_id: str, title: str, message: str, priority: str = 'default', tags: str = 'chart_with_upwards_trend'):
         """Send notification to ntfy.sh"""
         try:
-            channel = f"ZLF-2025-{account_id}"
+            channel = f"{self.channel_prefix}-{account_id}"
             url = f"{self.server_url}/{channel}"
             
             headers = {

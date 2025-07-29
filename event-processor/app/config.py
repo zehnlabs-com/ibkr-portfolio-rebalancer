@@ -68,6 +68,7 @@ class UserNotificationConfig:
     server_url: str           # ntfy.sh server URL
     auth_token: Optional[str] # Optional auth token
     buffer_seconds: int       # Notification buffer time in seconds
+    channel_prefix: str       # Channel name prefix for notifications
     
 class Config:
     def __init__(self, config_file: str = "config.yaml"):
@@ -130,10 +131,11 @@ class Config:
         
         # User notification config (from environment variables)
         self.user_notification = UserNotificationConfig(
-            enabled=os.getenv("NOTIFICATIONS_ENABLED", "true").lower() == "true",
-            server_url=os.getenv("NTFY_SERVER_URL", "https://ntfy.sh"),
-            auth_token=os.getenv("NTFY_AUTH_TOKEN"),
-            buffer_seconds=int(os.getenv("NOTIFICATION_BUFFER_SECONDS", "60"))
+            enabled=os.getenv("USER_NOTIFICATIONS_ENABLED", "true").lower() == "true",
+            server_url=os.getenv("USER_NOTIFICATIONS_SERVER_URL", "https://ntfy.sh"),
+            auth_token=os.getenv("USER_NOTIFICATIONS_AUTH_TOKEN"),
+            buffer_seconds=int(os.getenv("USER_NOTIFICATIONS_BUFFER_SECONDS", "60")),
+            channel_prefix=os.getenv("USER_NOTIFICATIONS_CHANNEL_PREFIX", "ZLF-2025")
         )
         
         # Allocations API config (from YAML only)

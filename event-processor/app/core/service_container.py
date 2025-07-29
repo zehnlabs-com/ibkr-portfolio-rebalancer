@@ -5,7 +5,7 @@ Service container for dependency injection.
 from typing import Dict, Any, Optional, TypeVar, Type
 from app.services.queue_service import QueueService
 from app.services.ibkr_client import IBKRClient
-from app.services.notification_service import UserNotificationService
+from app.services.user_notification_service import UserNotificationService
 from app.commands.factory import CommandFactory
 from app.logger import AppLogger
 
