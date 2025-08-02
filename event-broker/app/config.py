@@ -25,6 +25,7 @@ class ApplicationConfig:
     """Application runtime configuration"""
     log_level: str     # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
     accounts_file: str # Path to account configuration file
+    trading_mode: str  # Trading mode: paper or live
 
 class Config:
     def __init__(self, config_file: str = "config.yaml"):
@@ -49,12 +50,14 @@ class Config:
         app_config = config_data["application"]
         self.application = ApplicationConfig(
             log_level=os.getenv("LOG_LEVEL", "INFO"),
-            accounts_file=app_config["accounts_file"]
+            accounts_file=app_config["accounts_file"],
+            trading_mode=os.getenv("TRADING_MODE", "paper")
         )
         
         self.REALTIME_API_KEY = self.ably.api_key
         self.LOG_LEVEL = self.application.log_level
         self.ACCOUNTS_FILE = self.application.accounts_file
+        self.TRADING_MODE = self.application.trading_mode
     
     def _load_config_file(self, config_file: str) -> Dict:
         """Load configuration from YAML file - REQUIRED, no fallbacks"""

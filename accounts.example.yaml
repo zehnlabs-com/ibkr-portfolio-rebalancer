@@ -9,6 +9,9 @@ accounts:
   ############
   # IBKR account ID
   - account_id: "U123456"
+    # Account type: "paper" for paper trading, "live" for live trading
+    # Only accounts matching TRADING_MODE environment variable will be processed
+    type: paper
     # Optional: specify replacement_set for IRA accounts that cannot trade certain ETFs
     # replacement_set: ira
     notification:
@@ -25,6 +28,9 @@ accounts:
   ############
   # IBKR account ID
   - account_id: "U654321"
+    # Account type: "paper" for paper trading, "live" for live trading
+    # Only accounts matching TRADING_MODE environment variable will be processed
+    type: paper
     # Optional: specify replacement_set for IRA accounts that cannot trade certain ETFs
     # replacement_set: ira
     notification:
@@ -44,18 +50,23 @@ replacement_sets:
         - source: DBC
           target: PDBC
           scale: 1.0
+        
         - source: UUP
           target: USDU
           scale: 1.0
+        
         - source: VIXY
           target: VXX
           scale: 1.0
+        
         - source: VIXM
           target: VXZ
           scale: 1.0
+        
         - source: UVXY
           target: VXX
           scale: 1.5
+        
         - source: SVXY
           target: USMV
           scale: 1.0        

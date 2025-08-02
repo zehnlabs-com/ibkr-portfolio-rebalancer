@@ -17,7 +17,9 @@ The service is configured through environment variables and a YAML configuration
 
 ### Account Configuration
 
-Account settings are loaded from `accounts.yaml` at startup. **After modifying the file, restart services. You can do so in Docker Desktop or using the following command line:**
+Account settings are loaded from `accounts.yaml` at startup. The event broker will only load accounts that match the current `TRADING_MODE` setting. Each account must have a `type` property set to either `paper` or `live`.
+
+**After modifying the file, restart services. You can do so in Docker Desktop or using the following command line:**
 
 ```bash
 # Restart services to load new account settings
@@ -32,6 +34,7 @@ docker compose restart
 | `LOG_LEVEL` | Logging level (DEBUG, INFO, WARNING, ERROR) | No (defaults to INFO) |
 | `SERVICE_VERSION` | Service version for monitoring | Yes |
 | `REBALANCE_EVENT_SUBSCRIPTION_API_KEY` | API key for Zehnlabs event subscription | Yes |
+| `TRADING_MODE` | Trading mode: `paper` or `live` (filters which accounts to load) | No (defaults to `paper`) |
 
 
 ## Integration Points

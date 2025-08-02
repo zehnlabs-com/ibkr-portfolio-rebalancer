@@ -19,6 +19,7 @@ class AccountConfig:
     def __init__(self, data: Dict[str, Any]):
         self.account_id = data.get('account_id')
         self.strategy_name = data.get('notification', {}).get('channel')
+        self.type = data.get('type')
         # Add rebalancing configuration
         rebalancing_data = data.get('rebalancing', {})
         self.cash_reserve_percent = rebalancing_data.get('cash_reserve_percent', rebalancing_data.get('equity_reserve_percentage', 0.0))
@@ -104,16 +105,18 @@ class AblyEventSubscriber:
             accounts_data = yaml_data.get('accounts', [])
             
             self.accounts = []
+            trading_mode = config.TRADING_MODE
+            
             # accounts_data is a list of account configurations
             for account_data in accounts_data:
                 account = AccountConfig(account_data)
-                if account.account_id and account.strategy_name:
+                if account.account_id and account.strategy_name and account.type == trading_mode:
                     self.accounts.append(account)
                     logger.debug(f"Loaded account: {account.account_id} -> {account.strategy_name}")
                 else:
                     logger.warning(f"Invalid account configuration: {account_data}")
             
-            logger.info(f"Loaded {len(self.accounts)} account configurations")
+            logger.info(f"Loaded {len(self.accounts)} account configurations ({trading_mode})")
             
         except Exception as e:
             logger.error(f"Failed to load account configurations: {e}")

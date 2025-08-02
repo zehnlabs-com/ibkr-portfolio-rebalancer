@@ -120,7 +120,7 @@ After your containers are running, you can manually trigger rebalancing for one 
 ./tools/rebalance.sh -all
 ```
 
-This tool reads your `accounts.yaml` configuration and attempts manual rebalance.
+This tool reads your `accounts.yaml` configuration and attempts manual rebalance. Note that the tool will only process accounts that match the current `TRADING_MODE` setting.
 
 ---
 
