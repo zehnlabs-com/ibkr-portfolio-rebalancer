@@ -14,6 +14,22 @@ This software is provided "as-is" without any warranty. Community support is the
 - **📱 Management Service**: RESTful API for queue monitoring and manual intervention
 - **🔔 Mobile Notifications**: Real-time push notifications to your phone via ntfy.sh
 
+## 🚀 Quick Setup
+
+**One-command installation:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/fintech-zehnlabs-com/ibkr-portfolio-rebalancer/main/setup.sh | sudo bash
+```
+
+This automated setup script will:
+- Update your system packages
+- Create the directory structure at `/opt/docker/zehnlabs/`
+- Clone the repository
+- Guide you through configuration with interactive prompts
+- Start all services automatically
+
+After setup, visit `http://localhost:8000/setup/accounts` to configure your IBKR accounts.
+
 ## 📚 Documentation
 
 ### 🚀 Getting Started
