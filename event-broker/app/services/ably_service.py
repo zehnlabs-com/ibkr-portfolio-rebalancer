@@ -113,8 +113,15 @@ class AblyEventSubscriber:
                 if account.account_id and account.strategy_name and account.type == trading_mode:
                     self.accounts.append(account)
                     logger.debug(f"Loaded account: {account.account_id} -> {account.strategy_name}")
+                elif not account.account_id:
+                    logger.warning(f"Skipping account configuration: missing account_id")
+                elif not account.strategy_name:
+                    logger.warning(f"Skipping account {account.account_id}: missing strategy channel")
+                elif account.type != trading_mode:
+                    # Normal filtering - don't log anything
+                    pass
                 else:
-                    logger.warning(f"Invalid account configuration: {account_data}")
+                    logger.warning(f"Skipping account {account.account_id}: invalid configuration")
             
             logger.info(f"Loaded {len(self.accounts)} account configurations ({trading_mode})")
             

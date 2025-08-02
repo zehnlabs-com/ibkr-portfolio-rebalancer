@@ -6,10 +6,12 @@ import os
 from typing import List
 from fastapi import FastAPI, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 
 from app.container import container
 from app.models.queue_models import QueueStatus, QueueEvent, AddEventRequest, AddEventResponse, RemoveEventResponse, ClearQueuesResponse
 from app.models.health_models import DetailedHealthStatus
+from app.models.setup_models import SaveAccountsRequest, SaveAccountsResponse, AccountsDataResponse
 from app.config.settings import settings
 
 # Configure logging
@@ -79,6 +81,22 @@ async def add_event(event_request: AddEventRequest):
 async def clear_all_queues():
     """Clear all events from all queues"""
     return await container.queue_handlers.clear_all_queues()
+
+# Setup endpoints
+@app.get("/setup/accounts", response_class=HTMLResponse)
+async def get_setup_page():
+    """Get the accounts setup page"""
+    return await container.setup_handlers.get_setup_page()
+
+@app.get("/setup/accounts/data", response_model=AccountsDataResponse)
+async def get_accounts_data():
+    """Get current accounts configuration data"""
+    return await container.setup_handlers.get_accounts_data()
+
+@app.post("/setup/accounts", response_model=SaveAccountsResponse)
+async def save_accounts(request: SaveAccountsRequest):
+    """Save accounts configuration"""
+    return await container.setup_handlers.save_accounts(request.dict())
 
 # Startup and shutdown events
 @app.on_event("startup")

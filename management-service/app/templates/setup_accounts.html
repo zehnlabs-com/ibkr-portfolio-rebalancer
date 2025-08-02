@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Setup - Portfolio Rebalancer</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="max-w-6xl mx-auto py-8 px-4">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h1 class="text-2xl font-semibold text-gray-900">Account Setup</h1>
+                <p class="text-gray-600 mt-1">Configure your IBKR accounts for portfolio rebalancing</p>
+            </div>
+
+            <div x-data="accountsSetup()" class="p-6">
+                <!-- Loading State -->
+                <div x-show="loading" class="text-center py-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                    <p class="text-gray-600 mt-2">Loading accounts...</p>
+                </div>
+
+                <!-- Success Message -->
+                <div x-show="successMessage" x-transition class="mb-6 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md">
+                    <span x-text="successMessage"></span>
+                </div>
+
+                <!-- Error Message -->
+                <div x-show="errorMessage" x-transition class="mb-6 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-md">
+                    <span x-text="errorMessage"></span>
+                </div>
+
+                <!-- Form Content -->
+                <div x-show="!loading">
+                    <form @submit.prevent="saveAccounts()">
+                        <div class="space-y-6">
+                            <!-- Accounts Section -->
+                            <div>
+                                <div class="mb-4">
+                                    <h2 class="text-lg font-medium text-gray-900">Accounts</h2>
+                                </div>
+
+                                <div x-show="accounts.length === 0" class="text-center py-8 text-gray-500">
+                                    No accounts configured. Click "Add Account" to get started.
+                                </div>
+
+                                <div class="space-y-4">
+                                    <template x-for="(account, index) in accounts" :key="index">
+                                        <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                                            <div class="flex justify-between items-start mb-4">
+                                                <h3 class="font-medium text-gray-900" x-text="`Account ${index + 1}`"></h3>
+                                                <button type="button" @click="removeAccount(index)" 
+                                                        class="text-red-600 hover:text-red-800 text-sm font-medium">
+                                                    Remove
+                                                </button>
+                                            </div>
+
+                                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 mb-1">Account ID</label>
+                                                    <input x-model="account.account_id" type="text" 
+                                                           placeholder="U123456 or DU123456"
+                                                           @input="updateAccountType(account)"
+                                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                                    <p class="text-xs text-gray-500 mt-1">
+                                                        Type: <span x-text="account.type || 'auto-detected'"></span>
+                                                    </p>
+                                                </div>
+
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 mb-1">Strategy Name</label>
+                                                    <input x-model="account.strategy_name" type="text" 
+                                                           placeholder="ETF Blend 200 35"
+                                                           @input="formatStrategyName(account)"
+                                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                                    <p class="text-xs text-gray-500 mt-1">
+                                                        Channel: <span x-text="account.notification?.channel || 'will be auto-formatted'"></span>
+                                                    </p>
+                                                </div>
+
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 mb-1">Cash Reserve (%)</label>
+                                                    <input x-model.number="account.rebalancing.cash_reserve_percent" 
+                                                           type="number" step="0.1" min="0" max="100"
+                                                           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                                </div>
+
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 mb-1">Replacement Set</label>
+                                                    <select x-model="account.replacement_set" 
+                                                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                                        <option value="">None</option>
+                                                        <option value="ira">IRA</option>
+                                                    </select>
+                                                    <p class="text-xs text-gray-500 mt-1">Uses ETF replacement set for restricted securities</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+
+                                <!-- Add Account Button -->
+                                <div class="mt-6">
+                                    <button type="button" @click="addAccount()" 
+                                            class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                        Add Account
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+                                <button type="button" @click="loadAccounts()" 
+                                        class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    Reset
+                                </button>
+                                <button type="submit" :disabled="saving"
+                                        class="bg-blue-600 text-white px-6 py-2 rounded-md text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50">
+                                    <span x-show="!saving">Save Configuration</span>
+                                    <span x-show="saving">Saving...</span>
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function accountsSetup() {
+            return {
+                loading: true,
+                saving: false,
+                accounts: [],
+                successMessage: '',
+                errorMessage: '',
+
+                async init() {
+                    await this.loadAccounts();
+                },
+
+                async loadAccounts() {
+                    this.loading = true;
+                    this.errorMessage = '';
+                    
+                    try {
+                        const response = await fetch('/setup/accounts/data');
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                        
+                        const data = await response.json();
+                        this.accounts = data.accounts.map(account => ({
+                            ...account,
+                            strategy_name: this.channelToStrategyName(account.notification?.channel || ''),
+                            replacement_set: account.replacement_set || ''
+                        }));
+                    } catch (error) {
+                        this.errorMessage = `Failed to load accounts: ${error.message}`;
+                        this.accounts = [];
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                addAccount() {
+                    this.accounts.push({
+                        account_id: '',
+                        type: 'paper',
+                        strategy_name: '',
+                        replacement_set: '',
+                        notification: {
+                            channel: ''
+                        },
+                        rebalancing: {
+                            cash_reserve_percent: 1.0
+                        }
+                    });
+                },
+
+                removeAccount(index) {
+                    this.accounts.splice(index, 1);
+                },
+
+                updateAccountType(account) {
+                    if (account.account_id) {
+                        if (account.account_id.startsWith('DU')) {
+                            account.type = 'paper';
+                        } else if (account.account_id.startsWith('U')) {
+                            account.type = 'live';
+                        }
+                    }
+                },
+
+                formatStrategyName(account) {
+                    if (account.strategy_name) {
+                        const channel = account.strategy_name
+                            .toLowerCase()
+                            .replace(/\s+/g, '-')
+                            .replace(/[^a-z0-9\-]/g, '');
+                        
+                        if (!account.notification) {
+                            account.notification = {};
+                        }
+                        account.notification.channel = channel;
+                    }
+                },
+
+
+                channelToStrategyName(channel) {
+                    // Split by dash and handle the last part separately
+                    const parts = channel.split('-');
+                    if (parts.length === 0) return '';
+                    
+                    // Convert all parts except the last to title case
+                    const titleCaseParts = parts.slice(0, -1).map(part => 
+                        part.replace(/\b\w/g, l => l.toUpperCase())
+                    );
+                    
+                    // Keep the last part as-is (preserving the dash)
+                    const lastPart = parts[parts.length - 1];
+                    
+                    // Join with spaces and add the last part with a dash
+                    const result = titleCaseParts.join(' ') + (titleCaseParts.length > 0 ? '-' : '') + lastPart;
+                    
+                    // Ensure ETF is always uppercase
+                    return result.replace(/\betf\b/gi, 'ETF');
+                },
+
+                async saveAccounts() {
+                    this.saving = true;
+                    this.errorMessage = '';
+                    this.successMessage = '';
+
+                    try {
+                        const payload = {
+                            accounts: this.accounts.map(account => {
+                                const result = {
+                                    account_id: account.account_id,
+                                    type: account.type,
+                                    notification: {
+                                        channel: account.notification.channel
+                                    },
+                                    rebalancing: {
+                                        cash_reserve_percent: account.rebalancing.cash_reserve_percent
+                                    }
+                                };
+
+                                if (account.replacement_set) {
+                                    result.replacement_set = account.replacement_set;
+                                }
+
+                                return result;
+                            })
+                        };
+
+                        const response = await fetch('/setup/accounts', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (!response.ok) {
+                            const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+                            throw new Error(errorData.detail || `HTTP ${response.status}`);
+                        }
+
+                        const result = await response.json();
+                        this.successMessage = result.message || 'Accounts saved successfully!';
+                        
+                        setTimeout(() => {
+                            this.successMessage = '';
+                        }, 5000);
+
+                    } catch (error) {
+                        this.errorMessage = `Failed to save accounts: ${error.message}`;
+                    } finally {
+                        this.saving = false;
+                    }
+                }
+            };
+        }
+    </script>
+</body>
+</html>

@@ -8,6 +8,7 @@ from app.services.queue_service import QueueService
 from app.services.health_service import HealthService
 from app.handlers.queue_handlers import QueueHandlers
 from app.handlers.health_handlers import HealthHandlers
+from app.handlers.setup_handlers import SetupHandlers
 
 
 class Container:
@@ -25,6 +26,7 @@ class Container:
         # Handlers
         self.queue_handlers = QueueHandlers(self.queue_service)
         self.health_handlers = HealthHandlers(self.health_service)
+        self.setup_handlers = SetupHandlers()
     
     async def startup(self):
         """Initialize connections"""

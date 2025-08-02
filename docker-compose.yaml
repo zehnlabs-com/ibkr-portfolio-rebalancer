@@ -149,6 +149,8 @@ services:
         condition: service_healthy
     volumes:
       - ./management-service/logs:/app/logs
+      - ./accounts.yaml:/app/accounts.yaml
+      - ./accounts.example.yaml:/app/accounts.example.yaml
       - /etc/localtime:/etc/localtime:ro
     networks:
       - ibkr-network
