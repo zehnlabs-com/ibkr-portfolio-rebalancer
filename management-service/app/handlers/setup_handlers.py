@@ -17,9 +17,22 @@ class SetupHandlers:
     def __init__(self):
         self.accounts_file_path = "/app/accounts.yaml"
         self.accounts_example_path = "/app/accounts.example.yaml"
+        self.env_file_path = "/app/.env"
+        self.env_example_path = "/app/.env.example"
         
+    async def get_main_setup_page(self) -> HTMLResponse:
+        """Return the main setup page HTML"""
+        try:
+            template_path = os.path.join(os.path.dirname(__file__), "..", "templates", "setup_main.html")
+            with open(template_path, 'r') as f:
+                html_content = f.read()
+            return HTMLResponse(content=html_content)
+        except Exception as e:
+            logger.error(f"Failed to load main setup page: {e}")
+            raise HTTPException(status_code=500, detail="Failed to load main setup page")
+    
     async def get_setup_page(self) -> HTMLResponse:
-        """Return the setup page HTML"""
+        """Return the accounts setup page HTML"""
         try:
             # Use relative path that works inside the container
             template_path = os.path.join(os.path.dirname(__file__), "..", "templates", "setup_accounts.html")
@@ -27,8 +40,19 @@ class SetupHandlers:
                 html_content = f.read()
             return HTMLResponse(content=html_content)
         except Exception as e:
-            logger.error(f"Failed to load setup page: {e}")
-            raise HTTPException(status_code=500, detail="Failed to load setup page")
+            logger.error(f"Failed to load accounts setup page: {e}")
+            raise HTTPException(status_code=500, detail="Failed to load accounts setup page")
+    
+    async def get_env_setup_page(self) -> HTMLResponse:
+        """Return the environment setup page HTML"""
+        try:
+            template_path = os.path.join(os.path.dirname(__file__), "..", "templates", "setup_env.html")
+            with open(template_path, 'r') as f:
+                html_content = f.read()
+            return HTMLResponse(content=html_content)
+        except Exception as e:
+            logger.error(f"Failed to load environment setup page: {e}")
+            raise HTTPException(status_code=500, detail="Failed to load environment setup page")
     
     async def get_accounts_data(self) -> Dict[str, Any]:
         """Get current accounts configuration"""
@@ -252,3 +276,112 @@ class SetupHandlers:
         # Ensure required structure exists
         account["notification"] = notification
         account["rebalancing"] = rebalancing
+    
+    async def get_setup_status(self) -> Dict[str, bool]:
+        """Get setup completion status"""
+        try:
+            env_exists = os.path.exists(self.env_file_path)
+            accounts_exists = os.path.exists(self.accounts_file_path)
+            
+            logger.info(f"Setup status check: .env exists={env_exists}, accounts.yaml exists={accounts_exists}")
+            return {
+                "env_exists": env_exists,
+                "accounts_exists": accounts_exists
+            }
+        except Exception as e:
+            logger.error(f"Error checking setup status: {e}")
+            raise HTTPException(status_code=500, detail="Unable to check setup status")
+    
+    async def get_env_data(self) -> Dict[str, str]:
+        """Get environment variables data"""
+        try:
+            env_content = self._load_env_file()
+            return {"env_content": env_content}
+        except Exception as e:
+            logger.error(f"Error loading environment data: {e}")
+            raise HTTPException(status_code=500, detail="Unable to load environment configuration")
+    
+    async def save_env(self, env_data: Dict[str, str]) -> Dict[str, str]:
+        """Save environment variables to .env file"""
+        try:
+            env_content = env_data.get("env_content", "")
+            
+            if not env_content.strip():
+                raise ValueError("Environment content cannot be empty")
+            
+            self._save_env_file(env_content)
+            
+            logger.info("Successfully saved environment configuration")
+            return {"message": "Environment configuration saved successfully"}
+            
+        except ValueError as e:
+            logger.error(f"Validation error: {e}")
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            logger.error(f"Unexpected error saving environment: {e}")
+            raise HTTPException(status_code=500, detail="Unable to save environment configuration")
+    
+    def _load_env_file(self) -> str:
+        """Load .env file content, return .env.example content if .env doesn't exist"""
+        # Try to load existing .env file first
+        if os.path.exists(self.env_file_path):
+            try:
+                with open(self.env_file_path, 'r') as f:
+                    content = f.read()
+                logger.info("Loaded content from existing .env file")
+                return content
+            except PermissionError as e:
+                logger.error(f"Permission denied reading .env file: {e}")
+                raise ValueError("Permission denied accessing .env file")
+            except Exception as e:
+                logger.error(f"Error reading .env file: {e}")
+                raise ValueError("Cannot read .env file")
+        
+        # Fallback to .env.example
+        if not os.path.exists(self.env_example_path):
+            logger.error(".env.example not found")
+            raise ValueError("Required environment template file not found")
+        
+        try:
+            with open(self.env_example_path, 'r') as f:
+                content = f.read()
+            logger.info("Loaded content from .env.example template")
+            return content
+        except PermissionError as e:
+            logger.error(f"Permission denied reading .env.example: {e}")
+            raise ValueError("Permission denied accessing environment template")
+        except Exception as e:
+            logger.error(f"Error reading .env.example: {e}")
+            raise ValueError("Cannot read environment template")
+    
+    def _save_env_file(self, content: str) -> None:
+        """Save content to .env file"""
+        try:
+            # Create backup if file exists
+            if os.path.exists(self.env_file_path):
+                backup_path = f"{self.env_file_path}.backup"
+                try:
+                    shutil.copy2(self.env_file_path, backup_path)
+                    logger.info(f"Created backup at {backup_path}")
+                except Exception as e:
+                    logger.error(f"Failed to create backup: {e}")
+                    raise ValueError("Cannot create backup of existing .env file")
+            
+            # Save the new content
+            try:
+                with open(self.env_file_path, 'w') as f:
+                    f.write(content)
+                logger.info("Successfully saved .env file")
+            except PermissionError as e:
+                logger.error(f"Permission denied writing .env file: {e}")
+                raise ValueError("Permission denied saving .env file")
+            except Exception as e:
+                logger.error(f"Error writing .env file: {e}")
+                raise ValueError("Cannot write .env file")
+                
+        except ValueError:
+            # Re-raise ValueError as-is
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error saving .env file: {e}")
+            raise ValueError("Cannot save environment configuration")

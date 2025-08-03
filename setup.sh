@@ -40,50 +40,6 @@ print_success() {
     echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
-# Function to prompt user input with default value
-prompt_with_default() {
-    local prompt="$1"
-    local default="$2"
-    local var_name="$3"
-    local is_secret="${4:-false}"
-    
-    if [ "$is_secret" = "true" ]; then
-        echo -n -e "${YELLOW}$prompt${NC}"
-        if [ -n "$default" ]; then
-            echo -n " [default: ***]: "
-        else
-            echo -n ": "
-        fi
-        read -s user_input
-        echo "" # New line after secret input
-    else
-        echo -n -e "${YELLOW}$prompt${NC}"
-        if [ -n "$default" ]; then
-            echo -n " [default: $default]: "
-        else
-            echo -n ": "
-        fi
-        read user_input
-    fi
-    
-    if [ -z "$user_input" ]; then
-        user_input="$default"
-    fi
-    
-    eval "$var_name='$user_input'"
-}
-
-# Function to validate required fields
-validate_required() {
-    local value="$1"
-    local field_name="$2"
-    
-    if [ -z "$value" ]; then
-        print_error "$field_name is required and cannot be empty."
-        return 1
-    fi
-    return 0
-}
 
 # Check if running as root
 check_root() {
@@ -118,10 +74,10 @@ create_directories() {
     print_step "Creating directory structure..."
     
     # Create base directory
-    mkdir -p /opt/docker/zehnlabs
-    cd /opt/docker/zehnlabs
+    mkdir -p /home/docker/zehnlabs
+    cd /home/docker/zehnlabs
     
-    print_success "Directory /opt/docker/zehnlabs created and set as working directory"
+    print_success "Directory /home/docker/zehnlabs created and set as working directory"
 }
 
 # Clone repository
@@ -139,122 +95,77 @@ clone_repository() {
     print_success "Repository cloned successfully!"
 }
 
-# Configure environment variables
-configure_environment() {
-    print_step "Configuring environment variables..."
+# Start initial services (Redis and Management Service only)
+start_initial_services() {
+    print_step "Starting Redis and Management Service..."
     
-    echo ""
-    print_info "Please provide the following configuration values:"
-    echo ""
+    print_info "Building and starting initial services..."
+    docker-compose up --build -d redis management-service
     
-    # Required variables
-    print_info "=== Required Configuration ==="
+    print_info "Waiting for services to start..."
+    sleep 10
     
-    while true; do
-        prompt_with_default "Interactive Brokers Username" "" "IB_USERNAME"
-        if validate_required "$IB_USERNAME" "IB Username"; then
-            break
-        fi
-    done
-    
-    while true; do
-        prompt_with_default "Interactive Brokers Password" "" "IB_PASSWORD" "true"
-        if validate_required "$IB_PASSWORD" "IB Password"; then
-            break
-        fi
-    done
-    
-    while true; do
-        prompt_with_default "Trading Mode (live/paper)" "paper" "TRADING_MODE"
-        if [[ "$TRADING_MODE" == "live" || "$TRADING_MODE" == "paper" ]]; then
-            break
-        else
-            print_error "Trading mode must be either 'live' or 'paper'"
-        fi
-    done
-    
-    while true; do
-        prompt_with_default "Rebalance Event Subscription API Key" "" "REBALANCE_EVENT_SUBSCRIPTION_API_KEY" "true"
-        if validate_required "$REBALANCE_EVENT_SUBSCRIPTION_API_KEY" "Rebalance Event Subscription API Key"; then
-            break
-        fi
-    done
-    
-    while true; do
-        prompt_with_default "Allocations API Key" "" "ALLOCATIONS_API_KEY" "true"
-        if validate_required "$ALLOCATIONS_API_KEY" "Allocations API Key"; then
-            break
-        fi
-    done
-    
-    # Optional variables with good defaults
-    print_info ""
-    print_info "=== Optional Configuration (using recommended defaults) ==="
-    
-    TIME_IN_FORCE="GTC"
-    EXTENDED_HOURS_ENABLED="false"
-    VNC_PASSWORD="password"
-    LOG_LEVEL="INFO"
-    USER_NOTIFICATIONS_ENABLED="true"
-    
-    print_info "Time in Force: $TIME_IN_FORCE"
-    print_info "Extended Hours Enabled: $EXTENDED_HOURS_ENABLED"
-    print_info "VNC Password: $VNC_PASSWORD"
-    print_info "Log Level: $LOG_LEVEL"
-    print_info "User Notifications Enabled: $USER_NOTIFICATIONS_ENABLED"
-    
-    # User notification configuration
-    if [ "$USER_NOTIFICATIONS_ENABLED" = "true" ]; then
-        echo ""
-        print_info "=== User Notifications Configuration ==="
-        print_info "The channel prefix helps identify your notifications."
-        print_info "Example: Use your first initial + last name + 4-digit birth year (e.g., 'jsmith1990')"
-        
-        prompt_with_default "User Notifications Channel Prefix" "ZLF-2025" "USER_NOTIFICATIONS_CHANNEL_PREFIX"
-        prompt_with_default "User Notifications Server URL" "https://ntfy.sh" "USER_NOTIFICATIONS_SERVER_URL"
-        prompt_with_default "User Notifications Auth Token (optional)" "" "USER_NOTIFICATIONS_AUTH_TOKEN" "true"
-        prompt_with_default "User Notifications Buffer Seconds" "60" "USER_NOTIFICATIONS_BUFFER_SECONDS"
+    # Check if services are running
+    if docker-compose ps redis | grep -q "Up" && docker-compose ps management-service | grep -q "Up"; then
+        print_success "Initial services started successfully!"
     else
-        USER_NOTIFICATIONS_CHANNEL_PREFIX="ZLF-2025"
-        USER_NOTIFICATIONS_SERVER_URL="https://ntfy.sh"
-        USER_NOTIFICATIONS_AUTH_TOKEN=""
-        USER_NOTIFICATIONS_BUFFER_SECONDS="60"
+        print_error "Failed to start initial services. Please check the logs."
+        exit 1
+    fi
+}
+
+# Wait for user to complete account setup
+wait_for_account_setup() {
+    echo ""
+    print_info "=== Account Setup Required ==="
+    echo ""
+    print_info "Please follow these steps to complete the setup:"
+    echo ""
+    print_info "1. Set up SSH port forwarding to access the management interface:"
+    print_info "   ssh -L 8000:localhost:8000 your-username@your-server-ip"
+    echo ""
+    print_info "2. Open your web browser and navigate to:"
+    print_info "   http://localhost:8000/setup"
+    echo ""
+    print_info "3. Complete the environment and account configuration"
+    echo ""
+    print_info "4. Once you've completed the setup, return here and press ENTER to continue"
+    echo ""
+    
+    read -p "Press ENTER when you have completed the setup..." 
+}
+
+# Verify configuration files exist
+verify_configuration() {
+    print_step "Verifying configuration files..."
+    
+    if [ ! -f ".env" ]; then
+        print_error ".env file not found. Please complete the account setup first."
+        exit 1
     fi
     
-    # Gateway restart time
-    prompt_with_default "Auto Restart Time (24h format, e.g., '10:00 PM')" "10:00 PM" "AUTO_RESTART_TIME"
+    if [ ! -f "accounts.yaml" ]; then
+        print_error "accounts.yaml file not found. Please complete the account setup first."
+        exit 1
+    fi
     
-    # Create .env file
-    print_step "Creating .env file..."
+    print_success "Configuration files verified!"
+}
+
+# Stop initial services and start full stack
+start_full_services() {
+    print_step "Stopping initial services and starting full system..."
     
-    cat > .env << EOF
-# Interactive Brokers Configuration
-IB_USERNAME=$IB_USERNAME
-IB_PASSWORD=$IB_PASSWORD
-TRADING_MODE=$TRADING_MODE
-
-# API Keys
-REBALANCE_EVENT_SUBSCRIPTION_API_KEY=$REBALANCE_EVENT_SUBSCRIPTION_API_KEY
-ALLOCATIONS_API_KEY=$ALLOCATIONS_API_KEY
-
-# Trading Configuration
-TIME_IN_FORCE=$TIME_IN_FORCE
-EXTENDED_HOURS_ENABLED=$EXTENDED_HOURS_ENABLED
-
-# System Configuration
-VNC_PASSWORD=$VNC_PASSWORD
-LOG_LEVEL=$LOG_LEVEL
-AUTO_RESTART_TIME=$AUTO_RESTART_TIME
-
-# User Notifications
-USER_NOTIFICATIONS_ENABLED=$USER_NOTIFICATIONS_ENABLED
-USER_NOTIFICATIONS_CHANNEL_PREFIX=$USER_NOTIFICATIONS_CHANNEL_PREFIX
-USER_NOTIFICATIONS_SERVER_URL=$USER_NOTIFICATIONS_SERVER_URL
-USER_NOTIFICATIONS_AUTH_TOKEN=$USER_NOTIFICATIONS_AUTH_TOKEN
-USER_NOTIFICATIONS_BUFFER_SECONDS=$USER_NOTIFICATIONS_BUFFER_SECONDS
-EOF
+    print_info "Stopping Redis and Management Service..."
+    docker-compose down
     
-    print_success ".env file created successfully!"
+    print_info "Starting all services..."
+    docker-compose up -d
+    
+    print_info "Waiting for all services to start..."
+    sleep 15
+    
+    print_success "All services started successfully!"
 }
 
 # Set up file permissions
@@ -279,29 +190,17 @@ setup_permissions() {
     print_success "Permissions configured!"
 }
 
-# Start services
-start_services() {
-    print_step "Starting services..."
-    
-    print_info "Building and starting Docker containers..."
-    docker-compose up --build -d
-    
-    print_info "Waiting for services to start..."
-    sleep 10
-    
-    print_success "Services started successfully!"
-}
 
 # Display final information
 display_final_info() {
     echo ""
-    print_success "Setup completed successfully!"
+    print_success "🎉 Congratulations! IBKR Portfolio Rebalancer setup completed successfully!"
     echo ""
     print_info "=== Service URLs ==="
     print_info "Management Dashboard: http://localhost:8000"
-    print_info "Account Setup Page: http://localhost:8000/setup/accounts"
     print_info "Health Check: http://localhost:8000/health"
-    print_info "VNC Access (IBKR Gateway): http://localhost:6080 (password: $VNC_PASSWORD)"
+    print_info "Container Monitoring: http://localhost:8080 (Dozzle)"
+    print_info "VNC Access (IBKR Gateway): http://localhost:6080"
     echo ""
     print_info "=== Useful Commands ==="
     print_info "View logs: docker-compose logs -f"
@@ -310,11 +209,11 @@ display_final_info() {
     print_info "Manual rebalance: ./tools/rebalance.sh -all"
     echo ""
     print_info "=== Next Steps ==="
-    print_info "1. Visit http://localhost:8000/setup/accounts to configure your IBKR accounts"
-    print_info "2. Check the logs to ensure everything is running correctly"
-    print_info "3. Access VNC at http://localhost:6080 to complete IBKR Gateway login"
+    print_info "1. Monitor your containers and logs at http://localhost:8080"
+    print_info "2. Check system health at http://localhost:8000/health"
+    print_info "3. Access VNC at http://localhost:6080 to complete IBKR Gateway login if needed"
     echo ""
-    print_warning "IMPORTANT: Make sure to configure your accounts at the setup page before running any rebalancing operations!"
+    print_success "Your portfolio rebalancing system is now ready!"
 }
 
 # Main execution
@@ -325,9 +224,11 @@ main() {
     update_system
     create_directories
     clone_repository
-    configure_environment
     setup_permissions
-    start_services
+    start_initial_services
+    wait_for_account_setup
+    verify_configuration
+    start_full_services
     display_final_info
 }
 

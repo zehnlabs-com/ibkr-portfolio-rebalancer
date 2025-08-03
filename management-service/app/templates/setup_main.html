@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IBKR Portfolio Rebalancer - Setup</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            min-height: 100vh;
+            padding: 20px;
+            color: #212529;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2975ba 0%, #1a5788 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+            font-weight: 400;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .setup-intro {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .setup-intro h2 {
+            color: #212529;
+            margin-bottom: 15px;
+            font-size: 1.8em;
+            font-weight: 600;
+        }
+        
+        .setup-intro p {
+            color: #565656;
+            font-size: 1.1em;
+            line-height: 1.6;
+        }
+        
+        .tasks-container {
+            display: grid;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .task-card {
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            padding: 25px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            background: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .task-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+            border-color: #2975ba;
+        }
+        
+        .task-card.completed {
+            border-color: #4caf50;
+            background: #f8fff9;
+        }
+        
+        .task-card.pending {
+            border-color: #f59e0b;
+            background: linear-gradient(145deg, #fffbeb 0%, #fef3c7 100%);
+            box-shadow: 0 8px 25px rgba(245, 158, 11, 0.15);
+        }
+        
+        .task-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+        }
+        
+        .task-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #212529;
+        }
+        
+        .task-status {
+            padding: 8px 16px;
+            border-radius: 50px;
+            font-size: 0.85em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-completed {
+            background: #4caf50;
+            color: white;
+        }
+        
+        .status-pending {
+            background: #ffc107;
+            color: #212529;
+        }
+        
+        .task-description {
+            color: #565656;
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+        
+        .task-action {
+            display: inline-block;
+            background: #2975ba;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .task-action:hover {
+            background: #1a5788;
+            transform: translateY(-1px);
+        }
+        
+        .task-action.completed {
+            background: #4caf50;
+        }
+        
+        .task-action.completed:hover {
+            background: #45a049;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            color: #565656;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #565656;
+        }
+        
+        .icon {
+            width: 24px;
+            height: 24px;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        
+        .check-icon {
+            fill: #4caf50;
+        }
+        
+        .warning-icon {
+            fill: #ffc107;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Portfolio Rebalancer Setup</h1>
+            <p>Configure your IBKR Portfolio Rebalancer system</p>
+        </div>
+        
+        <div class="content">
+            <div class="setup-intro">
+                <h2>Welcome to the Setup Process</h2>
+                <p>Complete the following tasks to configure your portfolio rebalancing system. You can complete them in any order, and return to modify settings at any time.</p>
+            </div>
+            
+            <div id="loading" class="loading">
+                <p>Loading setup status...</p>
+            </div>
+            
+            <div id="tasks-container" class="tasks-container" style="display: none;">
+                <!-- Tasks will be populated here by JavaScript -->
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p>Once both tasks are completed, return to the terminal and press ENTER to continue with the full system startup.</p>
+        </div>
+    </div>
+
+    <script>
+        async function loadSetupStatus() {
+            try {
+                const response = await fetch('/setup/status');
+                const status = await response.json();
+                
+                const tasksContainer = document.getElementById('tasks-container');
+                const loading = document.getElementById('loading');
+                
+                // Define tasks
+                const tasks = [
+                    {
+                        id: 'env',
+                        title: 'Configure Environment Variables',
+                        description: 'Set up your IBKR credentials, API keys, and system configuration settings.',
+                        link: '/setup/env',
+                        completed: status.env_exists
+                    },
+                    {
+                        id: 'accounts',
+                        title: 'Add IBKR Accounts',
+                        description: 'Configure your Interactive Brokers accounts for portfolio rebalancing.',
+                        link: '/setup/accounts',
+                        completed: status.accounts_exists
+                    }
+                ];
+                
+                // Generate HTML for tasks
+                tasksContainer.innerHTML = tasks.map(task => `
+                    <div class="task-card ${task.completed ? 'completed' : 'pending'}">
+                        <div class="task-header">
+                            <div class="task-title">
+                                ${task.completed ? 
+                                    '<svg class="icon check-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>' :
+                                    '<svg class="icon warning-icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>'
+                                }
+                                ${task.title}
+                            </div>
+                            <div class="task-status ${task.completed ? 'status-completed' : 'status-pending'}">
+                                ${task.completed ? 'Completed' : 'Pending'}
+                            </div>
+                        </div>
+                        <div class="task-description">
+                            ${task.description}
+                        </div>
+                        <a href="${task.link}" class="task-action ${task.completed ? 'completed' : ''}">
+                            ${task.completed ? 'Edit Configuration' : 'Configure Now'}
+                        </a>
+                    </div>
+                `).join('');
+                
+                // Show tasks and hide loading
+                loading.style.display = 'none';
+                tasksContainer.style.display = 'grid';
+                
+            } catch (error) {
+                console.error('Failed to load setup status:', error);
+                document.getElementById('loading').innerHTML = '<p style="color: #ef4444;">Failed to load setup status. Please refresh the page.</p>';
+            }
+        }
+        
+        // Load status when page loads
+        document.addEventListener('DOMContentLoaded', loadSetupStatus);
+        
+        // Refresh status every 5 seconds
+        setInterval(loadSetupStatus, 5000);
+    </script>
+</body>
+</html>

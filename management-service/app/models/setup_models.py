@@ -62,3 +62,20 @@ class AccountsDataResponse(BaseModel):
     """Response model for getting accounts data"""
     accounts: List[Dict[str, Any]]
     replacement_sets: Dict[str, Any]
+
+class SaveEnvRequest(BaseModel):
+    """Request model for saving environment variables"""
+    env_content: str = Field(..., description="Complete .env file content")
+
+class SaveEnvResponse(BaseModel):
+    """Response model for saving environment variables"""
+    message: str
+
+class EnvDataResponse(BaseModel):
+    """Response model for getting environment data"""
+    env_content: str
+
+class SetupStatusResponse(BaseModel):
+    """Response model for setup status"""
+    env_exists: bool
+    accounts_exists: bool
