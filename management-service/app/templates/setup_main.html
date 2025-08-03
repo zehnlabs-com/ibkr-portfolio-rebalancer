@@ -93,8 +93,8 @@
         }
         
         .task-card.completed {
-            border-color: #4caf50;
-            background: #f8fff9;
+            border-color: #2975ba;
+            background: #f0f7ff;
         }
         
         .task-card.pending {
@@ -126,7 +126,7 @@
         }
         
         .status-completed {
-            background: #4caf50;
+            background: #2a7f2e;
             color: white;
         }
         
@@ -158,11 +158,11 @@
         }
         
         .task-action.completed {
-            background: #4caf50;
+            background: #2975ba;
         }
         
         .task-action.completed:hover {
-            background: #45a049;
+            background: #1a5788;
         }
         
         .footer {
@@ -218,7 +218,6 @@
         </div>
         
         <div class="footer">
-            <p>Once both tasks are completed, return to the terminal and press ENTER to continue with the full system startup.</p>
         </div>
     </div>
 
@@ -242,7 +241,7 @@
                     },
                     {
                         id: 'accounts',
-                        title: 'Add IBKR Accounts',
+                        title: 'Add/Edit Accounts',
                         description: 'Configure your Interactive Brokers accounts for portfolio rebalancing.',
                         link: '/setup/accounts',
                         completed: status.accounts_exists
@@ -268,7 +267,7 @@
                             ${task.description}
                         </div>
                         <a href="${task.link}" class="task-action ${task.completed ? 'completed' : ''}">
-                            ${task.completed ? 'Edit Configuration' : 'Configure Now'}
+                            ${task.completed ? (task.id === 'accounts' ? 'Edit Accounts' : 'Edit Configuration') : 'Configure Now'}
                         </a>
                     </div>
                 `).join('');

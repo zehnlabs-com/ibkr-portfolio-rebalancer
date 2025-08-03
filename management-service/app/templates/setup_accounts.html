@@ -383,9 +383,9 @@
 
                         <!-- Submit Button -->
                         <div class="btn-group">
-                            <button type="button" @click="loadAccounts()" class="btn btn-secondary">
-                                Reset
-                            </button>
+                            <a href="/setup" class="btn btn-secondary">
+                                Cancel
+                            </a>
                             <button type="submit" :disabled="saving" class="btn btn-primary">
                                 <span x-show="!saving">Save Configuration</span>
                                 <span x-show="saving">Saving...</span>
