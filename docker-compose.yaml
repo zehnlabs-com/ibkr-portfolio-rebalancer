@@ -29,7 +29,7 @@ services:
       retries: 5
     restart: unless-stopped
 
-  ibkr:
+  ibkr-gateway:
     image: gnzsnz/ib-gateway:latest
     ports:
       - "127.0.0.1:4001:4003"
@@ -98,7 +98,7 @@ services:
       args:
         VERSION: *system-version
     environment:
-      IB_HOST: ibkr
+      IB_HOST: ibkr-gateway
       TRADING_MODE: ${TRADING_MODE:-paper}
       TIME_IN_FORCE: ${TIME_IN_FORCE:-GTC}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -121,7 +121,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      ibkr:
+      ibkr-gateway:
         condition: service_healthy        
     logging:
       driver: "json-file"
@@ -171,14 +171,34 @@ services:
     ports:
       - "127.0.0.1:6080:8081" 
     depends_on:
-      - ibkr
+      ibkr-gateway:
+        condition: service_healthy
     volumes:
       - /etc/localtime:/etc/localtime:ro
     networks:
       - ibkr-network
     restart: unless-stopped
     environment:
-      REMOTE_HOST: ibkr
+      REMOTE_HOST: ibkr-gateway
       REMOTE_PORT: 5900
       TZ: America/New_York
+
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      TZ: America/New_York
+      DOZZLE_LEVEL: debug
+      DOZZLE_TAILSIZE: 300
+      DOZZLE_ENABLE_ACTIONS: true
+      DOZZLE_ENABLE_SHELL: true
+      DOZZLE_NO_ANALYTICS: true
+    networks:
+      - ibkr-network
+    restart: unless-stopped
 
