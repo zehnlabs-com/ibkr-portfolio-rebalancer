@@ -43,19 +43,9 @@ You can use another SSH client of your choice, if you so prefer.
 3. **Configure the SSH profile:**
    - **Name:** `IBKR Portfolio Rebalancer`
    - **Host:** `YOUR_DROPLET_IP` (replace with your droplet's IP)
-   - **Password:** `YOUR_DROPLET_PASSWORD` (replace with your droplet's password)   
+   - **Password:** `YOUR_DROPLET_PASSWORD` (replace with your droplet's password)
 
-4. **Set up port forwarding** (click "Ports" tab):
-   - **Add Port Forward #1:**
-     - Local port: `8000`
-     - Remote host: `127.0.0.1`
-     - Remote port: `8000`
-   - **Add Port Forward #2:**
-     - Local port: `8080`
-     - Remote host: `127.0.0.1`
-     - Remote port: `8080`
-
-5. **Save the profile** and connect to your droplet
+4. **Save the profile** and connect to your droplet
 
 ### Step 3: Run the Setup Script
 
@@ -70,7 +60,13 @@ This script will:
 - Set up Docker containers
 - Provide you with next steps
 
-### Step 4: Configure Your Installation
+### Step 4: Configure Port Forwarding
+
+**📖 Follow the port forwarding setup guide**: [Port Forwarding Setup](port-forwarding-setup.md)
+
+You'll need to configure port forwarding in your SSH profile to access the web services locally.
+
+### Step 5: Configure Your Installation
 
 The setup script will:
 - Clone the repository
@@ -89,7 +85,7 @@ When the script pauses:
    - Verify services are running
    - Provide access URLs
 
-### Step 5: Access Your Services
+### Step 6: Access Your Services
 
 Once setup completes, you can access:
 

@@ -230,22 +230,21 @@ display_final_instructions() {
     print_success "🎉 Installation Complete!"
     echo ""
     print_info "=== Access Your Services ==="
+    echo ""    
+   
+    echo "🔗 IMPORTANT: Port Forwarding"
+    echo "   To access these services securely, you need SSH port forwarding configured."
+    echo "   📖 Setup Guide: https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/blob/main/docs/install/port-forwarding-setup.md"
     echo ""
-    
-    # Get the server's public IP address
-    SERVER_IP=$(curl -s https://api.ipify.org 2>/dev/null || curl -s https://ipv4.icanhazip.com 2>/dev/null || echo "YOUR_SERVER_IP")
-    
-    echo "📊 View Logs (Dozzle):"
+    echo "📊 Manage Containers and View Logs:"
     echo "   http://localhost:8080"
     echo ""
     echo "🔧 Management API:"
     echo "   http://localhost:8000"
     echo ""
-    echo "📱 Set up Mobile Notifications:"
+    echo "✅ Next Steps:"
+    echo "📱 Set up Mobile/Desktop Notifications:"
     echo "   https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/blob/main/docs/user-notifications.md"
-    echo ""
-    echo "💡 Remember: Keep your SSH tunnel open to access these services"
-    echo "   ssh -L 8000:localhost:8000 -L 8080:localhost:8080 root@$SERVER_IP"
     echo ""
     print_success "Your IBKR Portfolio Rebalancer is now running!"
 }
