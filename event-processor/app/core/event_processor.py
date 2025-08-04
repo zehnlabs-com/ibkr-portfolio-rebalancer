@@ -61,6 +61,7 @@ class EventProcessor:
         # Cancel all active processing tasks
         for task in list(self.processing_tasks):
             if not task.done():
+                app_logger.log_info(f"Cancelling processing task for account: {task.get_name()}")
                 task.cancel()
         
         # Wait for all processing tasks to complete
@@ -95,6 +96,9 @@ class EventProcessor:
             try:
                 # Clean up completed tasks
                 completed_tasks = {task for task in self.processing_tasks if task.done()}
+                if completed_tasks:
+                    task_names = [task.get_name() for task in completed_tasks]
+                    app_logger.log_debug(f"Cleaning up {len(completed_tasks)} completed tasks for accounts: {task_names}")
                 self.processing_tasks -= completed_tasks
                 
                 # Check if we can start more tasks
@@ -105,8 +109,11 @@ class EventProcessor:
                     
                     if event_info:
                         app_logger.log_debug(f"Starting concurrent processing for event: {event_info.event_id}", event_info)
-                        # Create task for concurrent processing
-                        task = asyncio.create_task(self._process_event_with_semaphore(event_info))
+                        # Create task for concurrent processing with account ID as name
+                        task = asyncio.create_task(
+                            self._process_event_with_semaphore(event_info), 
+                            name=event_info.account_id
+                        )
                         self.processing_tasks.add(task)
                     else:
                         app_logger.log_debug("No events available, waiting...")
@@ -116,7 +123,9 @@ class EventProcessor:
                     await asyncio.sleep(1)
                     
             except Exception as e:
-                app_logger.log_error(f"Error in main loop: {e}")
+                # Get currently processing task names for context
+                active_task_names = [task.get_name() for task in self.processing_tasks if not task.done()]
+                app_logger.log_error(f"Error in main loop: {e}. Active tasks for accounts: {active_task_names}")
                 await asyncio.sleep(10)
     
     async def process_event(self, event_info: EventInfo):
@@ -243,9 +252,13 @@ class EventProcessor:
     
     async def _process_event_with_semaphore(self, event_info: EventInfo):
         """Process event with semaphore to limit concurrency"""
+        # Get current task name for logging
+        current_task = asyncio.current_task()
+        task_name = current_task.get_name() if current_task else "unknown"
+        
         async with self.semaphore:
-            app_logger.log_debug(f"Acquired semaphore for event: {event_info.event_id}", event_info)
+            app_logger.log_debug(f"Acquired semaphore for account {task_name}, event: {event_info.event_id}", event_info)
             try:
                 await self.process_event(event_info)
             finally:
-                app_logger.log_debug(f"Released semaphore for event: {event_info.event_id}", event_info)
+                app_logger.log_debug(f"Released semaphore for account {task_name}, event: {event_info.event_id}", event_info)
