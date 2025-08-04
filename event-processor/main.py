@@ -3,10 +3,6 @@ Event Processor - Main Application Entry Point
 
 This service processes rebalance events from Redis queue and executes them via IBKR.
 """
-import nest_asyncio
-# Apply nest_asyncio BEFORE any other async imports to prevent event loop conflicts
-nest_asyncio.apply()
-
 import asyncio
 import sys
 from app.core import ApplicationService, EventProcessor
