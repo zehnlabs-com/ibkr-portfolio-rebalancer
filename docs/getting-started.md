@@ -26,6 +26,11 @@ Before starting, ensure you have:
 
 Once you have the above prerequisites, select the guide below that matches your platform. Once you have the system installed, continue with the next section below.
 
+### ☁️ Cloud Deployment - Digital Ocean
+**[Installation - Cloud](install/cloud.md)**
+- Digital Ocean Droplet setup
+- SSH based deployment
+
 ### 🪟 Windows (Docker Desktop)
 **[Installation - Windows](install/windows.md)**
 - Windows 10/11 with WSL2 and Docker Desktop (Hyper-V also works)
@@ -43,12 +48,6 @@ Once you have the above prerequisites, select the guide below that matches your 
 - Ubuntu, CentOS, Fedora, Arch Linux support
 - Native Docker and Docker Compose installation
 - Distribution-specific package management
-
-### ☁️ Cloud Deployment - Digital Ocean (Ubuntu)
-**[Installation - Cloud](install/cloud.md)**
-- Linux based cloud deployment
-- Digital Ocean Droplet setup
-- SSH based deployment
 
 ---
 
