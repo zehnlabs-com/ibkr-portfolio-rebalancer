@@ -137,10 +137,15 @@ clone_repository() {
 create_placeholder_files() {
     print_step "Creating placeholder configuration files..."
     
-    # Create empty .env file if it doesn't exist (required for Docker mount)
+    # Copy .env.example to .env if .env doesn't exist (required for Docker mount)
     if [ ! -f ".env" ]; then
-        touch .env
-        print_info "Created empty .env file"
+        if [ -f ".env.example" ]; then
+            cp .env.example .env
+            print_info "Created .env from template (.env.example)"
+        else
+            print_error ".env.example not found - cannot create initial environment configuration"
+            exit 1
+        fi
     fi
     
     # Create empty accounts.yaml file if it doesn't exist (required for Docker mount)
@@ -189,7 +194,13 @@ wait_for_account_setup() {
     print_info "4. Once you've completed the setup, return here and press ENTER to continue"
     echo ""
     
-    read -p "Press ENTER when you have completed the setup..." 
+    # Ensure we can read from terminal even if script is piped
+    if [ -t 0 ]; then
+        read -p "Press ENTER when you have completed the setup..."
+    else
+        # Script is being piped, read from /dev/tty
+        read -p "Press ENTER when you have completed the setup..." < /dev/tty
+    fi 
 }
 
 # Verify configuration files exist
