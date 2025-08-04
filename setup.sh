@@ -133,6 +133,25 @@ clone_repository() {
     print_success "Repository cloned successfully!"
 }
 
+# Create placeholder configuration files
+create_placeholder_files() {
+    print_step "Creating placeholder configuration files..."
+    
+    # Create empty .env file if it doesn't exist (required for Docker mount)
+    if [ ! -f ".env" ]; then
+        touch .env
+        print_info "Created empty .env file"
+    fi
+    
+    # Create empty accounts.yaml file if it doesn't exist (required for Docker mount)
+    if [ ! -f "accounts.yaml" ]; then
+        touch accounts.yaml
+        print_info "Created empty accounts.yaml file"
+    fi
+    
+    print_success "Configuration files ready for Docker mounts"
+}
+
 # Start initial services (Redis and Management Service only)
 start_initial_services() {
     print_step "Starting Redis and Management Service..."
@@ -268,6 +287,7 @@ main() {
     create_directories
     clone_repository
     setup_permissions
+    create_placeholder_files
     start_initial_services
     wait_for_account_setup
     verify_configuration

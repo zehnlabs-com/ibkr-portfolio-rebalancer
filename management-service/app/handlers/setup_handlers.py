@@ -280,10 +280,10 @@ class SetupHandlers:
     async def get_setup_status(self) -> Dict[str, bool]:
         """Get setup completion status"""
         try:
-            env_exists = os.path.exists(self.env_file_path)
-            accounts_exists = os.path.exists(self.accounts_file_path)
+            env_exists = os.path.exists(self.env_file_path) and os.path.getsize(self.env_file_path) > 0
+            accounts_exists = os.path.exists(self.accounts_file_path) and os.path.getsize(self.accounts_file_path) > 0
             
-            logger.info(f"Setup status check: .env exists={env_exists}, accounts.yaml exists={accounts_exists}")
+            logger.info(f"Setup status check: .env configured={env_exists}, accounts.yaml configured={accounts_exists}")
             return {
                 "env_exists": env_exists,
                 "accounts_exists": accounts_exists
