@@ -26,16 +26,20 @@ We configure the IBKR Gateway through environment variables in your `.env` file:
 ### Key Integration Points
 
 - **Event Processor**: Connects to IBKR Gateway on port 4001 for trade execution
-- **VNC Access**: Available through NoVNC web interface for troubleshooting  
+- **VNC Access**: Available through external NoVNC client for troubleshooting  
 - **Trading Mode**: Automatically configured based on `TRADING_MODE` environment variable
 
 ## VNC Troubleshooting Access
 
 For troubleshooting IBKR Gateway issues, access the GUI through:
-- **NoVNC Web Interface**: Navigate to `http://localhost:6080` 
-- **Common Use Cases**: Manual login, 2FA handling, gateway configuration
+1. Navigate to https://novnc.com/noVNC/vnc.html in your browser
+2. Configure WebSocket settings:
+   - **Encrypt**: off
+   - **Host**: 127.0.0.1
+   - **Port**: 6080
+3. Click **Connect** to access the IBKR Gateway interface
 
-See [Infrastructure Services](infrastructure.md#novnc-web-access) for detailed NoVNC usage.
+- **Common Use Cases**: Manual login, 2FA handling, gateway configuration
 
 ## Service Dependencies
 
@@ -54,11 +58,11 @@ docker-compose ps ibkr
 docker-compose logs -f ibkr
 
 # Access GUI for manual troubleshooting
-# Open http://localhost:6080 in browser
+# Use external NoVNC client at https://novnc.com/noVNC/vnc.html
 ```
 
 ### Integration Issues
 - **API Connection**: Ensure gateway completes login (wait 60+ seconds after start)
 - **Event Processor**: Check logs for IBKR connection errors
-- **VNC Access**: Use NoVNC at `http://localhost:6080` for gateway troubleshooting
+- **VNC Access**: Use external NoVNC client at https://novnc.com/noVNC/vnc.html for gateway troubleshooting
 

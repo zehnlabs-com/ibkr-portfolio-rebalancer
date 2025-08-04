@@ -89,7 +89,7 @@ curl http://localhost:8000/queue/events?limit=10
 
 ### If You Miss MFA Authorization
 1. **System will keep retrying** - no immediate action needed
-2. **Access NoVNC**: To check login issues you can navigate to `http://localhost:6080`
+2. **Access VNC**: To check login issues, use external NoVNC client at https://novnc.com/noVNC/vnc.html (Host: 127.0.0.1, Port: 6080, Encrypt: off)
 3. **Verify reconnection** via health endpoints
 
 ### If You're Logged Into IBKR During Market Close

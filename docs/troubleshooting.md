@@ -40,7 +40,7 @@ curl http://localhost:8000/queue/status
 **Gateway won't log in:**
 - **MOST COMMON**: Check if you need to approve IB Key MFA on IBKR Mobile app
 - **SECOND MOST COMMON**: Check if you're logged into IBKR Client Portal or TWS - only one login allowed
-- Access IBKR Gateway via NoVNC at `http://localhost:6080` 
+- Access IBKR Gateway via external NoVNC client at https://novnc.com/noVNC/vnc.html (Host: 127.0.0.1, Port: 6080, Encrypt: off) 
 - Verify IBKR account has API access enabled
 - Ensure IBKR Key (Mobile app) MFA is properly configured
 - Make sure your IBKR account is properly setup and has the right trading permissions

@@ -78,37 +78,32 @@ docker-compose exec redis redis-cli ZRANGE delayed_execution_set 0 -1 WITHSCORES
 - **Restart Policy**: Always restart unless stopped
 - **Network**: Internal Docker network only
 
-## NoVNC Web Access
+## VNC Access
 
 ### Purpose
-NoVNC provides web-based VNC access to the IBKR Gateway for troubleshooting and management.
+VNC access to the IBKR Gateway for troubleshooting and management via external NoVNC client.
 
 ### Key Features
-- **Web Interface**: Access IBKR Gateway GUI through browser
-- **No Client Software**: Works with any modern web browser
+- **External Client**: Use external NoVNC client at https://novnc.com/noVNC/vnc.html
+- **No Local Service**: Removed containerized NoVNC service to reduce complexity
 - **Real-time Control**: Full GUI interaction capabilities
 
 ### Configuration
 
 | Setting | Value | Purpose |
 |---------|-------|---------|
-| **Web Port** | 6080 | HTTP access via browser |
-| **VNC Target** | ibkr:5900 | Connects to IBKR Gateway VNC |
-| **Access URL** | http://localhost:6080 | Direct browser access |
+| **VNC Port** | 6080 | Direct VNC access (mapped from 5900) |
+| **VNC Target** | 127.0.0.1:6080 | External client connection |
 
 ### Usage
 
 **Accessing IBKR Gateway GUI:**
-1. Open web browser to `http://localhost:6080`
-2. Click "Connect" to establish VNC session
-3. Use IBKR Gateway interface for troubleshooting
-
-### Docker Configuration
-
-- **Image**: `dougw/novnc:latest` (third-party NoVNC container)
-- **Dependencies**: Requires IBKR Gateway to be running
-- **Port Mapping**: Exposes 6080 for web access
-- **Restart Policy**: Always restart unless stopped
+1. Navigate to https://novnc.com/noVNC/vnc.html in your browser
+2. Configure WebSocket settings:
+   - **Encrypt**: off
+   - **Host**: 127.0.0.1
+   - **Port**: 6080
+3. Click **Connect** to access the IBKR Gateway interface
 
 ## Docker Networking
 
@@ -117,7 +112,7 @@ NoVNC provides web-based VNC access to the IBKR Gateway for troubleshooting and 
 **Network Name**: `ibkr-network`
 - **Type**: Bridge network
 - **Isolation**: All services communicate internally
-- **External Access**: Management API (8000) and NoVNC (6080) exposed on localhost only
+- **External Access**: Management API (8000) and VNC (6080) exposed on localhost only
 
 ### Service Communication
 
@@ -131,10 +126,10 @@ NoVNC provides web-based VNC access to the IBKR Gateway for troubleshooting and 
 └─────────────────┘
          │
          ▼
-┌─────────────────┐    ┌─────────────────┐
-│  IBKR Gateway   │◀───│     NoVNC       │
-│    (4001)       │    │    (6080)       │
-└─────────────────┘    └─────────────────┘
+┌─────────────────┐
+│  IBKR Gateway   │
+│ (4001) (6080)   │
+└─────────────────┘
          ▲
          │
 ┌─────────────────┐
@@ -149,9 +144,8 @@ NoVNC provides web-based VNC access to the IBKR Gateway for troubleshooting and 
 |---------|---------------|---------------|---------|
 | Redis | 6379 | 127.0.0.1:6379 | Queue access |
 | IBKR Gateway | 4003, 4004 | 127.0.0.1:4001, 4002 | TWS API |
-| IBKR Gateway | 5900 | 127.0.0.1:5900 | VNC server |
+| IBKR Gateway | 5900 | 127.0.0.1:6080 | VNC server |
 | Management API | 8000 | 127.0.0.1:8000 | HTTP API |
-| NoVNC | 8081 | 127.0.0.1:6080 | Web VNC |
 
 ## Data Persistence
 

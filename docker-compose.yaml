@@ -168,22 +168,6 @@ services:
         max-file: "365"
     restart: unless-stopped
 
-  novnc:
-    image: dougw/novnc:latest
-    ports:
-      - "127.0.0.1:6080:8081" 
-    depends_on:
-      ibkr-gateway:
-        condition: service_healthy
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-    networks:
-      - ibkr-network
-    restart: unless-stopped
-    environment:
-      REMOTE_HOST: ibkr-gateway
-      REMOTE_PORT: 5900
-      TZ: America/New_York
 
   dozzle:
     image: amir20/dozzle:latest
