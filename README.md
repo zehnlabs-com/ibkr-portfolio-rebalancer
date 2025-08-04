@@ -18,7 +18,7 @@ This software is provided "as-is" without any warranty. Community support is the
 
 **One-command installation:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/fintech-zehnlabs-com/ibkr-portfolio-rebalancer/main/setup.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/zehnlabs-com/ibkr-portfolio-rebalancer/refs/heads/main/setup.sh | sudo bash
 ```
 
 This automated setup script will:

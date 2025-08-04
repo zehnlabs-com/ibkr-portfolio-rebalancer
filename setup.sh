@@ -89,7 +89,7 @@ clone_repository() {
         rm -rf ibkr-portfolio-rebalancer
     fi
     
-    git clone https://github.com/fintech-zehnlabs-com/ibkr-portfolio-rebalancer.git
+    git clone https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer.git
     cd ibkr-portfolio-rebalancer
     
     print_success "Repository cloned successfully!"
