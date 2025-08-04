@@ -11,7 +11,6 @@ from fastapi.responses import HTMLResponse
 from app.container import container
 from app.models.queue_models import QueueStatus, QueueEvent, AddEventRequest, AddEventResponse, RemoveEventResponse, ClearQueuesResponse
 from app.models.health_models import DetailedHealthStatus
-from app.models.setup_models import SaveAccountsRequest, SaveAccountsResponse, AccountsDataResponse, SaveEnvRequest, SaveEnvResponse, EnvDataResponse, SetupStatusResponse, CompleteSetupResponse
 from app.config.settings import settings
 
 # Configure logging
@@ -81,57 +80,6 @@ async def add_event(event_request: AddEventRequest):
 async def clear_all_queues():
     """Clear all events from all queues"""
     return await container.queue_handlers.clear_all_queues()
-
-# Setup endpoints
-@app.get("/setup", response_class=HTMLResponse)
-async def get_main_setup_page():
-    """Get the main setup page with task status"""
-    return await container.setup_handlers.get_main_setup_page()
-
-@app.get("/setup/status", response_model=SetupStatusResponse)
-async def get_setup_status():
-    """Get setup completion status"""
-    return await container.setup_handlers.get_setup_status()
-
-@app.get("/setup/accounts", response_class=HTMLResponse)
-async def get_setup_page():
-    """Get the accounts setup page"""
-    return await container.setup_handlers.get_setup_page()
-
-@app.get("/setup/accounts/data", response_model=AccountsDataResponse)
-async def get_accounts_data():
-    """Get current accounts configuration data"""
-    return await container.setup_handlers.get_accounts_data()
-
-@app.post("/setup/accounts", response_model=SaveAccountsResponse)
-async def save_accounts(request: SaveAccountsRequest):
-    """Save accounts configuration"""
-    return await container.setup_handlers.save_accounts(request.dict())
-
-@app.get("/setup/env", response_class=HTMLResponse)
-async def get_env_setup_page():
-    """Get the environment variables setup page"""
-    return await container.setup_handlers.get_env_setup_page()
-
-@app.get("/setup/env/data", response_model=EnvDataResponse)
-async def get_env_data():
-    """Get current environment variables data"""
-    return await container.setup_handlers.get_env_data()
-
-@app.post("/setup/env", response_model=SaveEnvResponse)
-async def save_env(request: SaveEnvRequest):
-    """Save environment variables"""
-    return await container.setup_handlers.save_env(request.dict())
-
-@app.post("/setup/complete", response_model=CompleteSetupResponse)
-async def complete_setup():
-    """Complete setup by restarting all services"""
-    return await container.setup_handlers.complete_setup()
-
-@app.get("/setup/complete", response_class=HTMLResponse)
-async def get_setup_complete_page():
-    """Get the setup completion success page"""
-    return await container.setup_handlers.get_setup_complete_page()
 
 # Startup and shutdown events
 @app.on_event("startup")

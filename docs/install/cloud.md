@@ -23,15 +23,39 @@ When the DigitalOcean page opens:
 
 Wait 1-2 minutes for your droplet to fully start.
 
-### Step 2: Connect to Your Droplet
+### Step 2: Install Tabby Terminal and Connect to Your Droplet
 
-Once your droplet is running, connect via SSH:
+#### Install Tabby Terminal
+You can use another SSH client of your choice, if you so prefer. 
 
-```bash
-ssh root@YOUR_DROPLET_IP
-```
+1. **Download Tabby** from [https://tabby.sh](https://tabby.sh)
+   - Available for Windows, macOS, and Linux
+   - Choose the installer for your operating system
 
-Replace `YOUR_DROPLET_IP` with the public IP address shown in your DigitalOcean dashboard.
+2. **Install and launch Tabby**
+
+#### Set Up SSH Connection with Port Forwarding
+
+1. **Open Tabby** and click the **Settings** button (gear icon)
+
+2. **Navigate to** "Profiles & connections" → "New profile" and select "SSH"
+
+3. **Configure the SSH profile:**
+   - **Name:** `IBKR Portfolio Rebalancer`
+   - **Host:** `YOUR_DROPLET_IP` (replace with your droplet's IP)
+   - **Password:** `YOUR_DROPLET_PASSWORD` (replace with your droplet's password)   
+
+4. **Set up port forwarding** (click "Ports" tab):
+   - **Add Port Forward #1:**
+     - Local port: `8000`
+     - Remote host: `127.0.0.1`
+     - Remote port: `8000`
+   - **Add Port Forward #2:**
+     - Local port: `8080`
+     - Remote host: `127.0.0.1`
+     - Remote port: `8080`
+
+5. **Save the profile** and connect to your droplet
 
 ### Step 3: Run the Setup Script
 
@@ -44,57 +68,82 @@ curl -fsSL https://raw.githubusercontent.com/zehnlabs-com/ibkr-portfolio-rebalan
 This script will:
 - Install all required dependencies
 - Set up Docker containers
-- Start initial configuration services
 - Provide you with next steps
 
-### Step 4: Set Up Port Forwarding
+### Step 4: Configure Your Installation
 
-After the script completes, you'll need to access the web interface. From your **local machine** (not the droplet), run:
+The setup script will:
+- Clone the repository
+- Set up configuration files
+- Show you documentation links
+- **Wait for you to edit the configuration files**
 
-```bash
-ssh -L 8000:localhost:8000 -L 8080:localhost:8080 root@YOUR_DROPLET_IP
-```
+When the script pauses and asks you to edit the configuration files:
 
-Keep this terminal window open while configuring.
+#### Open a Second SSH Connection to Edit Files
 
-### Step 5: Complete Configuration
+1. **Keep your current Tabby tab open** (where the setup script is waiting)
 
-1. Open your browser and navigate to: **http://localhost:8000/setup**
+2. **Open a new tab in Tabby**:
+   - Click the `+` button or press `Ctrl+Shift+T`
+   - Select your saved SSH profile to connect again
 
-2. Configure your settings:
-   - **Environment Variables**: Set your IBKR credentials and API keys
-   - **Accounts**: Add your Interactive Brokers account(s)
+3. **In the new tab, navigate to the project directory**:
+   - Type: `cd /home/docker/zehnlabs/ibkr-portfolio-rebalancer`
+   - Press `Enter`
 
-3. Once both tasks show "Completed", click the **"Complete Install"** button
+#### Edit Files Using Nano
 
-4. The system will restart all services (this can take a few minutes)
+4. **Edit the environment variables file**:
+   - Type: `nano .env`
+   - Edit your environment variables
+   - Press `Ctrl+O` to save
+   - Press `Ctrl+X` to exit nano
 
-5. You'll be redirected to a success page with information you will need to monitor and manage your deployment.
+5. **Edit the accounts configuration**:
+   - Type: `nano accounts.yaml`
+   - Configure your IBKR account(s) and strategies
+   - Press `Ctrl+O` to save
+   - Press `Ctrl+X` to exit nano
+
+6. **Return to your first tab** (where the setup script is waiting)
+
+7. **Press ENTER** to continue the installation
+
+5. The script will then:
+   - Start all Docker containers
+   - Verify services are running
+   - Provide access URLs
+
+### Step 5: Access Your Services
+
+Once setup completes, you can access:
+
+- **📊 Container management / Log Viewer**: http://localhost:8080
+  - Real-time logs from all services
+  - Start/stop containers
+  - Search and filter logs
+
+- **🔧 Management API**: http://localhost:8000
+  - Health checks
+  - Queue status
+  - System monitoring
+
+💡 **Remember:** Your Tabby SSH connection with port forwarding must remain open to access these services.
 
 
 ## Post-Installation
 
-### Accessing Your System
+### Notifications
 
-For ongoing access, always use SSH port forwarding:
-
-```bash
-# Port forward for web interfaces
-ssh -L 8000:localhost:8000 -L 8080:localhost:8080 root@YOUR_DROPLET_IP
-
-# Then access:
-# Management: http://localhost:8000
-```
+Set up real-time notifications on your phone and desktop:
+- Follow the guide: [User Notifications Setup](https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/blob/main/docs/user-notifications.md)
 
 ## Troubleshooting
 
 ### Cannot connect via SSH
 - Verify the droplet IP address in DigitalOcean dashboard
 - Check if the droplet is running
-
-### Port forwarding not working
-- Ensure the SSH connection stays open
-- On Windows, try using Git Bash or WSL instead of Command Prompt
 
 ## Support
 

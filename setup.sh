@@ -133,71 +133,124 @@ clone_repository() {
     print_success "Repository cloned successfully!"
 }
 
-# Create placeholder configuration files
-create_placeholder_files() {
-    print_step "Creating placeholder configuration files..."
+# Rename configuration files
+rename_config_files() {
+    print_step "Setting up configuration files..."
     
-    # Copy .env.example to .env if .env doesn't exist (required for Docker mount)
-    if [ ! -f ".env" ]; then
-        if [ -f ".env.example" ]; then
-            cp .env.example .env
-            print_info "Created .env from template (.env.example)"
+    # Rename .env.example to .env
+    if [ -f ".env.example" ]; then
+        if [ ! -f ".env" ]; then
+            mv .env.example .env
+            print_info "Renamed .env.example to .env"
         else
-            print_error ".env.example not found - cannot create initial environment configuration"
-            exit 1
+            print_warning ".env already exists, keeping existing file"
         fi
-    fi
-    
-    # Create empty accounts.yaml file if it doesn't exist (required for Docker mount)
-    if [ ! -f "accounts.yaml" ]; then
-        touch accounts.yaml
-        print_info "Created empty accounts.yaml file"
-    fi
-    
-    print_success "Configuration files ready for Docker mounts"
-}
-
-# Start initial services (Redis and Management Service only)
-start_initial_services() {
-    print_step "Starting Redis and Management Service..."
-    
-    print_info "Building and starting initial services..."
-    $DOCKER_COMPOSE_CMD up --build -d redis management-service
-    
-    print_info "Waiting for services to start..."
-    sleep 10
-    
-    # Check if services are running
-    if $DOCKER_COMPOSE_CMD ps redis | grep -q "Up" && $DOCKER_COMPOSE_CMD ps management-service | grep -q "Up"; then
-        print_success "Initial services started successfully!"
     else
-        print_error "Failed to start initial services. Please check the logs."
+        print_error ".env.example not found - cannot create initial environment configuration"
         exit 1
     fi
+    
+    # Rename accounts.example.yaml to accounts.yaml
+    if [ -f "accounts.example.yaml" ]; then
+        if [ ! -f "accounts.yaml" ]; then
+            mv accounts.example.yaml accounts.yaml
+            print_info "Renamed accounts.example.yaml to accounts.yaml"
+        else
+            print_warning "accounts.yaml already exists, keeping existing file"
+        fi
+    else
+        print_error "accounts.example.yaml not found - cannot create initial accounts configuration"
+        exit 1
+    fi
+    
+    print_success "Configuration files are ready for editing"
 }
 
-# Display setup completion instructions
-display_setup_instructions() {
+# Show documentation links and wait for user
+show_documentation_and_wait() {
+    print_step "Configuration Required"
+    
     echo ""
-    print_success "Initial services started successfully!"
+    echo "Please edit the configuration files before proceeding:"
     echo ""
-    print_info "=== Complete Setup via Web Interface ==="
+    echo "1. Edit .env file with your credentials and API keys"
+    echo "2. Edit accounts.yaml with your IBKR account information"
+    echo ""
+    echo "📖 Configuration Guide:"
+    echo "   https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/blob/main/docs/editing-configuration.md"
+    echo ""
+    echo "📝 Once you have completed editing both files, press ENTER to continue..."
+    
+    # Wait for user input only if not piped
+    if [ -t 0 ]; then
+        read -r
+    else
+        print_info "Running in non-interactive mode, continuing..."
+    fi
+}
+
+# Start all services and verify
+start_all_services() {
+    print_step "Starting all services..."
+    
+    print_info "Building and starting Docker containers..."
+    $DOCKER_COMPOSE_CMD up --build -d
+    
+    print_info "Waiting for services to initialize (this may take 2-3 minutes)..."
+    
+    # Wait progressively with status updates
+    for i in {1..6}; do
+        sleep 10
+        print_info "Still initializing... ($((i*10))/60 seconds)"
+    done
+    
+    # Check if all critical services are running
+    print_step "Verifying services..."
+    
+    SERVICES=("redis" "ibkr-gateway" "event-broker" "event-processor" "management-service" "dozzle")
+    ALL_RUNNING=true
+    
+    for service in "${SERVICES[@]}"; do
+        if $DOCKER_COMPOSE_CMD ps "$service" 2>/dev/null | grep -q "Up\|running"; then
+            print_success "✓ $service is running"
+        else
+            print_error "✗ $service is not running"
+            ALL_RUNNING=false
+        fi
+    done
+    
+    if [ "$ALL_RUNNING" = false ]; then
+        print_error "Some services failed to start. Check logs with: $DOCKER_COMPOSE_CMD logs"
+        exit 1
+    fi
+    
+    print_success "All services started successfully!"
+}
+
+# Display final instructions
+display_final_instructions() {
+    echo ""
+    print_success "🎉 Installation Complete!"
+    echo ""
+    print_info "=== Access Your Services ==="
     echo ""
     
     # Get the server's public IP address
     SERVER_IP=$(curl -s https://api.ipify.org 2>/dev/null || curl -s https://ipv4.icanhazip.com 2>/dev/null || echo "YOUR_SERVER_IP")
     
-    print_info "To continue setup:"
+    echo "📊 View Logs (Dozzle):"
+    echo "   http://localhost:8080"
     echo ""
-    print_info "1. Set up SSH port forwarding (from your local machine):"
-    print_info "   ssh -L 8000:localhost:8000 -L 8080:localhost:8080 root@$SERVER_IP"
+    echo "🔧 Management API:"
+    echo "   http://localhost:8000"
     echo ""
-    print_info "2. Open your browser and navigate to:"
-    print_info "   http://localhost:8000/setup"
+    echo "📱 Set up Mobile Notifications:"
+    echo "   https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/blob/main/docs/user-notifications.md"
     echo ""
-    print_info "3. Complete the configuration and click 'Complete Install'"
+    echo "💡 Remember: Keep your SSH tunnel open to access these services"
+    echo "   ssh -L 8000:localhost:8000 -L 8080:localhost:8080 root@$SERVER_IP"
     echo ""
-    print_success "Setup script completed. Continue in your web browser."
+    print_success "Your IBKR Portfolio Rebalancer is now running!"
 }
 
 
@@ -240,9 +293,10 @@ main() {
     create_directories
     clone_repository
     setup_permissions
-    create_placeholder_files
-    start_initial_services
-    display_setup_instructions
+    rename_config_files
+    show_documentation_and_wait
+    start_all_services
+    display_final_instructions
 }
 
 # Run main function
