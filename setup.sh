@@ -171,22 +171,19 @@ show_documentation_and_wait() {
     print_step "Configuration Required"
     
     echo ""
-    echo "Please edit the configuration files before proceeding:"
+    echo "=== CONFIGURATION REQUIRED ==="
     echo ""
-    echo "1. Edit .env file with your credentials and API keys"
-    echo "2. Edit accounts.yaml with your IBKR account information"
+    echo "Before proceeding, you need to edit two configuration files:"
+    echo "  • .env (credentials and API keys)"
+    echo "  • accounts.yaml (IBKR account settings)"
     echo ""
-    echo "📖 Configuration Guide:"
+    echo "📖 Please follow the complete setup guide:"
     echo "   https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/blob/main/docs/editing-configuration.md"
     echo ""
-    echo "📝 Once you have completed editing both files, press ENTER to continue..."
+    echo "📝 Once you have followed the guide and edited both files, press ENTER to continue..."
     
-    # Wait for user input only if not piped
-    if [ -t 0 ]; then
-        read -r
-    else
-        print_info "Running in non-interactive mode, continuing..."
-    fi
+    # Read from /dev/tty to work with piped execution
+    read -r < /dev/tty
 }
 
 # Start all services and verify

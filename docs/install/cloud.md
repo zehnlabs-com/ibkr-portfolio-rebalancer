@@ -78,39 +78,13 @@ The setup script will:
 - Show you documentation links
 - **Wait for you to edit the configuration files**
 
-When the script pauses and asks you to edit the configuration files:
+When the script pauses:
 
-#### Open a Second SSH Connection to Edit Files
+1. **Follow the complete configuration guide**: [Editing Configuration](https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/blob/main/docs/editing-configuration.md)
 
-1. **Keep your current Tabby tab open** (where the setup script is waiting)
+2. **Return to your setup script** and press ENTER to continue
 
-2. **Open a new tab in Tabby**:
-   - Click the `+` button or press `Ctrl+Shift+T`
-   - Select your saved SSH profile to connect again
-
-3. **In the new tab, navigate to the project directory**:
-   - Type: `cd /home/docker/zehnlabs/ibkr-portfolio-rebalancer`
-   - Press `Enter`
-
-#### Edit Files Using Nano
-
-4. **Edit the environment variables file**:
-   - Type: `nano .env`
-   - Edit your environment variables
-   - Press `Ctrl+O` to save
-   - Press `Ctrl+X` to exit nano
-
-5. **Edit the accounts configuration**:
-   - Type: `nano accounts.yaml`
-   - Configure your IBKR account(s) and strategies
-   - Press `Ctrl+O` to save
-   - Press `Ctrl+X` to exit nano
-
-6. **Return to your first tab** (where the setup script is waiting)
-
-7. **Press ENTER** to continue the installation
-
-5. The script will then:
+3. The script will then:
    - Start all Docker containers
    - Verify services are running
    - Provide access URLs
