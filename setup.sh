@@ -20,6 +20,18 @@ print_header() {
     echo ""
 }
 
+# Detect Docker Compose command
+get_docker_compose_cmd() {
+    if command -v docker-compose &> /dev/null; then
+        echo "docker-compose"
+    elif docker compose version &> /dev/null; then
+        echo "docker compose"
+    else
+        print_error "Neither 'docker-compose' nor 'docker compose' is available"
+        exit 1
+    fi
+}
+
 print_step() {
     echo -e "${GREEN}[STEP]${NC} $1"
 }
@@ -49,6 +61,30 @@ check_root() {
     fi
 }
 
+# Check if Docker is installed
+check_docker() {
+    print_step "Checking Docker installation..."
+    
+    if ! command -v docker &> /dev/null; then
+        print_error "Docker is not installed. Please install Docker first."
+        print_info "Visit: https://docs.docker.com/get-docker/"
+        exit 1
+    fi
+    
+    # Check if Docker daemon is running
+    if ! docker info &> /dev/null; then
+        print_warning "Docker daemon is not running. Attempting to start..."
+        systemctl start docker
+        sleep 5
+        if ! docker info &> /dev/null; then
+            print_error "Failed to start Docker daemon. Please check Docker installation."
+            exit 1
+        fi
+    fi
+    
+    print_success "Docker is installed and running!"
+}
+
 # System updates
 update_system() {
     print_step "Updating system packages..."
@@ -59,12 +95,14 @@ update_system() {
     # Update package lists
     apt-get update -qq
     
+    # Install git if not present
+    if ! command -v git &> /dev/null; then
+        print_info "Installing git..."
+        apt-get install -y git
+    fi
+    
     # Upgrade packages silently with automatic yes to all prompts
     apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -qq
-    
-    # Start and enable Docker (in case it's not running)
-    systemctl start docker
-    systemctl enable docker
     
     print_success "System updated successfully!"
 }
@@ -100,13 +138,13 @@ start_initial_services() {
     print_step "Starting Redis and Management Service..."
     
     print_info "Building and starting initial services..."
-    docker-compose up --build -d redis management-service
+    $DOCKER_COMPOSE_CMD up --build -d redis management-service
     
     print_info "Waiting for services to start..."
     sleep 10
     
     # Check if services are running
-    if docker-compose ps redis | grep -q "Up" && docker-compose ps management-service | grep -q "Up"; then
+    if $DOCKER_COMPOSE_CMD ps redis | grep -q "Up" && $DOCKER_COMPOSE_CMD ps management-service | grep -q "Up"; then
         print_success "Initial services started successfully!"
     else
         print_error "Failed to start initial services. Please check the logs."
@@ -157,10 +195,10 @@ start_full_services() {
     print_step "Stopping initial services and starting full system..."
     
     print_info "Stopping Redis and Management Service..."
-    docker-compose down
+    $DOCKER_COMPOSE_CMD down
     
     print_info "Starting all services..."
-    docker-compose up -d
+    $DOCKER_COMPOSE_CMD up -d
     
     print_info "Waiting for all services to start..."
     sleep 15
@@ -203,9 +241,9 @@ display_final_info() {
     print_info "VNC Access (IBKR Gateway): http://localhost:6080"
     echo ""
     print_info "=== Useful Commands ==="
-    print_info "View logs: docker-compose logs -f"
-    print_info "Stop services: docker-compose down"
-    print_info "Restart services: docker-compose restart"
+    print_info "View logs: $DOCKER_COMPOSE_CMD logs -f"
+    print_info "Stop services: $DOCKER_COMPOSE_CMD down"
+    print_info "Restart services: $DOCKER_COMPOSE_CMD restart"
     print_info "Manual rebalance: ./tools/rebalance.sh -all"
     echo ""
     print_info "=== Next Steps ==="
@@ -220,7 +258,12 @@ display_final_info() {
 main() {
     print_header
     
+    # Set Docker Compose command
+    DOCKER_COMPOSE_CMD=$(get_docker_compose_cmd)
+    print_info "Using Docker Compose command: $DOCKER_COMPOSE_CMD"
+    
     check_root
+    check_docker
     update_system
     create_directories
     clone_repository
