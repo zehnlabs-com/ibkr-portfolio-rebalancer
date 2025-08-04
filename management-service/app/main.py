@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse
 from app.container import container
 from app.models.queue_models import QueueStatus, QueueEvent, AddEventRequest, AddEventResponse, RemoveEventResponse, ClearQueuesResponse
 from app.models.health_models import DetailedHealthStatus
-from app.models.setup_models import SaveAccountsRequest, SaveAccountsResponse, AccountsDataResponse, SaveEnvRequest, SaveEnvResponse, EnvDataResponse, SetupStatusResponse
+from app.models.setup_models import SaveAccountsRequest, SaveAccountsResponse, AccountsDataResponse, SaveEnvRequest, SaveEnvResponse, EnvDataResponse, SetupStatusResponse, CompleteSetupResponse
 from app.config.settings import settings
 
 # Configure logging
@@ -122,6 +122,16 @@ async def get_env_data():
 async def save_env(request: SaveEnvRequest):
     """Save environment variables"""
     return await container.setup_handlers.save_env(request.dict())
+
+@app.post("/setup/complete", response_model=CompleteSetupResponse)
+async def complete_setup():
+    """Complete setup by restarting all services"""
+    return await container.setup_handlers.complete_setup()
+
+@app.get("/setup/complete", response_class=HTMLResponse)
+async def get_setup_complete_page():
+    """Get the setup completion success page"""
+    return await container.setup_handlers.get_setup_complete_page()
 
 # Startup and shutdown events
 @app.on_event("startup")

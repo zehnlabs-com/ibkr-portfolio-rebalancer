@@ -79,3 +79,8 @@ class SetupStatusResponse(BaseModel):
     """Response model for setup status"""
     env_exists: bool
     accounts_exists: bool
+
+class CompleteSetupResponse(BaseModel):
+    """Response model for completing setup"""
+    status: str
+    message: str

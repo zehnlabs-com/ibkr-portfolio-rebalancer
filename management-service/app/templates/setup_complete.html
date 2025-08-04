@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Complete - IBKR Portfolio Rebalancer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            min-height: 100vh;
+            padding: 20px;
+            color: #212529;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2975ba 0%, #1a5788 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+            font-weight: 400;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .success-message {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 20px;
+            background: #4caf50;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .success-icon svg {
+            width: 50px;
+            height: 50px;
+            fill: white;
+        }
+        
+        .success-message h2 {
+            color: #212529;
+            margin-bottom: 15px;
+            font-size: 2em;
+            font-weight: 600;
+        }
+        
+        .success-message p {
+            color: #565656;
+            font-size: 1.1em;
+            line-height: 1.6;
+        }
+        
+        .quick-links {
+            display: grid;
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .link-card {
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            padding: 25px;
+            transition: all 0.3s ease;
+            background: white;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            text-decoration: none;
+            color: inherit;
+        }
+        
+        .link-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+            border-color: #2975ba;
+        }
+        
+        .link-icon {
+            width: 60px;
+            height: 60px;
+            background: #f0f7ff;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .link-icon svg {
+            width: 30px;
+            height: 30px;
+            fill: #2975ba;
+        }
+        
+        .link-content h3 {
+            color: #212529;
+            margin-bottom: 5px;
+            font-size: 1.3em;
+            font-weight: 600;
+        }
+        
+        .link-content p {
+            color: #565656;
+            font-size: 0.95em;
+        }
+        
+        .ntfy-section {
+            background: #f0f7ff;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .ntfy-section h3 {
+            color: #212529;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+            font-weight: 600;
+        }
+        
+        .ntfy-steps {
+            display: grid;
+            gap: 20px;
+        }
+        
+        .step {
+            display: flex;
+            gap: 15px;
+            align-items: start;
+        }
+        
+        .step-number {
+            width: 35px;
+            height: 35px;
+            background: #2975ba;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        
+        .step-content {
+            flex: 1;
+        }
+        
+        .step-content h4 {
+            color: #212529;
+            margin-bottom: 5px;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+        
+        .step-content p {
+            color: #565656;
+            line-height: 1.6;
+        }
+        
+        .app-links {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
+        }
+        
+        .app-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            background: #212529;
+            color: white;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .app-link:hover {
+            background: #000;
+            transform: translateY(-1px);
+        }
+        
+        .app-link svg {
+            width: 20px;
+            height: 20px;
+            fill: white;
+        }
+        
+        .code-block {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px 20px;
+            border-radius: 8px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 30px;
+            background: #f8f9fa;
+            color: #565656;
+            border-top: 1px solid #dee2e6;
+        }
+        
+        .footer a {
+            color: #2975ba;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Setup Complete!</h1>
+            <p>Your IBKR Portfolio Rebalancer is now running</p>
+        </div>
+        
+        <div class="content">
+            <div class="success-message">
+                <div class="success-icon">
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                    </svg>
+                </div>
+                <h2>Congratulations!</h2>
+                <p>All services have been started successfully. Your portfolio rebalancing system is now active.</p>
+            </div>
+            
+            <div class="quick-links">
+                <a href="http://localhost:8080" target="_blank" class="link-card">
+                    <div class="link-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                    </div>
+                    <div class="link-content">
+                        <h3>Dozzle - Container Logs</h3>
+                        <p>Monitor all container logs in real-time through a web interface</p>
+                    </div>
+                </a>
+                
+                <a href="/health" target="_blank" class="link-card">
+                    <div class="link-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                    </div>
+                    <div class="link-content">
+                        <h3>System Health Check</h3>
+                        <p>View the current status of all services and connections</p>
+                    </div>
+                </a>
+                
+                <a href="/" target="_blank" class="link-card">
+                    <div class="link-icon">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+                        </svg>
+                    </div>
+                    <div class="link-content">
+                        <h3>Management Dashboard</h3>
+                        <p>Access the main management interface for queue monitoring</p>
+                    </div>
+                </a>
+            </div>
+            
+            <div class="ntfy-section">
+                <h3>Set Up Mobile Notifications</h3>
+                <div class="ntfy-steps">
+                    <div class="step">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h4>Install the ntfy mobile app</h4>
+                            <p>Download the app for real-time push notifications:</p>
+                            <div class="app-links">
+                                <a href="https://apps.apple.com/us/app/ntfy/id1625396347" target="_blank" class="app-link">
+                                    <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+                                    </svg>
+                                    iOS App Store
+                                </a>
+                                <a href="https://play.google.com/store/apps/details?id=io.heckel.ntfy" target="_blank" class="app-link">
+                                    <svg viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M3 20.5v-17c0-.59.34-1.11.84-1.35l13.69 8.5-13.69 8.5c-.5-.24-.84-.76-.84-1.35m2.34-.72l11.97-7.43L6.69 4.27 5.34 19.78M17.31 12.35L20.16 14l-2.85 1.65-2.54-1.58 2.54-1.72z"/>
+                                    </svg>
+                                    Google Play Store
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h4>Subscribe to your notification channels</h4>
+                            <p>Open the app and tap "+" to add subscriptions for each of your accounts.</p>
+                            <p>Your channel names follow this format:</p>
+                            <div class="code-block">{channel_prefix}-{account_id}</div>
+                            <p>For example: <code>ZLF-2025-U12345678</code></p>
+                        </div>
+                    </div>
+                    
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h4>Test notifications</h4>
+                            <p>Notifications will be sent for rebalancing events, errors, and important system updates. Events are batched to prevent spam.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="footer">
+                <p>Need help? Check the <a href="http://localhost:8080" target="_blank">container logs</a> or visit the <a href="https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer" target="_blank">documentation</a>.</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

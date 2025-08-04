@@ -5,6 +5,9 @@ import logging
 import os
 import yaml
 import shutil
+import subprocess
+import asyncio
+import time
 from typing import Dict, List, Any, Optional
 from fastapi import HTTPException
 from fastapi.responses import HTMLResponse
@@ -19,6 +22,7 @@ class SetupHandlers:
         self.accounts_example_path = "/app/accounts.example.yaml"
         self.env_file_path = "/app/.env"
         self.env_example_path = "/app/.env.example"
+        self.docker_compose_cmd = self._get_docker_compose_cmd()
         
     async def get_main_setup_page(self) -> HTMLResponse:
         """Return the main setup page HTML"""
@@ -385,3 +389,136 @@ class SetupHandlers:
         except Exception as e:
             logger.error(f"Unexpected error saving .env file: {e}")
             raise ValueError("Cannot save environment configuration")
+    
+    def _get_docker_compose_cmd(self) -> List[str]:
+        """Detect and return the appropriate docker compose command"""
+        try:
+            # Try docker-compose first
+            result = subprocess.run(["docker-compose", "--version"], capture_output=True, text=True)
+            if result.returncode == 0:
+                return ["docker-compose"]
+        except Exception:
+            pass
+        
+        try:
+            # Try docker compose
+            result = subprocess.run(["docker", "compose", "version"], capture_output=True, text=True)
+            if result.returncode == 0:
+                return ["docker", "compose"]
+        except Exception:
+            pass
+        
+        logger.error("Neither 'docker-compose' nor 'docker compose' is available")
+        return ["docker-compose"]  # Default fallback
+    
+    async def complete_setup(self) -> Dict[str, str]:
+        """Complete setup by restarting all services"""
+        try:
+            # Verify configuration files exist
+            if not os.path.exists(self.env_file_path) or os.path.getsize(self.env_file_path) == 0:
+                logger.error("Environment configuration not completed")
+                raise HTTPException(status_code=400, detail="Environment configuration not completed")
+            
+            if not os.path.exists(self.accounts_file_path) or os.path.getsize(self.accounts_file_path) == 0:
+                logger.error("Accounts configuration not completed")
+                raise HTTPException(status_code=400, detail="Accounts configuration not completed")
+            
+            logger.info("Starting setup completion process...")
+            
+            # Change to the project directory
+            project_dir = "/app"
+            if os.path.exists("/app/docker-compose.yaml"):
+                project_dir = "/app"
+            elif os.path.exists("docker-compose.yaml"):
+                project_dir = os.getcwd()
+            else:
+                # Try to find the project directory
+                for path in ["/home/docker/zehnlabs/ibkr-portfolio-rebalancer", "/root/ibkr-portfolio-rebalancer"]:
+                    if os.path.exists(f"{path}/docker-compose.yaml"):
+                        project_dir = path
+                        break
+            
+            logger.info(f"Using project directory: {project_dir}")
+            
+            # Stop all services
+            logger.info("Stopping all services...")
+            stop_cmd = self.docker_compose_cmd + ["down"]
+            result = subprocess.run(stop_cmd, cwd=project_dir, capture_output=True, text=True)
+            if result.returncode != 0:
+                logger.error(f"Failed to stop services: {result.stderr}")
+                raise HTTPException(status_code=500, detail=f"Failed to stop services: {result.stderr}")
+            
+            # Wait a bit for services to fully stop
+            await asyncio.sleep(2)
+            
+            # Start all services
+            logger.info("Starting all services...")
+            start_cmd = self.docker_compose_cmd + ["up", "-d"]
+            result = subprocess.run(start_cmd, cwd=project_dir, capture_output=True, text=True)
+            if result.returncode != 0:
+                logger.error(f"Failed to start services: {result.stderr}")
+                raise HTTPException(status_code=500, detail=f"Failed to start services: {result.stderr}")
+            
+            logger.info("All services started, waiting for health checks...")
+            
+            # Wait for services to be healthy (max 5 minutes)
+            await self._wait_for_services_healthy(project_dir)
+            
+            logger.info("Setup completed successfully!")
+            return {"status": "success", "message": "All services started successfully"}
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error during setup completion: {e}")
+            raise HTTPException(status_code=500, detail=f"Setup completion failed: {str(e)}")
+    
+    async def _wait_for_services_healthy(self, project_dir: str, timeout: int = 300):
+        """Wait for all services to be healthy"""
+        start_time = time.time()
+        required_services = ["redis", "ibkr-gateway", "event-broker", "event-processor", "management-service", "dozzle"]
+        
+        while time.time() - start_time < timeout:
+            try:
+                # Check service status
+                ps_cmd = self.docker_compose_cmd + ["ps", "--format", "json"]
+                result = subprocess.run(ps_cmd, cwd=project_dir, capture_output=True, text=True)
+                
+                if result.returncode == 0 and result.stdout:
+                    # Parse service status
+                    import json
+                    services_up = 0
+                    for line in result.stdout.strip().split('\n'):
+                        if line:
+                            try:
+                                service_info = json.loads(line)
+                                if service_info.get("State") == "running":
+                                    services_up += 1
+                            except json.JSONDecodeError:
+                                pass
+                    
+                    logger.info(f"Services running: {services_up}/{len(required_services)}")
+                    
+                    if services_up >= len(required_services):
+                        # All services are running
+                        logger.info("All services are running")
+                        return
+                
+                await asyncio.sleep(5)
+                
+            except Exception as e:
+                logger.error(f"Error checking service health: {e}")
+                await asyncio.sleep(5)
+        
+        raise HTTPException(status_code=500, detail="Services failed to start within timeout period")
+    
+    async def get_setup_complete_page(self) -> HTMLResponse:
+        """Return the setup completion success page"""
+        try:
+            template_path = os.path.join(os.path.dirname(__file__), "..", "templates", "setup_complete.html")
+            with open(template_path, 'r') as f:
+                html_content = f.read()
+            return HTMLResponse(content=html_content)
+        except Exception as e:
+            logger.error(f"Failed to load setup complete page: {e}")
+            raise HTTPException(status_code=500, detail="Failed to load setup complete page")

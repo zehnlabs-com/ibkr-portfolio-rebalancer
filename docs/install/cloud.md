@@ -1,86 +1,107 @@
-# 🚀 Installation - Cloud Deployment (Digital Ocean)
+# 🚀 Installation - Cloud Deployment (DigitalOcean)
 
-Deploy your IBKR Portfolio Rebalancer on a Digital Ocean droplet.
+Deploy your IBKR Portfolio Rebalancer with one click on DigitalOcean!
 
-**You'll need:**
-☁️ **Digital Ocean account** - [Sign up here](https://www.digitalocean.com/)
-🔑 **SSH key pair** - for secure server access
-💳 **Payment method** - droplet costs ~$12-24/month depending on size
+## Prerequisites
 
----
+Before you begin, you'll need:
+- ✅ **DigitalOcean account** - [Sign up here](https://www.digitalocean.com/)
+- 💳 **Payment method added** to your DigitalOcean account
 
-## 🌐 Step 1: Create Digital Ocean Droplet
+## Quick Deploy
 
-1. **Log in to Digital Ocean** and click **"Create"** → **"Droplets"**
+### Step 1: Create Your Droplet
 
-2. **Choose configuration:**
-   - **Image**: Ubuntu (Latest LTS version) x64
-   - **Authentication**: SSH keys (recommended) or Password
+Click the button below to deploy a pre-configured droplet:
 
-3. **Add SSH Key** (if you don't have one):
-   ```bash
-   # On your local machine (Windows: use Git Bash, macOS/Linux: Terminal)
-   ssh-keygen -t ed25519 -C "your-email@example.com"
-   
-   # Display public key to copy
-   cat ~/.ssh/id_ed25519.pub
-   ```
-   Copy the output and paste it into Digital Ocean
+[![Deploy to DigitalOcean](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/droplets/new?appId=195049442&size=s-2vcpu-2gb&region=nyc3&image=docker-20-04&type=applications)
 
-4. **Choose hostname**: `ibkr-rebalancer` or similar
+When the DigitalOcean page opens:
+1. **Enter a root password** - Save this password securely!
+2. **Keep all other defaults** (region, size, etc.)
+3. **Click "Create Droplet"**
 
-5. **Click "Create Droplet"**
+Wait 1-2 minutes for your droplet to fully start.
 
-## 🔐 Step 2: Connect and Setup Server
+### Step 2: Connect to Your Droplet
 
-1. **Connect to your droplet:**
-   ```bash
-   ssh root@YOUR_DROPLET_IP
-   ```
+Once your droplet is running, connect via SSH:
 
-2. **Update the system:**
-   ```bash
-   apt update && apt upgrade -y
-   ```
-
-3. **Allow SSH access:**
-   ```bash
-   ufw allow ssh
-   ufw --force enable
-   ```
-
-## 🐳 Step 3: Install Docker and Setup Application
-
-**From this point, follow the [Linux Installation Guide](linux.md) starting from Step 2.**
-
-The key commands are:
 ```bash
-# Install Docker
-sudo apt install docker.io docker compose
-sudo systemctl start docker
-sudo systemctl enable docker
-
-# Clone and setup
-mkdir -p ~/docker/zehnlabs
-cd ~/docker/zehnlabs
-git clone https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer.git
-cd ibkr-portfolio-rebalancer
-
-# Configure and start (follow Linux guide)
-cp .env.example .env
-cp accounts.example.yaml accounts.yaml
-# Edit .env and accounts.yaml files as needed
-docker compose up -d
+ssh root@YOUR_DROPLET_IP
 ```
 
-## 🌐 Step 4: Access Your Cloud Deployment
+Replace `YOUR_DROPLET_IP` with the public IP address shown in your DigitalOcean dashboard.
 
-**From the server itself** (via SSH):
-- **🏥 Health Status**: `curl http://localhost:8000/health`
-- **📊 Queue Status**: `curl http://localhost:8000/queue/status`
+### Step 3: Run the Setup Script
+
+Execute the automated setup script in your SSH terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/zehnlabs-com/ibkr-portfolio-rebalancer/refs/heads/main/setup.sh | sudo bash
+```
+
+This script will:
+- Install all required dependencies
+- Set up Docker containers
+- Start initial configuration services
+- Provide you with next steps
+
+### Step 4: Set Up Port Forwarding
+
+After the script completes, you'll need to access the web interface. From your **local machine** (not the droplet), run:
+
+```bash
+ssh -L 8000:localhost:8000 -L 8080:localhost:8080 root@YOUR_DROPLET_IP
+```
+
+Keep this terminal window open while configuring.
+
+### Step 5: Complete Configuration
+
+1. Open your browser and navigate to: **http://localhost:8000/setup**
+
+2. Configure your settings:
+   - **Environment Variables**: Set your IBKR credentials and API keys
+   - **Accounts**: Add your Interactive Brokers account(s)
+
+3. Once both tasks show "Completed", click the **"Complete Install"** button
+
+4. The system will restart all services (this can take a few minutes)
+
+5. You'll be redirected to a success page with information you will need to monitor and manage your deployment.
+
+
+## Post-Installation
+
+### Accessing Your System
+
+For ongoing access, always use SSH port forwarding:
+
+```bash
+# Port forward for web interfaces
+ssh -L 8000:localhost:8000 -L 8080:localhost:8080 root@YOUR_DROPLET_IP
+
+# Then access:
+# Management: http://localhost:8000
+```
+
+## Troubleshooting
+
+### Cannot connect via SSH
+- Verify the droplet IP address in DigitalOcean dashboard
+- Check if the droplet is running
+
+### Port forwarding not working
+- Ensure the SSH connection stays open
+- On Windows, try using Git Bash or WSL instead of Command Prompt
+
+## Support
+
+- 📖 [Full Documentation](https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer)
+- 🐛 [Report Issues](https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/issues)
+- 💬 [Community Support](https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/discussions)
 
 ---
 
-**✅ Installation Complete!** Continue with the [Getting Started Guide](../getting-started.md#verify-installation) to verify your installation and next steps.
-
-*🔔 PRO TIP: Set up monitoring alerts for your droplet's resource usage in the Digital Ocean dashboard.*
+**Next Steps**: After installation, refer to the [Operations Guide](../operations.md) for daily usage and the [Troubleshooting Guide](../troubleshooting.md) for common issues.

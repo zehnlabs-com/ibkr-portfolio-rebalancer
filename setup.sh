@@ -176,65 +176,31 @@ start_initial_services() {
     fi
 }
 
-# Wait for user to complete account setup
-wait_for_account_setup() {
+# Display setup completion instructions
+display_setup_instructions() {
     echo ""
-    print_info "=== Account Setup Required ==="
+    print_success "Initial services started successfully!"
     echo ""
-    print_info "Please follow these steps to complete the setup:"
+    print_info "=== Complete Setup via Web Interface ==="
     echo ""
-    print_info "1. Set up SSH port forwarding to access the management interface:"
-    print_info "   ssh -L 8000:localhost:8000 your-username@your-server-ip"
+    
+    # Get the server's public IP address
+    SERVER_IP=$(curl -s https://api.ipify.org 2>/dev/null || curl -s https://ipv4.icanhazip.com 2>/dev/null || echo "YOUR_SERVER_IP")
+    
+    print_info "To continue setup:"
     echo ""
-    print_info "2. Open your web browser and navigate to:"
+    print_info "1. Set up SSH port forwarding (from your local machine):"
+    print_info "   ssh -L 8000:localhost:8000 -L 8080:localhost:8080 root@$SERVER_IP"
+    echo ""
+    print_info "2. Open your browser and navigate to:"
     print_info "   http://localhost:8000/setup"
     echo ""
-    print_info "3. Complete the environment and account configuration"
+    print_info "3. Complete the configuration and click 'Complete Install'"
     echo ""
-    print_info "4. Once you've completed the setup, return here and press ENTER to continue"
-    echo ""
-    
-    # Ensure we can read from terminal even if script is piped
-    if [ -t 0 ]; then
-        read -p "Press ENTER when you have completed the setup..."
-    else
-        # Script is being piped, read from /dev/tty
-        read -p "Press ENTER when you have completed the setup..." < /dev/tty
-    fi 
+    print_success "Setup script completed. Continue in your web browser."
 }
 
-# Verify configuration files exist
-verify_configuration() {
-    print_step "Verifying configuration files..."
-    
-    if [ ! -f ".env" ]; then
-        print_error ".env file not found. Please complete the account setup first."
-        exit 1
-    fi
-    
-    if [ ! -f "accounts.yaml" ]; then
-        print_error "accounts.yaml file not found. Please complete the account setup first."
-        exit 1
-    fi
-    
-    print_success "Configuration files verified!"
-}
 
-# Stop initial services and start full stack
-start_full_services() {
-    print_step "Stopping initial services and starting full system..."
-    
-    print_info "Stopping Redis and Management Service..."
-    $DOCKER_COMPOSE_CMD down
-    
-    print_info "Starting all services..."
-    $DOCKER_COMPOSE_CMD up -d
-    
-    print_info "Waiting for all services to start..."
-    sleep 15
-    
-    print_success "All services started successfully!"
-}
 
 # Set up file permissions
 setup_permissions() {
@@ -259,30 +225,6 @@ setup_permissions() {
 }
 
 
-# Display final information
-display_final_info() {
-    echo ""
-    print_success "🎉 Congratulations! IBKR Portfolio Rebalancer setup completed successfully!"
-    echo ""
-    print_info "=== Service URLs ==="
-    print_info "Management Dashboard: http://localhost:8000"
-    print_info "Health Check: http://localhost:8000/health"
-    print_info "Container Monitoring: http://localhost:8080 (Dozzle)"
-    print_info "VNC Access (IBKR Gateway): http://localhost:6080"
-    echo ""
-    print_info "=== Useful Commands ==="
-    print_info "View logs: $DOCKER_COMPOSE_CMD logs -f"
-    print_info "Stop services: $DOCKER_COMPOSE_CMD down"
-    print_info "Restart services: $DOCKER_COMPOSE_CMD restart"
-    print_info "Manual rebalance: ./tools/rebalance.sh -all"
-    echo ""
-    print_info "=== Next Steps ==="
-    print_info "1. Monitor your containers and logs at http://localhost:8080"
-    print_info "2. Check system health at http://localhost:8000/health"
-    print_info "3. Access VNC at http://localhost:6080 to complete IBKR Gateway login if needed"
-    echo ""
-    print_success "Your portfolio rebalancing system is now ready!"
-}
 
 # Main execution
 main() {
@@ -300,10 +242,7 @@ main() {
     setup_permissions
     create_placeholder_files
     start_initial_services
-    wait_for_account_setup
-    verify_configuration
-    start_full_services
-    display_final_info
+    display_setup_instructions
 }
 
 # Run main function
