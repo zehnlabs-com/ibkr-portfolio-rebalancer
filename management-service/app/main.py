@@ -14,11 +14,9 @@ from app.models.health_models import DetailedHealthStatus
 from app.config.settings import settings
 
 # Configure logging
-logging.basicConfig(
-    level=getattr(logging, settings.log_level),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+from app.logger import configure_root_logger, setup_logger
+configure_root_logger(settings.log_level)
+logger = setup_logger(__name__, settings.log_level)
 
 # Get version from environment variable (set by Docker)
 VERSION = os.getenv('SERVICE_VERSION', '1.0.0')

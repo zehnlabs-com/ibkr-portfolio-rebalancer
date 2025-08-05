@@ -1,8 +1,41 @@
 import logging
 import sys
 import json
+import os
+import gzip
+import shutil
 from datetime import datetime
+from logging.handlers import TimedRotatingFileHandler
 from app.config import config
+
+class CompressingTimedRotatingFileHandler(TimedRotatingFileHandler):
+    """TimedRotatingFileHandler that compresses rotated files"""
+    
+    def doRollover(self):
+        """Override to add compression after rotation"""
+        # Perform the standard rollover
+        super().doRollover()
+        
+        # Compress the rotated file
+        # The rotated file will have a timestamp suffix
+        # Find the most recent rotated file
+        dir_name, base_name = os.path.split(self.baseFilename)
+        
+        try:
+            file_names = os.listdir(dir_name)
+            
+            for file_name in file_names:
+                if file_name.startswith(base_name) and not file_name.endswith('.gz') and file_name != base_name:
+                    full_path = os.path.join(dir_name, file_name)
+                    # Compress the file
+                    with open(full_path, 'rb') as f_in:
+                        with gzip.open(f'{full_path}.gz', 'wb') as f_out:
+                            shutil.copyfileobj(f_in, f_out)
+                    # Remove the uncompressed file
+                    os.remove(full_path)
+        except Exception as e:
+            # Log compression errors but don't fail the rollover
+            print(f"Error during log compression: {e}", file=sys.stderr)
 
 class StructuredFormatter(logging.Formatter):
     """Custom formatter for structured logging with event_id support"""
@@ -71,11 +104,27 @@ def configure_root_logger():
     # Set log level
     root_logger.setLevel(getattr(logging, config.logging.level.upper()))
     
-    # Add structured handler
-    handler = logging.StreamHandler(sys.stdout)
+    # Create formatter
     formatter = StructuredFormatter()
-    handler.setFormatter(formatter)
-    root_logger.addHandler(handler)
+    
+    # Add console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+    
+    # Add file handler with daily rotation and compression
+    log_dir = '/app/logs'
+    os.makedirs(log_dir, exist_ok=True)
+    
+    file_handler = CompressingTimedRotatingFileHandler(
+        filename=os.path.join(log_dir, 'event-processor.log'),
+        when='midnight',
+        interval=1,
+        backupCount=365,  # Keep 365 days of logs
+        encoding='utf-8'
+    )
+    file_handler.setFormatter(formatter)
+    root_logger.addHandler(file_handler)
     
     # Configure specific third-party library loggers
     _configure_third_party_loggers()

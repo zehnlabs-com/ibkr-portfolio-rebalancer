@@ -1,5 +1,5 @@
 """
-Logging configuration for the Event Broker Service
+Logging configuration for the Management Service
 """
 import logging
 import sys
@@ -42,7 +42,7 @@ class CompressingTimedRotatingFileHandler(TimedRotatingFileHandler):
 
 def setup_logger(name: Optional[str] = None, level: str = "INFO") -> logging.Logger:
     """
-    Set up structured logging for the Event Broker Service
+    Set up structured logging for the Management Service
     
     Args:
         name: Logger name (defaults to __name__)
@@ -77,7 +77,7 @@ def setup_logger(name: Optional[str] = None, level: str = "INFO") -> logging.Log
     os.makedirs(log_dir, exist_ok=True)
     
     file_handler = CompressingTimedRotatingFileHandler(
-        filename=os.path.join(log_dir, 'event-broker.log'),
+        filename=os.path.join(log_dir, 'management-service.log'),
         when='midnight',
         interval=1,
         backupCount=365,  # Keep 365 days of logs
@@ -88,3 +88,42 @@ def setup_logger(name: Optional[str] = None, level: str = "INFO") -> logging.Log
     logger.addHandler(file_handler)
     
     return logger
+
+
+def configure_root_logger(level: str = "INFO"):
+    """Configure the root logger with file and console handlers"""
+    # Get root logger
+    root_logger = logging.getLogger()
+    
+    # Clear existing handlers to avoid duplicates
+    root_logger.handlers.clear()
+    
+    # Set log level
+    log_level = getattr(logging, level.upper(), logging.INFO)
+    root_logger.setLevel(log_level)
+    
+    # Create formatter
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    # Create console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(log_level)
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
+    
+    # Create file handler with daily rotation and compression
+    log_dir = '/app/logs'
+    os.makedirs(log_dir, exist_ok=True)
+    
+    file_handler = CompressingTimedRotatingFileHandler(
+        filename=os.path.join(log_dir, 'management-service.log'),
+        when='midnight',
+        interval=1,
+        backupCount=365,  # Keep 365 days of logs
+        encoding='utf-8'
+    )
+    file_handler.setLevel(log_level)
+    file_handler.setFormatter(formatter)
+    root_logger.addHandler(file_handler)
