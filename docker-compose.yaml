@@ -10,7 +10,7 @@ networks:
 
 services:
   redis:
-    image: redis:7-alpine
+    image: redis:8.2.0-alpine
     container_name: redis
     ports:
       - "127.0.0.1:6379:6379"
@@ -30,7 +30,7 @@ services:
     restart: unless-stopped
 
   ibkr-gateway:
-    image: gnzsnz/ib-gateway:latest
+    image: gnzsnz/ib-gateway:10.39.1d
     container_name: ibkr-gateway
     ports:
       - "127.0.0.1:4001:4003"
@@ -172,7 +172,7 @@ services:
 
 
   dozzle:
-    image: amir20/dozzle:latest
+    image: amir20/dozzle:v8.13.8
     container_name: dozzle
     ports:
       - "127.0.0.1:8080:8080"
@@ -181,7 +181,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
     environment:
       TZ: America/New_York
-      DOZZLE_LEVEL: debug
+      DOZZLE_LEVEL: info
       DOZZLE_TAILSIZE: 300
       DOZZLE_ENABLE_ACTIONS: true
       DOZZLE_ENABLE_SHELL: true
