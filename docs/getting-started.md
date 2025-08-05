@@ -32,23 +32,11 @@ Once you have the above prerequisites, select the guide below that matches your 
 - Digital Ocean Droplet setup
 - SSH based deployment
 
-### 🪟 Windows (Docker Desktop)
-**[Installation - Windows](install/windows.md)**
-- Windows 10/11 with WSL2 and Docker Desktop (Hyper-V also works)
-- Step-by-step PowerShell/Command Prompt instructions
-- Includes WSL2 setup and Docker Desktop configuration
-
-### 🍎 macOS (Docker Desktop)
-**[Installation - macOS](install/mac.md)**
-- macOS with Docker Desktop
-- Terminal-based setup instructions
-- Homebrew package manager integration
-
-### 🐧 Linux (Docker Engine)
-**[Installation - Linux](install/linux.md)**
-- Ubuntu, CentOS, Fedora, Arch Linux support
-- Native Docker and Docker Compose installation
-- Distribution-specific package management
+### 💻 Local Setup - Docker Desktop  
+**[Installation - Local](install/local.md)**
+- Windows, macOS, and Linux support
+- Single-command automated setup
+- Direct localhost access (no SSH needed)
 
 ---
 

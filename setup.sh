@@ -1,9 +1,40 @@
 #!/bin/bash
 
 # IBKR Portfolio Rebalancer Setup Script
-# Usage: curl -fsSL https://raw.githubusercontent.com/your-org/ibkr-portfolio-rebalancer/main/setup.sh | bash
+# Usage: 
+#   Cloud:  curl -fsSL https://raw.githubusercontent.com/zehnlabs-com/ibkr-portfolio-rebalancer/main/setup.sh | sudo bash -s -- --cloud
+#   Local:  curl -fsSL https://raw.githubusercontent.com/zehnlabs-com/ibkr-portfolio-rebalancer/main/setup.sh | bash -s -- --local
 
 set -e
+
+# Parse command line arguments - REQUIRED
+ENVIRONMENT=""
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --cloud)
+            ENVIRONMENT="cloud"
+            shift
+            ;;
+        --local)
+            ENVIRONMENT="local"
+            shift
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Usage: curl -fsSL ... | [sudo] bash -s -- [--cloud|--local]"
+            exit 1
+            ;;
+    esac
+done
+
+# Require environment to be specified
+if [ -z "$ENVIRONMENT" ]; then
+    echo "Error: Environment must be specified"
+    echo "Usage:"
+    echo "  Cloud:  curl -fsSL https://raw.githubusercontent.com/zehnlabs-com/ibkr-portfolio-rebalancer/main/setup.sh | sudo bash -s -- --cloud"
+    echo "  Local:  curl -fsSL https://raw.githubusercontent.com/zehnlabs-com/ibkr-portfolio-rebalancer/main/setup.sh | bash -s -- --local"
+    exit 1
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -53,10 +84,15 @@ print_success() {
 }
 
 
-# Check if running as root
+# Check if running as root (cloud only)
 check_root() {
-    if [ "$EUID" -ne 0 ]; then
-        print_error "This script must be run as root (use sudo)"
+    if [ "$ENVIRONMENT" = "cloud" ] && [ "$EUID" -ne 0 ]; then
+        print_error "Cloud setup must be run as root (use sudo)"
+        exit 1
+    fi
+    
+    if [ "$ENVIRONMENT" = "local" ] && [ "$EUID" -eq 0 ]; then
+        print_error "Local setup should not be run as root (remove sudo)"
         exit 1
     fi
 }
@@ -66,18 +102,28 @@ check_docker() {
     print_step "Checking Docker installation..."
     
     if ! command -v docker &> /dev/null; then
-        print_error "Docker is not installed. Please install Docker first."
-        print_info "Visit: https://docs.docker.com/get-docker/"
+        if [ "$ENVIRONMENT" = "cloud" ]; then
+            print_error "Docker is not installed. Please install Docker first."
+            print_info "Visit: https://docs.docker.com/get-docker/"
+        else
+            print_error "Docker is not installed. Please install Docker Desktop first."
+            print_info "Visit: https://www.docker.com/products/docker-desktop/"
+        fi
         exit 1
     fi
     
     # Check if Docker daemon is running
     if ! docker info &> /dev/null; then
-        print_warning "Docker daemon is not running. Attempting to start..."
-        systemctl start docker
-        sleep 5
-        if ! docker info &> /dev/null; then
-            print_error "Failed to start Docker daemon. Please check Docker installation."
+        if [ "$ENVIRONMENT" = "cloud" ]; then
+            print_warning "Docker daemon is not running. Attempting to start..."
+            systemctl start docker
+            sleep 5
+            if ! docker info &> /dev/null; then
+                print_error "Failed to start Docker daemon. Please check Docker installation."
+                exit 1
+            fi
+        else
+            print_error "Docker is not running. Please start Docker Desktop and try again."
             exit 1
         fi
     fi
@@ -85,37 +131,60 @@ check_docker() {
     print_success "Docker is installed and running!"
 }
 
-# System updates
-update_system() {
-    print_step "Updating system packages..."
+# Check git installation
+check_git() {
+    print_step "Checking git installation..."
     
-    # Set debconf to non-interactive mode to avoid prompts
-    export DEBIAN_FRONTEND=noninteractive
-    
-    # Update package lists
-    apt-get update -qq
-    
-    # Install git if not present
     if ! command -v git &> /dev/null; then
-        print_info "Installing git..."
-        apt-get install -y git
+        if [ "$ENVIRONMENT" = "cloud" ]; then
+            print_info "Installing git..."
+            apt-get install -y git
+        else
+            print_error "Git is not installed. Please install git first:"
+            print_info "  Windows: https://git-scm.com/download/windows"
+            print_info "  macOS:   brew install git"
+            print_info "  Linux:   sudo apt install git (Ubuntu/Debian)"
+            exit 1
+        fi
     fi
     
-    # Upgrade packages silently with automatic yes to all prompts
-    apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -qq
-    
-    print_success "System updated successfully!"
+    print_success "Git is available!"
+}
+
+# System updates (cloud only)
+update_system() {
+    if [ "$ENVIRONMENT" = "cloud" ]; then
+        print_step "Updating system packages..."
+        
+        # Set debconf to non-interactive mode to avoid prompts
+        export DEBIAN_FRONTEND=noninteractive
+        
+        # Update package lists
+        apt-get update -qq
+        
+        # Upgrade packages silently with automatic yes to all prompts
+        apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -qq
+        
+        print_success "System updated successfully!"
+    fi
 }
 
 # Create directory structure
 create_directories() {
     print_step "Creating directory structure..."
     
-    # Create base directory
-    mkdir -p /home/docker/zehnlabs
-    cd /home/docker/zehnlabs
-    
-    print_success "Directory /home/docker/zehnlabs created and set as working directory"
+    if [ "$ENVIRONMENT" = "cloud" ]; then
+        # Create base directory
+        mkdir -p /home/docker/zehnlabs
+        cd /home/docker/zehnlabs
+        print_success "Directory /home/docker/zehnlabs created and set as working directory"
+    else
+        # For local, use current directory or create a sensible default
+        if [ ! -d "ibkr-portfolio-rebalancer" ]; then
+            print_info "Creating setup in current directory: $(pwd)"
+        fi
+        print_success "Using current directory for setup"
+    fi
 }
 
 # Clone repository
@@ -232,15 +301,26 @@ display_final_instructions() {
     print_info "=== Access Your Services ==="
     echo ""    
    
-    echo "🔗 IMPORTANT: Port Forwarding"
-    echo "   To access these services securely, you need SSH port forwarding configured."
-    echo "   📖 Setup Guide: https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/blob/main/docs/install/port-forwarding-setup.md"
-    echo ""
-    echo "📊 Manage Containers and View Logs:"
-    echo "   http://localhost:8080"
-    echo ""
-    echo "🔧 Management API:"
-    echo "   http://localhost:8000"
+    if [ "$ENVIRONMENT" = "cloud" ]; then
+        echo "🔗 IMPORTANT: Port Forwarding"
+        echo "   To access these services securely, you need SSH port forwarding configured."
+        echo "   📖 Setup Guide: https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/blob/main/docs/install/port-forwarding-setup.md"
+        echo ""
+        echo "📊 Manage Containers and View Logs:"
+        echo "   http://localhost:8080"
+        echo ""
+        echo "🔧 Management API:"
+        echo "   http://localhost:8000"
+    else
+        echo "📊 Manage Containers and View Logs:"
+        echo "   http://localhost:8080"
+        echo ""
+        echo "🔧 Management API:"
+        echo "   http://localhost:8000"
+        echo ""
+        echo "💡 Access services directly via your browser - no port forwarding needed!"
+    fi
+    
     echo ""
     echo "✅ Next Steps:"
     echo "📱 Set up Mobile/Desktop Notifications:"
@@ -264,8 +344,8 @@ setup_permissions() {
         chmod +x tools/*.sh
     fi
     
-    # Set proper ownership (assuming the user who will run this)
-    if [ -n "$SUDO_USER" ]; then
+    # Set proper ownership for cloud only
+    if [ "$ENVIRONMENT" = "cloud" ] && [ -n "$SUDO_USER" ]; then
         chown -R "$SUDO_USER:$SUDO_USER" .
         print_info "Changed ownership to $SUDO_USER"
     fi
@@ -290,6 +370,7 @@ main() {
     check_root
     check_docker
     update_system
+    check_git
     create_directories
     clone_repository
     setup_permissions

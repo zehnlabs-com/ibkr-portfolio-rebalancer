@@ -52,7 +52,7 @@ You can use another SSH client of your choice, if you so prefer.
 Execute the automated setup script in your SSH terminal:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/zehnlabs-com/ibkr-portfolio-rebalancer/refs/heads/main/setup.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/zehnlabs-com/ibkr-portfolio-rebalancer/main/setup.sh | sudo bash -s -- --cloud
 ```
 
 This script will:
