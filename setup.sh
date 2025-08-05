@@ -270,6 +270,10 @@ setup_permissions() {
         print_info "Changed ownership to $SUDO_USER"
     fi
     
+    # Set log directory permissions for Docker containers
+    chmod 777 event-broker/logs/ event-processor/logs/ management-service/logs/
+    print_info "Set log directory permissions to 777"
+    
     print_success "Permissions configured!"
 }
 
