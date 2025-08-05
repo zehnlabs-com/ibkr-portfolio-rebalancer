@@ -20,6 +20,7 @@ class AccountConfig:
         self.account_id = data.get('account_id')
         self.strategy_name = data.get('notification', {}).get('channel')
         self.type = data.get('type')
+        self.replacement_set = data.get('replacement_set')
         # Add rebalancing configuration
         rebalancing_data = data.get('rebalancing', {})
         self.cash_reserve_percent = rebalancing_data.get('cash_reserve_percent', rebalancing_data.get('equity_reserve_percentage', 0.0))
@@ -193,7 +194,8 @@ class AblyEventSubscriber:
                 **payload,
                 "account_id": account.account_id,
                 "strategy_name": account.strategy_name,
-                "cash_reserve_percent": account.cash_reserve_percent
+                "cash_reserve_percent": account.cash_reserve_percent,
+                "replacement_set": account.replacement_set
             }
             
             # Enqueue to Redis (with deduplication)
