@@ -31,6 +31,7 @@ services:
 
   ibkr-gateway:
     image: gnzsnz/ib-gateway:latest
+    container_name: ibkr-gateway
     ports:
       - "127.0.0.1:4001:4003"
       - "127.0.0.1:4002:4004"
@@ -93,6 +94,7 @@ services:
     restart: unless-stopped      
 
   event-processor:
+    container_name: event-processor
     build:
       context: ./event-processor
       args:
