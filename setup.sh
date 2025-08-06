@@ -102,6 +102,9 @@ check_root() {
 check_docker() {
     print_step "Checking Docker installation..."
     
+    # Remove Docker image banner if it exists
+    rm -rf /etc/update-motd.d/99-one-click
+    
     if ! command -v docker &> /dev/null; then
         if [ "$ENVIRONMENT" = "cloud" ]; then
             print_error "Docker is not installed. Please install Docker first."
