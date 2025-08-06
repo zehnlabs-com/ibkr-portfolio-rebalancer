@@ -158,6 +158,20 @@ setup_tailscale() {
     if [ "$ENVIRONMENT" = "cloud" ]; then
         print_step "Tailscale Setup"
         
+        # Check if Tailscale is already installed and running
+        if command -v tailscale &> /dev/null && tailscale status &> /dev/null 2>&1; then
+            print_success "Tailscale is already installed and authenticated"
+            INSTALL_TAILSCALE=false
+            return
+        fi
+        
+        # Check if Tailscale is installed but not authenticated
+        if command -v tailscale &> /dev/null; then
+            print_info "Tailscale is installed but not authenticated"
+            INSTALL_TAILSCALE=true
+            return
+        fi
+        
         echo ""
         echo "Tailscale provides secure remote access to your services from anywhere."
         echo "Would you like to set up Tailscale? (y/n)"
@@ -200,10 +214,19 @@ update_system() {
 # Complete Tailscale setup after system update
 complete_tailscale_setup() {
     if [ "$INSTALL_TAILSCALE" = "true" ]; then
-        print_step "Completing Tailscale installation..."
+        # Check if already authenticated (in case of re-run)
+        if tailscale status &> /dev/null 2>&1; then
+            print_success "Tailscale is already authenticated, skipping setup"
+            return
+        fi
         
-        # Install Tailscale package
-        apt-get install -y tailscale
+        # Install Tailscale package if not already installed
+        if ! command -v tailscale &> /dev/null; then
+            print_step "Installing Tailscale package..."
+            apt-get install -y tailscale
+        else
+            print_info "Tailscale package already installed"
+        fi
         
         print_info "Tailscale installed. Now we need to authenticate."
         
@@ -211,8 +234,10 @@ complete_tailscale_setup() {
         while true; do
             echo ""
             echo "Enter your Tailscale auth key (generate one at https://login.tailscale.com/admin/settings/keys):"
-            read -rs TAILSCALE_AUTH_KEY < /dev/tty  # -s for silent (no echo)
+            read -r TAILSCALE_AUTH_KEY < /dev/tty  # -s for silent (no echo)
             echo ""  # New line after silent input
+
+            print_info "Authenticating Tailscale..."
             
             if tailscale up --auth-key="$TAILSCALE_AUTH_KEY" 2>/dev/null; then
                 unset TAILSCALE_AUTH_KEY  # Immediately clear from memory
@@ -253,17 +278,24 @@ create_directories() {
 
 # Clone repository
 clone_repository() {
-    print_step "Cloning IBKR Portfolio Rebalancer repository..."
-    
     if [ -d "ibkr-portfolio-rebalancer" ]; then
-        print_warning "Repository directory already exists. Removing and re-cloning..."
-        rm -rf ibkr-portfolio-rebalancer
+        print_step "Repository already exists, updating..."
+        cd ibkr-portfolio-rebalancer
+        
+        print_info "Pulling latest changes from repository..."
+        if git pull origin main; then
+            print_success "Repository updated successfully!"
+        else
+            print_warning "Git pull failed, repository may have local changes"
+        fi
+    else
+        print_step "Cloning IBKR Portfolio Rebalancer repository..."
+        
+        git clone https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer.git
+        cd ibkr-portfolio-rebalancer
+        
+        print_success "Repository cloned successfully!"
     fi
-    
-    git clone https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer.git
-    cd ibkr-portfolio-rebalancer
-    
-    print_success "Repository cloned successfully!"
 }
 
 # Rename configuration files
@@ -276,7 +308,7 @@ rename_config_files() {
             mv .env.example .env
             print_info "Renamed .env.example to .env"
         else
-            print_warning ".env already exists, keeping existing file"
+            print_info ".env already exists, keeping existing file"
         fi
     else
         print_error ".env.example not found - cannot create initial environment configuration"
@@ -289,7 +321,7 @@ rename_config_files() {
             mv accounts.example.yaml accounts.yaml
             print_info "Renamed accounts.example.yaml to accounts.yaml"
         else
-            print_warning "accounts.yaml already exists, keeping existing file"
+            print_info "accounts.yaml already exists, keeping existing file"
         fi
     else
         print_error "accounts.example.yaml not found - cannot create initial accounts configuration"
@@ -369,7 +401,8 @@ display_final_instructions() {
     
     # Check if Tailscale is installed and get hostname
     if command -v tailscale &> /dev/null && tailscale status &> /dev/null 2>&1; then
-        TAILSCALE_HOSTNAME=$(tailscale status --json | jq -r '.Self.DNSName // empty')
+        # Get hostname and remove trailing period if present
+        TAILSCALE_HOSTNAME=$(tailscale status --json | jq -r '.Self.DNSName // empty' | sed 's/\.$//')
         if [ -n "$TAILSCALE_HOSTNAME" ]; then
             echo "   You can access the following services from any device on your Tailscale network:"
             echo ""

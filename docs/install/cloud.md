@@ -30,18 +30,19 @@ Before proceeding, let's secure your droplet by creating a firewall:
 1. **Go to your Droplet page** in DigitalOcean
 2. **Click "Networking"** in the left sidebar menu
 3. **Click "Firewalls"** section
-4. **Click "Create Firewall"** button
-5. **Configure your firewall:**
+4. **Click "Edit"** button
+5. **Click "Create Firewall"** button
+6. **Configure your firewall:**
    - **Name:** Enter a name for your firewall (e.g., "ibkr-rebalancer-firewall")
    - **Inbound Rules:** Keep the default rules (SSH on port 22 is already configured)
    - **Apply to Droplets:** Type and select your droplet's name in this field
-6. **Click "Create Firewall"** button at the bottom
+7. **Click "Create Firewall"** button at the bottom
 
 Your droplet is now protected by a firewall that only allows SSH connections.
 
 ### Step 3: Run the Setup Script
 
-Go to the droplet page and click on `Connect` to open your droplet's SSH terminal. Execute the automated setup script in the terminal:
+Once your droplet is provisioned, it's IP address will be displayed. Hover over the IP address and click it. The IP address will be copied to your clipboard. Open up the terminal on your machine and enter `ssh root@<your droplet's ip address>`. Login with the password you specified when creating the droplet, and execute the automated setup script:
 
 NOTE: When pasting into SSH terminal, use `CTRL+Shift+V` or right click then select `Paste as plain text`.
 
@@ -58,9 +59,9 @@ This script will:
 
 ### Step 4: Configure Your Installation
 
-When the script pauses:
+When the script pauses and asks you to edit your configiguration files, open up another terminal window and login to your droplet. 
 
-1. **Follow the complete configuration guide**: [Editing Configuration](https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/blob/main/docs/editing-configuration.md)
+1. **Follow the configuration guide**: [Editing Configuration](https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/blob/main/docs/editing-configuration.md)
 
 2. **Return to your setup script** and press ENTER to continue
 
