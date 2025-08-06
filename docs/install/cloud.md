@@ -21,33 +21,9 @@ When the DigitalOcean page opens:
 2. **Keep all other defaults** (region, size, etc.)
 3. **Click "Create Droplet"**
 
-Wait 1-2 minutes for your droplet to fully start.
+Wait a few minutes for your droplet to fully start.
 
-### Step 2: Install Tabby Terminal and Connect to Your Droplet
-
-#### Install Tabby Terminal
-You can use another SSH client of your choice, if you so prefer. 
-
-1. **Download Tabby** from [https://tabby.sh](https://tabby.sh)
-   - Available for Windows, macOS, and Linux
-   - Choose the installer for your operating system
-
-2. **Install and launch Tabby**
-
-#### Set Up SSH Connection with Port Forwarding
-
-1. **Open Tabby** and click the **Settings** button (gear icon)
-
-2. **Navigate to** "Profiles & connections" → "New profile" and select "SSH"
-
-3. **Configure the SSH profile:**
-   - **Name:** `IBKR Portfolio Rebalancer`
-   - **Host:** `YOUR_DROPLET_IP` (replace with your droplet's IP)
-   - **Password:** `YOUR_DROPLET_PASSWORD` (replace with your droplet's password)
-
-4. **Save the profile** and connect to your droplet
-
-### Step 3: Run the Setup Script
+### Step 2: Run the Setup Script
 
 Execute the automated setup script in your SSH terminal:
 
@@ -56,23 +32,13 @@ curl -fsSL https://raw.githubusercontent.com/zehnlabs-com/ibkr-portfolio-rebalan
 ```
 
 This script will:
+- Clone the repository
 - Install all required dependencies
 - Set up Docker containers
+- Optionally setup Tailscale for secure remote access
 - Provide you with next steps
 
-### Step 4: Configure Port Forwarding
-
-**📖 Follow the port forwarding setup guide**: [Port Forwarding Setup](port-forwarding-setup.md)
-
-You'll need to configure port forwarding in your SSH profile to access the web services locally.
-
-### Step 5: Configure Your Installation
-
-The setup script will:
-- Clone the repository
-- Set up configuration files
-- Show you documentation links
-- **Wait for you to edit the configuration files**
+### Step 3: Configure Your Installation
 
 When the script pauses:
 
@@ -85,22 +51,19 @@ When the script pauses:
    - Verify services are running
    - Provide access URLs
 
-### Step 6: Access Your Services
+### Step 4: Access Your Services
 
 Once setup completes, you can access:
 
-- **📊 Container management / Log Viewer**: http://localhost:8080
+- **📊 Container management / Log Viewer**: http://<YOUR HOST NAME>:8080
   - Real-time logs from all services
   - Start/stop containers
   - Search and filter logs
 
-- **🔧 Management API**: http://localhost:8000
+- **🔧 Management API**: http://<YOUR HOST NAME>:8000
   - Health checks
   - Queue status
   - System monitoring
-
-💡 **Remember:** Your Tabby SSH connection with port forwarding must remain open to access these services.
-
 
 ## Post-Installation
 

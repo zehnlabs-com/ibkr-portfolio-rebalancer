@@ -9,6 +9,7 @@ set -e
 
 # Parse command line arguments - REQUIRED
 ENVIRONMENT=""
+INSTALL_TAILSCALE=false
 while [[ $# -gt 0 ]]; do
     case $1 in
         --cloud)
@@ -151,6 +152,33 @@ check_git() {
     print_success "Git is available!"
 }
 
+# Setup Tailscale for secure remote access
+setup_tailscale() {
+    # Only setup Tailscale for cloud installations
+    if [ "$ENVIRONMENT" = "cloud" ]; then
+        print_step "Tailscale Setup"
+        
+        echo ""
+        echo "Tailscale provides secure remote access to your services from anywhere."
+        echo "Would you like to set up Tailscale? (y/n)"
+        read -r setup_choice < /dev/tty
+        
+        if [[ "$setup_choice" =~ ^[Yy]$ ]]; then
+            print_info "Setting up Tailscale repository..."
+            
+            # Add Tailscale repository (no sudo needed, already running as root in cloud)
+            curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/jammy.noarmor.gpg | tee /usr/share/keyrings/tailscale-archive-keyring.gpg >/dev/null
+            curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/jammy.tailscale-keyring.list | tee /etc/apt/sources.list.d/tailscale.list
+            
+            INSTALL_TAILSCALE=true
+            print_success "Tailscale repository added successfully!"
+        else
+            INSTALL_TAILSCALE=false
+            print_info "Skipping Tailscale setup"
+        fi
+    fi
+}
+
 # System updates (cloud only)
 update_system() {
     if [ "$ENVIRONMENT" = "cloud" ]; then
@@ -166,6 +194,42 @@ update_system() {
         apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -qq
         
         print_success "System updated successfully!"
+    fi
+}
+
+# Complete Tailscale setup after system update
+complete_tailscale_setup() {
+    if [ "$INSTALL_TAILSCALE" = "true" ]; then
+        print_step "Completing Tailscale installation..."
+        
+        # Install Tailscale package
+        apt-get install -y tailscale
+        
+        print_info "Tailscale installed. Now we need to authenticate."
+        
+        # Authentication loop
+        while true; do
+            echo ""
+            echo "Enter your Tailscale auth key (generate one at https://login.tailscale.com/admin/settings/keys):"
+            read -rs TAILSCALE_AUTH_KEY < /dev/tty  # -s for silent (no echo)
+            echo ""  # New line after silent input
+            
+            if tailscale up --auth-key="$TAILSCALE_AUTH_KEY" 2>/dev/null; then
+                unset TAILSCALE_AUTH_KEY  # Immediately clear from memory
+                print_success "Tailscale authenticated successfully!"
+                break
+            else
+                unset TAILSCALE_AUTH_KEY  # Clear even on failure
+                print_error "Tailscale authentication failed."
+                echo "Would you like to [T]ry again or [S]kip? (T/S)"
+                read -r choice < /dev/tty
+                
+                if [[ "$choice" =~ ^[Ss]$ ]]; then
+                    print_info "Skipping Tailscale setup..."
+                    break
+                fi
+            fi
+        done
     fi
 }
 
@@ -299,26 +363,38 @@ display_final_instructions() {
     print_success "🎉 Installation Complete!"
     echo ""
     print_info "=== Access Your Services ==="
-    echo ""    
-   
-    if [ "$ENVIRONMENT" = "cloud" ]; then
-        echo "🔗 IMPORTANT: Port Forwarding"
-        echo "   To access these services securely, you need SSH port forwarding configured."
-        echo "   📖 Setup Guide: https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/blob/main/docs/install/port-forwarding-setup.md"
-        echo ""
-        echo "📊 Manage Containers and View Logs:"
-        echo "   http://localhost:8080"
-        echo ""
-        echo "🔧 Management API:"
-        echo "   http://localhost:8000"
+    echo ""
+    
+    echo "🔗 Accessing Services:"
+    
+    # Check if Tailscale is installed and get hostname
+    if command -v tailscale &> /dev/null && tailscale status &> /dev/null 2>&1; then
+        TAILSCALE_HOSTNAME=$(tailscale status --json | jq -r '.Self.DNSName // empty')
+        if [ -n "$TAILSCALE_HOSTNAME" ]; then
+            echo "   You can access the following services from any device on your Tailscale network:"
+            echo ""
+            echo "📊 Manage Containers and View Logs:"
+            echo "   http://$TAILSCALE_HOSTNAME:8080"
+            echo ""
+            echo "🔧 Management API:"
+            echo "   http://$TAILSCALE_HOSTNAME:8000"
+        else
+            # Tailscale installed but no DNSName available
+            echo ""
+            echo "📊 Manage Containers and View Logs:"
+            echo "   http://<Your Tailscale Host Name>:8080"
+            echo ""
+            echo "🔧 Management API:"
+            echo "   http://<Your Tailscale Host Name>:8000"
+        fi
     else
+        # Tailscale not installed or not running, use localhost
+        echo ""
         echo "📊 Manage Containers and View Logs:"
         echo "   http://localhost:8080"
         echo ""
         echo "🔧 Management API:"
         echo "   http://localhost:8000"
-        echo ""
-        echo "💡 Access services directly via your browser - no port forwarding needed!"
     fi
     
     echo ""
@@ -369,8 +445,10 @@ main() {
     
     check_root
     check_docker
-    update_system
     check_git
+    setup_tailscale
+    update_system
+    complete_tailscale_setup
     create_directories
     clone_repository
     setup_permissions
