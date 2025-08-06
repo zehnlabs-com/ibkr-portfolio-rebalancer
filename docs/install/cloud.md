@@ -23,9 +23,27 @@ When the DigitalOcean page opens:
 
 Wait a few minutes for your droplet to fully start.
 
-### Step 2: Run the Setup Script
+### Step 2: Secure Your Droplet with a Firewall
 
-Execute the automated setup script in your SSH terminal:
+Before proceeding, let's secure your droplet by creating a firewall:
+
+1. **Go to your Droplet page** in DigitalOcean
+2. **Click "Networking"** in the left sidebar menu
+3. **Click "Firewalls"** section
+4. **Click "Create Firewall"** button
+5. **Configure your firewall:**
+   - **Name:** Enter a name for your firewall (e.g., "ibkr-rebalancer-firewall")
+   - **Inbound Rules:** Keep the default rules (SSH on port 22 is already configured)
+   - **Apply to Droplets:** Type and select your droplet's name in this field
+6. **Click "Create Firewall"** button at the bottom
+
+Your droplet is now protected by a firewall that only allows SSH connections.
+
+### Step 3: Run the Setup Script
+
+Go to the droplet page and click on `Connect` to open your droplet's SSH terminal. Execute the automated setup script in the terminal:
+
+NOTE: When pasting into SSH terminal, use `CTRL+Shift+V` or right click then select `Paste as plain text`.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/zehnlabs-com/ibkr-portfolio-rebalancer/main/setup.sh | sudo bash -s -- --cloud
@@ -38,7 +56,7 @@ This script will:
 - Optionally setup Tailscale for secure remote access
 - Provide you with next steps
 
-### Step 3: Configure Your Installation
+### Step 4: Configure Your Installation
 
 When the script pauses:
 
@@ -51,7 +69,7 @@ When the script pauses:
    - Verify services are running
    - Provide access URLs
 
-### Step 4: Access Your Services
+### Step 5: Access Your Services
 
 Once setup completes, you can access:
 

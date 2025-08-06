@@ -426,9 +426,10 @@ setup_permissions() {
         print_info "Changed ownership to $SUDO_USER"
     fi
     
-    # Set log directory permissions for Docker containers
-    chmod 777 event-broker/logs/ event-processor/logs/ management-service/logs/
-    print_info "Set log directory permissions to 777"
+    # Create and set log directory permissions for Docker containers
+    mkdir -p event-broker/logs event-processor/logs management-service/logs
+    chmod 777 event-broker/logs event-processor/logs management-service/logs
+    print_info "Created log directories and set permissions to 777"
     
     print_success "Permissions configured!"
 }
@@ -451,8 +452,8 @@ main() {
     complete_tailscale_setup
     create_directories
     clone_repository
-    setup_permissions
     rename_config_files
+    setup_permissions
     show_documentation_and_wait
     start_all_services
     display_final_instructions
