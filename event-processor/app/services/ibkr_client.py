@@ -15,22 +15,13 @@ class IBKRClient:
         
         # Use fixed client ID from environment (like the working old code)
         self.client_id = random.randint(1000, 2999)
-        self.connected = False
-        self.retry_count = 0
-        self._reconnection_task = None
         
         # Add synchronization locks
         self._connection_lock = asyncio.Lock()
         self._order_lock = asyncio.Lock()
-        
-        
-        # Set up event handlers for automatic reconnection
-        self.ib.disconnectedEvent += self._on_disconnected
-        self.ib.connectedEvent += self._on_connected
     
     async def connect(self) -> bool:
         if self.ib.isConnected():  # This method is synchronous and safe to use
-            self.connected = True
             return True
         
         try:
@@ -43,7 +34,6 @@ class IBKRClient:
                 timeout=10  # Use same timeout as old working code
             )
             app_logger.log_debug(f"Successfully connected to IB Gateway at {config.ibkr.host}:{config.ibkr.port}")
-            self.connected = True
             return True
         except TimeoutError as e:
             app_logger.log_error(f"Connection timeout to IB Gateway at {config.ibkr.host}:{config.ibkr.port}: {e}")
@@ -55,83 +45,6 @@ class IBKRClient:
             app_logger.log_error(f"Failed to connect to IB Gateway at {config.ibkr.host}:{config.ibkr.port}: {type(e).__name__}: {e}")
             return False    
     
-    def _on_disconnected(self):
-        """Called automatically when connection is lost"""
-        app_logger.log_warning("IBKR connection lost")
-        self.connected = False
-        
-        # Start reconnection task if not already running
-        if self._reconnection_task is None or self._reconnection_task.done():
-            self._reconnection_task = asyncio.create_task(self._reconnect_loop())
-
-    def _on_connected(self):
-        """Called automatically when connection is established"""
-        app_logger.log_info("IBKR connection established")
-        self.connected = True
-
-    async def _reconnect_loop(self):
-        """Continuously try to reconnect every 10 seconds"""
-        while not self.ib.isConnected():
-            try:
-                app_logger.log_info("Attempting to reconnect to IBKR...")
-                await self.ib.connectAsync(
-                    host=config.ibkr.host,
-                    port=config.ibkr.port,
-                    clientId=self.client_id,
-                    timeout=10
-                )
-                app_logger.log_info("Reconnection successful")
-                break
-            except Exception as e:
-                app_logger.log_warning(f"Reconnection failed: {e}, retrying in 10 seconds...")
-                await asyncio.sleep(10)
-    
-    async def disconnect(self):
-        try:
-            # Cancel any ongoing reconnection task
-            if self._reconnection_task and not self._reconnection_task.done():
-                self._reconnection_task.cancel()
-                
-            if self.ib.isConnected():                
-                self.ib.disconnect()
-                self.connected = False
-                app_logger.log_debug("Disconnected from IBKR")
-        except Exception as e:
-            # Some ib_async internal errors during disconnect are expected
-            app_logger.log_debug(f"Disconnect error (ignored): {e}")
-            pass
-    
-    async def __aenter__(self):
-        """Async context manager entry - connect to IB"""
-        # ib_async handles event loop automatically - no manual setup needed
-        
-        success = await self.connect()
-        if not success:
-            raise Exception("Failed to connect to IBKR")
-        return self
-    
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit - disconnect from IB"""
-        await self.disconnect()
-    
-    async def health_check(self) -> Dict[str, Any]:
-        """Simple health check that verifies IB connection is working"""
-        try:
-            accounts = self.ib.managedAccounts()
-            return {
-                "status": "healthy",
-                "connected": True,
-                "accounts": list(accounts),
-                "client_id": self.client_id
-            }
-        except Exception as e:
-            app_logger.log_error(f"Health check failed: {e}")
-            return {
-                "status": "unhealthy", 
-                "connected": False,
-                "error": str(e),
-                "client_id": self.client_id
-            }
     
     async def get_account_value(self, account_id: str, tag: str = "NetLiquidation", event=None) -> float:
         if not await self.ensure_connected():
@@ -201,12 +114,6 @@ class IBKRClient:
         except Exception as e:
             app_logger.log_error(f"Failed to get positions: {e}", event)
             raise
-    
-    
-    async def get_market_price(self, symbol: str) -> float:
-        """Get market price for a single symbol"""
-        prices = await self.get_multiple_market_prices([symbol])
-        return prices[symbol]
     
     
     async def _fetch_single_snapshot_price(self, contract: 'Contract') -> Optional[Tuple[str, float]]:
@@ -502,7 +409,6 @@ class IBKRClient:
                 return True
             except (asyncio.TimeoutError, Exception) as e:
                 app_logger.log_warning(f"Stale connection detected ({type(e).__name__}: {e}), reconnecting...")
-                self.connected = False
                 return await self.connect()
     
     async def get_contract_details(self, symbols: List[str], event=None) -> Dict[str, Any]:
