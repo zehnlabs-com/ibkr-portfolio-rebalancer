@@ -14,6 +14,9 @@ import {
   PlayArrow as StartIcon,
   Stop as StopIcon,
   Refresh as RestartIcon,
+  CheckCircle as RunningIcon,
+  Cancel as StoppedIcon,
+  Warning as WarningIcon,
 } from '@mui/icons-material';
 import { customApi } from '../../providers/dataProvider';
 import { useRealtimeResource } from '../../providers/realtimeProvider';
@@ -21,26 +24,33 @@ import { useRealtimeResource } from '../../providers/realtimeProvider';
 const StatusField: React.FC<{ record?: any }> = ({ record }) => {
   if (!record) return null;
   
-  const getStatusColor = (status: string) => {
+  const getStatusConfig = (status: string) => {
     switch (status?.toLowerCase()) {
       case 'running':
-        return 'success';
+        return { color: 'success', icon: <RunningIcon fontSize="small" /> };
       case 'stopped':
       case 'exited':
-        return 'error';
+        return { color: 'error', icon: <StoppedIcon fontSize="small" /> };
       case 'restarting':
-        return 'warning';
+        return { color: 'warning', icon: <WarningIcon fontSize="small" /> };
       default:
-        return 'default';
+        return { color: 'default', icon: null };
     }
   };
   
+  const { color, icon } = getStatusConfig(record.status);
+  
   return (
     <Chip
+      icon={icon}
       label={record.status}
-      color={getStatusColor(record.status) as any}
+      color={color as any}
       variant="outlined"
       size="small"
+      sx={{
+        fontWeight: 500,
+        textTransform: 'capitalize',
+      }}
     />
   );
 };

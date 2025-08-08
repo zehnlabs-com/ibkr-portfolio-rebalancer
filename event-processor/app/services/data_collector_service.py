@@ -8,7 +8,7 @@ import asyncio
 import json
 import os
 import yaml
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from app.config import config
@@ -57,7 +57,7 @@ class DataCollectorService:
         while self._running:
             try:
                 await self.collect_all_accounts()
-                await self.redis_client.set("collection:last_run", datetime.now().isoformat())
+                await self.redis_client.set("collection:last_run", datetime.now(timezone.utc).isoformat())
                 await self.redis_client.set("collection:status", "running")
                 
             except Exception as e:
@@ -135,14 +135,12 @@ class DataCollectorService:
                 "todays_pnl_percent": todays_pnl_percent,
                 "positions": enhanced_positions,
                 "positions_count": len(enhanced_positions),
-                "last_update": datetime.now().isoformat()
+                "last_update": datetime.now(timezone.utc).isoformat()
             }
             
-            # Simple Redis storage with TTL
-            cache_ttl = getattr(config, 'data_collection', {}).get('cache_ttl', 300)
-            await self.redis_client.setex(
+            # Simple Redis storage (no TTL - keep data available even during collection delays)
+            await self.redis_client.set(
                 f"account_data:{account_id}",
-                cache_ttl,
                 json.dumps(account_data)
             )
             

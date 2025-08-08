@@ -8,10 +8,13 @@ import {
   Box,
 } from '@mui/material';
 import {
-  AccountBalance as AccountIcon,
+  AccountBalanceWallet as WalletIcon,
   TrendingUp as TrendingUpIcon,
   TrendingDown as TrendingDownIcon,
+  Groups as GroupsIcon,
+  Analytics as AnalyticsIcon,
 } from '@mui/icons-material';
+import TimeAgo from 'react-timeago';
 import { CurrencyField, PercentField } from './fields';
 
 const formatCurrency = (value: number): string => {
@@ -49,7 +52,7 @@ const Dashboard: React.FC = () => {
           Portfolio Dashboard
         </Typography>
         <Typography variant="body2" color="text.secondary">
-          Last updated: {new Date(data.last_update).toLocaleString()}
+          Last updated: <TimeAgo date={data.last_update} />
         </Typography>
       </Box>
 
@@ -67,7 +70,7 @@ const Dashboard: React.FC = () => {
                     {data.total_accounts}
                   </Typography>
                 </Box>
-                <AccountIcon color="primary" sx={{ fontSize: 40 }} />
+                <GroupsIcon color="primary" sx={{ fontSize: 40 }} />
               </Box>
             </CardContent>
           </Card>
@@ -85,7 +88,7 @@ const Dashboard: React.FC = () => {
                     {formatCurrency(data.total_value)}
                   </Typography>
                 </Box>
-                <AccountIcon color="primary" sx={{ fontSize: 40 }} />
+                <WalletIcon color="primary" sx={{ fontSize: 40 }} />
               </Box>
             </CardContent>
           </Card>

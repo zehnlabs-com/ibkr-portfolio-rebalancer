@@ -5,7 +5,9 @@ import {
   TextField,
   NumberField,
   DateField,
+  FunctionField,
 } from 'react-admin';
+import TimeAgo from 'react-timeago';
 import { CurrencyField, PnLField } from '../../fields';
 import { useRealtimeResource } from '../../providers/realtimeProvider';
 
@@ -43,14 +45,10 @@ const AccountList: React.FC = () => {
         
         <NumberField source="positions_count" label="Positions" />
         
-        <DateField 
+        <FunctionField 
           source="last_update" 
-          label="Last Updated" 
-          showTime 
-          options={{
-            timeStyle: 'medium',
-            dateStyle: 'short'
-          }}
+          label="Last Updated"
+          render={(record: any) => <TimeAgo date={record.last_update} />}
         />
       </Datagrid>
     </List>

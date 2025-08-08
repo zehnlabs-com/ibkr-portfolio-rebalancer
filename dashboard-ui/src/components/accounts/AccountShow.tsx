@@ -24,6 +24,7 @@ import {
   Paper,
   Chip,
 } from '@mui/material';
+import TimeAgo from 'react-timeago';
 import { CurrencyField, PnLField, PercentField } from '../../fields';
 
 const PositionsTable: React.FC = () => {
@@ -182,7 +183,7 @@ const AccountShow: React.FC = () => {
           </Typography>
           
           <Typography variant="body2" color="text.secondary" gutterBottom>
-            Last updated: <DateField source="last_update" showTime />
+            Last updated: <FunctionField render={(record: any) => <TimeAgo date={record.last_update} />} />
           </Typography>
 
           <AccountSummaryCards />

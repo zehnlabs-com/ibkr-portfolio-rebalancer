@@ -32,6 +32,9 @@ import {
   Stop as StopIcon,
   Refresh as RestartIcon,
   Description as LogsIcon,
+  CheckCircle as RunningIcon,
+  Cancel as StoppedIcon,
+  Warning as WarningIcon,
 } from '@mui/icons-material';
 import { customApi } from '../../providers/dataProvider';
 import { useRealtimeResource } from '../../providers/realtimeProvider';
@@ -49,11 +52,32 @@ const StatusField: React.FC = () => {
   const record = useRecordContext();
   if (!record) return null;
   
+  const getStatusConfig = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'running':
+        return { color: 'success', icon: <RunningIcon fontSize="small" /> };
+      case 'stopped':
+      case 'exited':
+        return { color: 'error', icon: <StoppedIcon fontSize="small" /> };
+      case 'restarting':
+        return { color: 'warning', icon: <WarningIcon fontSize="small" /> };
+      default:
+        return { color: 'default', icon: null };
+    }
+  };
+  
+  const { color, icon } = getStatusConfig(record.status);
+  
   return (
     <Chip
+      icon={icon}
       label={record.status}
-      color={record.status === 'running' ? 'success' : 'error'}
+      color={color as any}
       variant="outlined"
+      sx={{
+        fontWeight: 500,
+        textTransform: 'capitalize',
+      }}
     />
   );
 };
