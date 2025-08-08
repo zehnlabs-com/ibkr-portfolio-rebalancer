@@ -14296,3 +14296,10 @@ dashboard-ui/node_modules/wfn/index.js
 dashboard-ui/node_modules/wfn/license.txt
 dashboard-ui/node_modules/wfn/package.json
 dashboard-ui/node_modules/wfn/readme.md
+dashboard-ui/node_modules/@parcel/watcher-linux-x64-musl/LICENSE
+dashboard-ui/node_modules/@parcel/watcher-linux-x64-musl/package.json
+dashboard-ui/node_modules/@parcel/watcher-linux-x64-musl/README.md
+dashboard-ui/node_modules/@parcel/watcher-linux-x64-musl/watcher.node
+dashboard-ui/node_modules/@rollup/rollup-linux-x64-musl/package.json
+dashboard-ui/node_modules/@rollup/rollup-linux-x64-musl/README.md
+dashboard-ui/node_modules/@rollup/rollup-linux-x64-musl/rollup.linux-x64-musl.node

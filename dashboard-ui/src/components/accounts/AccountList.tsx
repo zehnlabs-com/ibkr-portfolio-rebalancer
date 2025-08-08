@@ -5,90 +5,40 @@ import {
   TextField,
   NumberField,
   DateField,
-  ChipField,
-  FunctionField,
-  useRefresh
 } from 'react-admin';
-import { Chip, Box, Typography } from '@mui/material';
-import { useRealTimeData } from '../../providers/websocketProvider';
-
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2
-  }).format(value);
-};
-
-const formatPercent = (value: number): string => {
-  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`;
-};
-
-const PnLField = ({ record, source }: { record: any; source: string }) => {
-  const value = record[source];
-  const isPositive = value >= 0;
-  
-  return (
-    <Chip
-      label={formatCurrency(value)}
-      color={isPositive ? 'success' : 'error'}
-      variant="outlined"
-      size="small"
-    />
-  );
-};
-
-const PnLPercentField = ({ record, source }: { record: any; source: string }) => {
-  const value = record[source];
-  const isPositive = value >= 0;
-  
-  return (
-    <Chip
-      label={formatPercent(value)}
-      color={isPositive ? 'success' : 'error'}
-      variant="outlined"
-      size="small"
-    />
-  );
-};
+import { CurrencyField, PnLField } from '../../fields';
+import { useRealtimeResource } from '../../providers/realtimeProvider';
 
 const AccountList: React.FC = () => {
-  const refresh = useRefresh();
+  // Enable real-time updates for accounts
+  useRealtimeResource('accounts');
   
-  // Set up real-time updates
-  useRealTimeData('accounts', () => {
-    refresh();
-  });
-
   return (
     <List
       title="Portfolio Accounts"
       sort={{ field: 'current_value', order: 'DESC' }}
       perPage={25}
+      storeKey="accounts.list"
     >
-      <Datagrid rowClick="show">
+      <Datagrid rowClick="show" bulkActionButtons={false}>
         <TextField source="account_id" label="Account ID" />
         
-        <FunctionField
+        <CurrencyField
           source="current_value"
           label="Current Value"
-          render={(record: any) => (
-            <Typography variant="body2" fontFamily="monospace">
-              {formatCurrency(record.current_value)}
-            </Typography>
-          )}
+          sx={{ fontFamily: 'monospace' }}
         />
         
-        <FunctionField
+        <PnLField
           source="todays_pnl"
           label="Today's P&L"
-          render={(record: any) => <PnLField record={record} source="todays_pnl" />}
+          format="currency"
         />
         
-        <FunctionField
+        <PnLField
           source="todays_pnl_percent"
           label="Today's P&L %"
-          render={(record: any) => <PnLPercentField record={record} source="todays_pnl_percent" />}
+          format="percent"
         />
         
         <NumberField source="positions_count" label="Positions" />

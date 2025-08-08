@@ -1,86 +1,71 @@
-import { DataProvider, GetListParams, GetOneParams, UpdateParams, CreateParams, DeleteParams } from 'react-admin';
+import { DataProvider, GetListParams, GetOneParams, UpdateParams } from 'react-admin';
 
 const API_URL = '/api';
 
-interface ApiResponse<T> {
-  data: T;
-  total?: number;
-}
+const fetchJson = async (url: string, options: RequestInit = {}) => {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+  });
 
-const handleResponse = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`API Error: ${response.status} ${error}`);
+    const text = await response.text();
+    throw new Error(`HTTP ${response.status}: ${text}`);
   }
+
   return response.json();
 };
 
 export const dataProvider: DataProvider = {
   getList: async (resource: string, params: GetListParams) => {
-    let url = `${API_URL}/${resource}`;
+    const { page = 1, perPage = 10, sort, filter } = params;
     
-    // Handle different resource types
-    switch (resource) {
-      case 'dashboard-overview':
-        url = `${API_URL}/dashboard/overview`;
-        break;
-      case 'accounts':
-        url = `${API_URL}/dashboard/accounts`;
-        break;
-      case 'containers':
-        url = `${API_URL}/containers`;
-        break;
-      case 'logs':
-        // For logs, we'll implement this separately
-        throw new Error('Logs resource should use custom implementation');
-      default:
-        break;
-    }
+    const url = (() => {
+      switch (resource) {
+        case 'accounts':
+          return `${API_URL}/dashboard/accounts`;
+        case 'containers':
+          return `${API_URL}/containers`;
+        case 'logs':
+          return `${API_URL}/containers/${filter?.container || 'event-processor'}/logs?tail=${perPage}`;
+        default:
+          return `${API_URL}/${resource}`;
+      }
+    })();
+
+    const data = await fetchJson(url);
     
-    const response = await fetch(url);
-    const data = await handleResponse<any>(response);
-    
-    // Handle different response formats
-    if (resource === 'dashboard-overview') {
-      return {
-        data: [data], // Wrap single object in array for react-admin
-        total: 1,
-      };
-    }
-    
-    if (Array.isArray(data)) {
-      return {
-        data: data.map((item, index) => ({
-          ...item,
-          id: item.id || item.account_id || item.name || index.toString()
-        })),
-        total: data.length,
-      };
-    }
-    
+    // Ensure data is array and has ids
+    const items = Array.isArray(data) ? data : [data];
+    const normalizedData = items.map((item, index) => ({
+      ...item,
+      id: item.id || item.account_id || item.name || index
+    }));
+
     return {
-      data: [{ ...data, id: data.id || '1' }],
-      total: 1,
+      data: normalizedData,
+      total: normalizedData.length,
     };
   },
 
   getOne: async (resource: string, params: GetOneParams) => {
-    let url = `${API_URL}/${resource}/${params.id}`;
-    
-    // Handle different resource types
-    switch (resource) {
-      case 'accounts':
-        url = `${API_URL}/dashboard/accounts/${params.id}`;
-        break;
-      case 'containers':
-        url = `${API_URL}/containers/${params.id}/stats`;
-        break;
-      default:
-        break;
-    }
-    
-    const response = await fetch(url);
-    const data = await handleResponse<any>(response);
+    const url = (() => {
+      switch (resource) {
+        case 'accounts':
+          return `${API_URL}/dashboard/accounts/${params.id}`;
+        case 'containers':
+          return `${API_URL}/containers/${params.id}/stats`;
+        case 'dashboard':
+          return `${API_URL}/dashboard/overview`;
+        default:
+          return `${API_URL}/${resource}/${params.id}`;
+      }
+    })();
+
+    const data = await fetchJson(url);
     
     return {
       data: {
@@ -91,7 +76,6 @@ export const dataProvider: DataProvider = {
   },
 
   getMany: async (resource: string, params: { ids: any[] }) => {
-    // For resources that support batch retrieval
     const promises = params.ids.map(id => 
       dataProvider.getOne(resource, { id })
     );
@@ -103,123 +87,77 @@ export const dataProvider: DataProvider = {
   },
 
   getManyReference: async (resource: string, params: any) => {
-    // Handle related resources
     if (resource === 'positions' && params.target === 'account_id') {
       const url = `${API_URL}/dashboard/accounts/${params.id}/positions`;
-      const response = await fetch(url);
-      const data = await handleResponse<any[]>(response);
+      const data = await fetchJson(url);
       
+      const positions = Array.isArray(data) ? data : [];
       return {
-        data: data.map((item, index) => ({
+        data: positions.map((item, index) => ({
           ...item,
           id: `${params.id}-${item.symbol || index}`
         })),
-        total: data.length,
+        total: positions.length,
       };
     }
     
-    throw new Error(`getManyReference not implemented for ${resource}`);
+    return { data: [], total: 0 };
   },
 
-  create: async (resource: string, params: CreateParams) => {
-    // Most resources are read-only, but we might support creating new accounts
-    if (resource === 'accounts') {
-      const response = await fetch(`${API_URL}/config/accounts`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(params.data),
-      });
-      
-      const data = await handleResponse<any>(response);
-      return {
-        data: { ...params.data, id: params.data.account_id }
-      };
-    }
-    
-    throw new Error(`create not supported for ${resource}`);
+  create: async () => {
+    throw new Error('Create operation not supported');
   },
 
   update: async (resource: string, params: UpdateParams) => {
-    // Handle configuration updates
-    if (resource === 'env-config') {
-      const response = await fetch(`${API_URL}/config/env`, {
+    if (resource === 'config-env') {
+      await fetchJson(`${API_URL}/config/env`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params.data),
       });
       
-      const data = await handleResponse<any>(response);
-      return {
-        data: { ...params.data, id: params.id }
-      };
+      return { data: { ...params.data, id: params.id } };
     }
     
-    if (resource === 'accounts-config') {
-      const response = await fetch(`${API_URL}/config/accounts`, {
+    if (resource === 'config-accounts') {
+      await fetchJson(`${API_URL}/config/accounts`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params.data),
       });
       
-      const data = await handleResponse<any>(response);
-      return {
-        data: { ...params.data, id: params.id }
-      };
+      return { data: { ...params.data, id: params.id } };
     }
     
-    throw new Error(`update not supported for ${resource}`);
+    throw new Error(`Update not supported for ${resource}`);
   },
 
-  updateMany: async (resource: string, params: { ids: any[]; data: any }) => {
-    const promises = params.ids.map(id =>
-      dataProvider.update(resource, { id, data: params.data, previousData: {} })
-    );
-    
-    const results = await Promise.all(promises);
-    return {
-      data: results.map(result => result.data.id)
-    };
+  updateMany: async () => {
+    throw new Error('UpdateMany operation not supported');
   },
 
-  delete: async (resource: string, params: DeleteParams) => {
-    throw new Error(`delete not supported for ${resource}`);
+  delete: async () => {
+    throw new Error('Delete operation not supported');
   },
 
-  deleteMany: async (resource: string, params: { ids: any[] }) => {
-    throw new Error(`deleteMany not supported for ${resource}`);
+  deleteMany: async () => {
+    throw new Error('DeleteMany operation not supported');
   },
 };
 
-// Custom API functions for specific dashboard needs
-export const dashboardApi = {
-  getAccountPnL: async (accountId: string) => {
-    const response = await fetch(`${API_URL}/dashboard/accounts/${accountId}/pnl`);
-    return handleResponse<any>(response);
-  },
-
-  getContainerLogs: async (containerName: string, tail: number = 100) => {
-    const response = await fetch(`${API_URL}/containers/${containerName}/logs?tail=${tail}`);
-    return handleResponse<string[]>(response);
-  },
-
-  controlContainer: async (containerName: string, action: 'start' | 'stop' | 'restart') => {
-    const response = await fetch(`${API_URL}/containers/${containerName}/${action}`, {
-      method: 'POST',
-    });
-    return handleResponse<any>(response);
-  },
-
-  restartServices: async (configType: 'env' | 'accounts') => {
-    const response = await fetch(`${API_URL}/config/restart-services?config_type=${configType}`, {
-      method: 'POST',
-    });
-    return handleResponse<any>(response);
-  },
-
-  getConfigBackups: async () => {
-    const response = await fetch(`${API_URL}/config/backups`);
-    return handleResponse<any[]>(response);
-  },
+// Custom API functions for non-CRUD operations
+export const customApi = {
+  getDashboardOverview: () => fetchJson(`${API_URL}/dashboard/overview`),
+  
+  getContainerLogs: (container: string, tail = 100) => 
+    fetchJson(`${API_URL}/containers/${container}/logs?tail=${tail}`),
+  
+  controlContainer: (container: string, action: 'start' | 'stop' | 'restart') =>
+    fetchJson(`${API_URL}/containers/${container}/${action}`, { method: 'POST' }),
+  
+  restartServices: (configType: 'env' | 'accounts') =>
+    fetchJson(`${API_URL}/config/restart-services?config_type=${configType}`, { method: 'POST' }),
+  
+  getConfig: (type: 'env' | 'accounts') =>
+    fetchJson(`${API_URL}/config/${type}`),
 };
 
 export default dataProvider;
