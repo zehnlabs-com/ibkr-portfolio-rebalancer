@@ -36,7 +36,7 @@ For troubleshooting IBKR Gateway issues, access the GUI through:
 2. Configure WebSocket settings:
    - **Encrypt**: off
    - **Host**: 127.0.0.1
-   - **Port**: 6080
+   - **Port**: 5900
 3. Click **Connect** to access the IBKR Gateway interface
 
 - **Common Use Cases**: Manual login, 2FA handling, gateway configuration

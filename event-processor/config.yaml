@@ -40,7 +40,7 @@ allocation:
 
 # Data collection configuration for dashboard
 data-collection:
-  collection_interval: 60  # Seconds between data collection cycles (1 minute for testing)
+  collection_interval: 120  # Seconds between data collection cycles 
   cache_ttl: 300           # Seconds for Redis cache TTL (5 minutes)
   market_close_time: "16:00"  # Market close time for daily net liquidation capture
 

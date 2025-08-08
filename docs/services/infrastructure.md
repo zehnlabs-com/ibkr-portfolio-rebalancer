@@ -92,8 +92,7 @@ VNC access to the IBKR Gateway for troubleshooting and management via external N
 
 | Setting | Value | Purpose |
 |---------|-------|---------|
-| **VNC Port** | 6080 | Direct VNC access (mapped from 5900) |
-| **VNC Target** | 127.0.0.1:6080 | External client connection |
+| **VNC Port** | 5900 | Direct VNC access (mapped from 5900) |
 
 ### Usage
 
@@ -102,7 +101,7 @@ VNC access to the IBKR Gateway for troubleshooting and management via external N
 2. Configure WebSocket settings:
    - **Encrypt**: off
    - **Host**: 127.0.0.1
-   - **Port**: 6080
+   - **Port**: 5900
 3. Click **Connect** to access the IBKR Gateway interface
 
 ## Docker Networking
@@ -112,7 +111,7 @@ VNC access to the IBKR Gateway for troubleshooting and management via external N
 **Network Name**: `ibkr-network`
 - **Type**: Bridge network
 - **Isolation**: All services communicate internally
-- **External Access**: Management API (8000) and VNC (6080) exposed on localhost only
+- **External Access**: Management API (8000) and VNC (5900)
 
 ### Service Communication
 
@@ -128,7 +127,7 @@ VNC access to the IBKR Gateway for troubleshooting and management via external N
          ▼
 ┌─────────────────┐
 │  IBKR Gateway   │
-│ (4001) (6080)   │
+│ (4001) (5900)   │
 └─────────────────┘
          ▲
          │
@@ -144,7 +143,7 @@ VNC access to the IBKR Gateway for troubleshooting and management via external N
 |---------|---------------|---------------|---------|
 | Redis | 6379 | 127.0.0.1:6379 | Queue access |
 | IBKR Gateway | 4003, 4004 | 127.0.0.1:4001, 4002 | TWS API |
-| IBKR Gateway | 5900 | 127.0.0.1:6080 | VNC server |
+| IBKR Gateway | 5900 | 127.0.0.1:5900 | VNC server |
 | Management API | 8000 | 127.0.0.1:8000 | HTTP API |
 
 ## Data Persistence

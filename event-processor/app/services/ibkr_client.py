@@ -89,6 +89,46 @@ class IBKRClient:
             app_logger.log_error(f"Failed to get cash balance: {e}")
             raise
     
+    async def get_account_pnl(self, account_id: str) -> dict:
+        """Get P&L data for the account using IBKR's reqPnL method"""
+        if not await self.ensure_connected():
+            raise Exception("Unable to establish IBKR connection")
+        
+        try:
+            app_logger.log_debug(f"Requesting P&L for account {account_id}")
+            
+            # Request P&L subscription - this returns a PnL object that gets updated
+            pnl_obj = self.ib.reqPnL(account_id)
+            
+            # Wait a moment for the PnL data to be populated
+            import asyncio
+            await asyncio.sleep(2)  # Give it time to get data
+            
+            # Extract P&L values from the object
+            daily_pnl = float(pnl_obj.dailyPnL) if pnl_obj.dailyPnL else 0.0
+            unrealized_pnl = float(pnl_obj.unrealizedPnL) if pnl_obj.unrealizedPnL else 0.0
+            realized_pnl = float(pnl_obj.realizedPnL) if pnl_obj.realizedPnL else 0.0
+            
+            # Cancel the subscription using the account
+            self.ib.cancelPnL(account_id)
+            
+            app_logger.log_debug(f"P&L for account {account_id}: daily={daily_pnl}, unrealized={unrealized_pnl}, realized={realized_pnl}")
+            
+            return {
+                "daily_pnl": daily_pnl,
+                "unrealized_pnl": unrealized_pnl,
+                "realized_pnl": realized_pnl
+            }
+                
+        except Exception as e:
+            app_logger.log_error(f"Failed to get P&L for account {account_id}: {e}")
+            # Return zeros if P&L request fails
+            return {
+                "daily_pnl": 0.0,
+                "unrealized_pnl": 0.0,
+                "realized_pnl": 0.0
+            }
+    
     async def get_positions(self, account_id: str, event=None) -> List[Dict]:
         if not await self.ensure_connected():
             raise Exception("Unable to establish IBKR connection")

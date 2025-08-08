@@ -94,20 +94,25 @@ class DataCollectorService:
             positions = await self.ibkr_client.get_positions(account_id)
             net_liq = await self.ibkr_client.get_account_value(account_id, "NetLiquidation")
             
-            # Get yesterday's closing net liquidation for P&L calculation
-            yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-            last_close_key = f"last_close_netliq:{account_id}:{yesterday}"
-            last_close_netliq_str = await self.redis_client.get(last_close_key)
+            # Get P&L data directly from IBKR
+            pnl_data = await self.ibkr_client.get_account_pnl(account_id)
+            todays_pnl = pnl_data["daily_pnl"]
             
-            # Calculate P&L
-            if last_close_netliq_str:
-                last_close_netliq = float(last_close_netliq_str)
-                todays_pnl = net_liq - last_close_netliq
-                todays_pnl_percent = (todays_pnl / last_close_netliq) * 100 if last_close_netliq else 0
+            # Calculate today's P&L percentage
+            # If we have today's P&L, we can calculate the starting value
+            # Starting value = Current value - Today's P&L
+            if net_liq > 0 and todays_pnl != 0:
+                starting_value = net_liq - todays_pnl
+                if starting_value > 0:
+                    todays_pnl_percent = (todays_pnl / starting_value) * 100
+                else:
+                    todays_pnl_percent = 0
             else:
-                todays_pnl = 0
                 todays_pnl_percent = 0
-                last_close_netliq = net_liq
+            
+            # For dashboard display, we still need a "last close" value
+            # This would be today's net_liq minus today's P&L
+            last_close_netliq = net_liq - todays_pnl if todays_pnl else net_liq
                 
             # Enhanced position data
             enhanced_positions = []
@@ -150,24 +155,6 @@ class DataCollectorService:
             app_logger.log_error(f"Failed to collect account data for {account_id}: {e}")
             raise
             
-    async def collect_last_close_netliq(self) -> None:
-        """Capture net liquidation values at market close for daily P&L calculation"""
-        accounts = self.load_accounts_config()
-        if not accounts:
-            return
-            
-        today = datetime.now().strftime("%Y-%m-%d")
-        
-        for account_id in accounts:
-            try:
-                net_liq = await self.ibkr_client.get_account_value(account_id, "NetLiquidation")
-                close_key = f"last_close_netliq:{account_id}:{today}"
-                await self.redis_client.setex(close_key, 86400, str(net_liq))
-                app_logger.log_info(f"Stored closing net liq for {account_id}: ${net_liq:.2f}")
-                
-            except Exception as e:
-                app_logger.log_error(f"Failed to store closing net liq for {account_id}: {e}")
-                
     def load_accounts_config(self) -> List[str]:
         """Load account IDs from accounts.yaml filtered by TRADING_MODE"""
         try:
