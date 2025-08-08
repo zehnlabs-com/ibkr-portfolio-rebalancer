@@ -3,7 +3,7 @@ Management Service FastAPI Application - SOLID Principles Implementation
 """
 import logging
 import os
-from typing import List
+from typing import List, Dict, Any
 from fastapi import FastAPI, Depends, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse
 from app.container import container
 from app.models.queue_models import QueueStatus, QueueEvent, AddEventRequest, AddEventResponse, RemoveEventResponse, ClearQueuesResponse
 from app.models.health_models import DetailedHealthStatus
+from app.models.dashboard_models import DashboardOverview, AccountData, AccountSummary, Position
 from app.config.settings import settings
 
 # Configure logging
@@ -78,6 +79,97 @@ async def add_event(event_request: AddEventRequest):
 async def clear_all_queues():
     """Clear all events from all queues"""
     return await container.queue_handlers.clear_all_queues()
+
+# Dashboard endpoints
+@app.get("/api/dashboard/overview", response_model=DashboardOverview)
+async def get_dashboard_overview():
+    """Get system-wide portfolio overview"""
+    return await container.dashboard_handlers.get_dashboard_overview()
+
+@app.get("/api/dashboard/accounts", response_model=List[AccountSummary])
+async def get_accounts_summary():
+    """Get summary data for all accounts"""
+    return await container.dashboard_handlers.get_accounts_summary()
+
+@app.get("/api/dashboard/accounts/{account_id}", response_model=AccountData)
+async def get_account_details(account_id: str):
+    """Get detailed data for a specific account"""
+    return await container.dashboard_handlers.get_account_details(account_id)
+
+@app.get("/api/dashboard/accounts/{account_id}/positions", response_model=List[Position])
+async def get_account_positions(account_id: str):
+    """Get positions for a specific account"""
+    return await container.dashboard_handlers.get_account_positions(account_id)
+
+@app.get("/api/dashboard/accounts/{account_id}/pnl")
+async def get_account_pnl(account_id: str):
+    """Get P&L data for a specific account"""
+    return await container.dashboard_handlers.get_account_pnl(account_id)
+
+# Docker management endpoints
+@app.get("/api/containers")
+async def get_containers():
+    """Get list of all containers with status and stats"""
+    return await container.docker_handlers.get_containers()
+
+@app.get("/api/containers/{container_name}/stats")
+async def get_container_stats(container_name: str):
+    """Get detailed stats for a specific container"""
+    return await container.docker_handlers.get_container_stats(container_name)
+
+@app.get("/api/containers/{container_name}/logs")
+async def get_container_logs(
+    container_name: str, 
+    tail: int = Query(100, ge=1, le=1000, description="Number of log lines to retrieve")
+):
+    """Get logs from a specific container"""
+    return await container.docker_handlers.get_container_logs(container_name, tail)
+
+@app.post("/api/containers/{container_name}/start")
+async def start_container(container_name: str):
+    """Start a container"""
+    return await container.docker_handlers.start_container(container_name)
+
+@app.post("/api/containers/{container_name}/stop")
+async def stop_container(container_name: str):
+    """Stop a container"""
+    return await container.docker_handlers.stop_container(container_name)
+
+@app.post("/api/containers/{container_name}/restart")
+async def restart_container(container_name: str):
+    """Restart a container"""
+    return await container.docker_handlers.restart_container(container_name)
+
+# Configuration management endpoints
+@app.get("/api/config/env")
+async def get_env_config():
+    """Get current .env configuration"""
+    return await container.config_handlers.get_env_config()
+
+@app.put("/api/config/env")
+async def update_env_config(config: Dict[str, str]):
+    """Update .env configuration"""
+    return await container.config_handlers.update_env_config(config)
+
+@app.get("/api/config/accounts")
+async def get_accounts_config():
+    """Get current accounts.yaml configuration"""
+    return await container.config_handlers.get_accounts_config()
+
+@app.put("/api/config/accounts")
+async def update_accounts_config(config: Dict[str, Any]):
+    """Update accounts.yaml configuration"""
+    return await container.config_handlers.update_accounts_config(config)
+
+@app.post("/api/config/restart-services")
+async def restart_affected_services(config_type: str = Query(..., regex="^(env|accounts)$")):
+    """Restart services affected by configuration changes"""
+    return await container.config_handlers.restart_affected_services(config_type)
+
+@app.get("/api/config/backups")
+async def get_config_backups():
+    """Get list of configuration file backups"""
+    return await container.config_handlers.get_config_backups()
 
 # Startup and shutdown events
 @app.on_event("startup")

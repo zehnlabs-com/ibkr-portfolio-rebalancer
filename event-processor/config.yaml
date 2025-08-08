@@ -38,6 +38,12 @@ allocation:
   api_url: "https://workers.fintech.zehnlabs.com/api/v1/strategies"  # Base URL for strategy allocation API
   timeout: 30                                                        # HTTP request timeout in seconds
 
+# Data collection configuration for dashboard
+data-collection:
+  collection_interval: 60  # Seconds between data collection cycles (1 minute for testing)
+  cache_ttl: 300           # Seconds for Redis cache TTL (5 minutes)
+  market_close_time: "16:00"  # Market close time for daily net liquidation capture
+
 # Application logging configuration
 logging:
   level: INFO             # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL

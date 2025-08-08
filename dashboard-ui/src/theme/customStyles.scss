@@ -1,0 +1,334 @@
+/* ZehnLabs Portfolio Dashboard Custom Styles */
+
+:root {
+  /* Primary Colors (ZehnLabs brand) */
+  --primary: #2975ba;
+  --primary-light: #4a8cd4;
+  --primary-dark: #1e5a94;
+  
+  /* Accent Colors */
+  --accent: #1fc5d1;
+  --accent-light: rgba(31, 197, 209, 0.45);
+  
+  /* Financial Data Colors */
+  --success: #52c41a;
+  --error: #ff4d4f;
+  --warning: #faad14;
+  
+  /* Background & Surface */
+  --background: #ffffff;
+  --surface: #fafafa;
+  --overlay: rgba(255,255,255,0.85);
+  --border: #e8e8e8;
+}
+
+/* Portfolio specific components */
+.portfolio-card {
+  background: var(--overlay);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(31, 197, 209, 0.2);
+  border-radius: 12px;
+  transition: all 0.2s ease-in-out;
+  
+  &:hover {
+    border-color: rgba(31, 197, 209, 0.4);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  }
+}
+
+.account-header {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+  color: white;
+  padding: 16px;
+  border-radius: 8px 8px 0 0;
+  
+  h3 {
+    margin: 0;
+    font-weight: 600;
+  }
+  
+  .account-id {
+    opacity: 0.9;
+    font-size: 0.875rem;
+  }
+}
+
+.account-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 16px;
+}
+
+.metric-card {
+  text-align: center;
+  padding: 12px;
+  background: var(--surface);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  
+  .metric-label {
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-bottom: 4px;
+  }
+  
+  .metric-value {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  
+  .metric-change {
+    font-size: 0.875rem;
+    font-weight: 500;
+  }
+}
+
+.metric-positive { 
+  color: var(--success);
+  
+  &::before {
+    content: '+';
+  }
+}
+
+.metric-negative { 
+  color: var(--error);
+}
+
+.metric-neutral {
+  color: #6b7280;
+}
+
+.data-visualization {
+  background: rgba(31, 197, 209, 0.05);
+  border-left: 4px solid var(--primary);
+  padding: 16px;
+  border-radius: 0 8px 8px 0;
+}
+
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  
+  &.status-running {
+    background: #f6ffed;
+    color: var(--success);
+    border: 1px solid #b7eb8f;
+  }
+  
+  &.status-stopped {
+    background: #fff2f0;
+    color: var(--error);
+    border: 1px solid #ffccc7;
+  }
+  
+  &.status-warning {
+    background: #fffbe6;
+    color: var(--warning);
+    border: 1px solid #ffe58f;
+  }
+  
+  &::before {
+    content: '';
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+}
+
+.container-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+  
+  .stat-item {
+    text-align: center;
+    
+    .stat-label {
+      font-size: 0.75rem;
+      color: #6b7280;
+      margin-bottom: 2px;
+    }
+    
+    .stat-value {
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+  }
+}
+
+/* React-admin customizations */
+.RaLayout-content {
+  padding: 24px;
+  background: var(--background);
+}
+
+.RaList-main {
+  .MuiTableHead-root {
+    background-color: var(--surface);
+  }
+  
+  .MuiTableRow-root {
+    &:hover {
+      background-color: rgba(31, 197, 209, 0.05);
+    }
+  }
+}
+
+.RaDashboard-main {
+  background: var(--background);
+}
+
+.RaAppBar-toolbar {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+}
+
+.RaSidebar-root {
+  .MuiDrawer-paper {
+    background: var(--surface);
+    border-right: 1px solid rgba(31, 197, 209, 0.2);
+  }
+}
+
+/* Custom dashboard layout */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.dashboard-section {
+  margin-bottom: 32px;
+  
+  .section-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 16px;
+    color: var(--primary-dark);
+    border-bottom: 2px solid var(--accent-light);
+    padding-bottom: 8px;
+  }
+}
+
+.positions-table {
+  .position-row {
+    &:hover {
+      background-color: rgba(31, 197, 209, 0.05);
+    }
+  }
+  
+  .symbol-cell {
+    font-weight: 600;
+    color: var(--primary-dark);
+  }
+  
+  .quantity-cell {
+    text-align: right;
+    font-family: 'Monaco', 'Menlo', monospace;
+  }
+  
+  .pnl-cell {
+    text-align: right;
+    font-weight: 500;
+    
+    &.positive {
+      color: var(--success);
+    }
+    
+    &.negative {
+      color: var(--error);
+    }
+  }
+}
+
+.log-viewer {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-size: 0.875rem;
+  padding: 16px;
+  border-radius: 8px;
+  max-height: 600px;
+  overflow-y: auto;
+  
+  .log-line {
+    margin-bottom: 2px;
+    word-break: break-all;
+    
+    &.error {
+      color: #f97316;
+    }
+    
+    &.warning {
+      color: #eab308;
+    }
+    
+    &.info {
+      color: #3b82f6;
+    }
+    
+    &.debug {
+      color: #6b7280;
+    }
+  }
+}
+
+/* Loading and empty states */
+.loading-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 48px;
+  
+  .loading-spinner {
+    color: var(--primary);
+  }
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px;
+  color: #6b7280;
+  
+  .empty-icon {
+    font-size: 4rem;
+    margin-bottom: 16px;
+    opacity: 0.5;
+  }
+  
+  .empty-message {
+    font-size: 1.125rem;
+    margin-bottom: 8px;
+  }
+  
+  .empty-description {
+    font-size: 0.875rem;
+    opacity: 0.8;
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .account-metrics {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+  }
+  
+  .container-stats {
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  }
+}

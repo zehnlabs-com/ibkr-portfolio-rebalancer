@@ -151,10 +151,11 @@ services:
         condition: service_healthy
     volumes:
       - ./management-service/logs:/app/logs
-      - ./accounts.yaml:/app/accounts.yaml
-      - ./accounts.example.yaml:/app/accounts.example.yaml
-      - ./.env:/app/.env
-      - ./.env.example:/app/.env.example
+      - ./accounts.yaml:/app/config/accounts.yaml:rw
+      - ./accounts.example.yaml:/app/config/accounts.example.yaml
+      - ./.env:/app/config/.env:rw
+      - ./.env.example:/app/config/.env.example
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       - /etc/localtime:/etc/localtime:ro
     networks:
       - ibkr-network
@@ -170,6 +171,33 @@ services:
         max-file: "365"
     restart: unless-stopped
 
+  dashboard-ui:
+    build:
+      context: ./dashboard-ui
+      dockerfile: Dockerfile
+    container_name: dashboard-ui
+    ports:
+      - "0.0.0.0:3000:3000"
+    environment:
+      - NODE_ENV=production
+      - API_BASE_URL=http://management-service:8000
+      - SERVICE_VERSION=*system-version
+      - TZ=America/New_York
+    depends_on:
+      - management-service
+    networks:
+      - ibkr-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "365"
+    restart: unless-stopped
 
   dozzle:
     image: amir20/dozzle:v8.13.8

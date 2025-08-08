@@ -1,0 +1,38 @@
+{
+  "name": "portfolio-dashboard-ui",
+  "version": "1.0.0",
+  "description": "Portfolio monitoring dashboard for IBKR Portfolio Rebalancer",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "node server.js",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.0",
+    "@mui/icons-material": "^6.1.8",
+    "@mui/material": "^6.1.8",
+    "express": "^4.21.2",
+    "http-proxy-middleware": "^3.0.5",
+    "react": "^18.3.1",
+    "react-admin": "^5.8.0",
+    "react-dom": "^18.3.1",
+    "react-syntax-highlighter": "^15.6.1",
+    "react-use-websocket": "^4.13.0",
+    "recharts": "^2.15.0",
+    "sass": "^1.90.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.17",
+    "@types/react-dom": "^18.3.1",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.10"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}

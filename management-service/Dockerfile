@@ -21,10 +21,8 @@ COPY app/ ./app/
 # Set timezone
 ENV TZ=America/New_York
 
-# Create non-root user
-RUN groupadd -r appuser && useradd -r -g appuser appuser
-RUN chown -R appuser:appuser /app
-USER appuser
+# Note: Running as root to access Docker socket
+# In a production environment, consider using Docker-in-Docker or other security measures
 
 # Expose port
 EXPOSE 8000
