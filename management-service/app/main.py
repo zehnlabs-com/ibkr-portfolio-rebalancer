@@ -4,7 +4,7 @@ Management Service FastAPI Application - SOLID Principles Implementation
 import logging
 import os
 from typing import List, Dict, Any
-from fastapi import FastAPI, Depends, Query
+from fastapi import FastAPI, Depends, Query, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
@@ -170,6 +170,12 @@ async def restart_affected_services(config_type: str = Query(..., regex="^(env|a
 async def get_config_backups():
     """Get list of configuration file backups"""
     return await container.config_handlers.get_config_backups()
+
+# WebSocket endpoint for real-time updates
+@app.websocket("/api/dashboard/stream")
+async def dashboard_websocket(websocket: WebSocket):
+    """WebSocket endpoint for real-time dashboard updates"""
+    await container.websocket_handlers.dashboard_stream(websocket)
 
 # Startup and shutdown events
 @app.on_event("startup")

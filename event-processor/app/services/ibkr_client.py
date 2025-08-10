@@ -157,6 +157,40 @@ class IBKRClient:
             app_logger.log_error(f"Failed to get positions: {e}", event)
             raise
     
+    async def get_portfolio_items(self, account_id: str, event=None) -> List[Dict]:
+        """Get portfolio items using reqAccountUpdatesAsync"""
+        if not await self.ensure_connected():
+            raise Exception("Unable to establish IBKR connection")
+        
+        try:
+            app_logger.log_debug(f"Getting portfolio items for account {account_id}", event)
+            
+            # Use the async version to avoid event loop conflicts
+            await self.ib.reqAccountUpdatesAsync(account=account_id)
+            
+            # Now get portfolio items for this specific account
+            portfolio_items = self.ib.portfolio(account=account_id)
+            
+            result = []
+            for item in portfolio_items:
+                if item.position != 0:  # Only include non-zero positions
+                    result.append({
+                        'symbol': item.contract.symbol,
+                        'position': item.position,
+                        'market_value': item.marketValue,
+                        'market_price': item.marketPrice,
+                        'avg_cost': item.averageCost,
+                        'unrealized_pnl': item.unrealizedPNL,
+                        'realized_pnl': item.realizedPNL
+                    })
+            
+            app_logger.log_debug(f"Found {len(result)} portfolio items for account {account_id}", event)
+            return result
+            
+        except Exception as e:
+            app_logger.log_error(f"Failed to get portfolio items: {e}", event)
+            raise
+    
     
     async def _fetch_single_snapshot_price(self, contract: 'Contract') -> Optional[Tuple[str, float]]:
         """
@@ -450,7 +484,7 @@ class IBKRClient:
                 )
                 return True
             except (asyncio.TimeoutError, Exception) as e:
-                app_logger.log_warning(f"Stale connection detected ({type(e).__name__}: {e}), reconnecting...")
+                app_logger.log_info(f"Reconnecting to IBKR gateway...")
                 return await self.connect()
     
     async def get_contract_details(self, symbols: List[str], event=None) -> Dict[str, Any]:

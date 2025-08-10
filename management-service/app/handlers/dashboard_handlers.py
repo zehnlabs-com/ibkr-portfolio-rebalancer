@@ -39,6 +39,7 @@ class DashboardHandlers:
             account_summaries = [
                 AccountSummary(
                     account_id=acc.account_id,
+                    strategy_name=acc.strategy_name,
                     current_value=acc.current_value,
                     todays_pnl=acc.todays_pnl,
                     todays_pnl_percent=acc.todays_pnl_percent,
@@ -67,6 +68,7 @@ class DashboardHandlers:
             return [
                 AccountSummary(
                     account_id=acc.account_id,
+                    strategy_name=acc.strategy_name,
                     current_value=acc.current_value,
                     todays_pnl=acc.todays_pnl,
                     todays_pnl_percent=acc.todays_pnl_percent,
@@ -172,6 +174,7 @@ class DashboardHandlers:
         
         return AccountData(
             account_id=data['account_id'],
+            strategy_name=data.get('strategy_name'),
             current_value=data['current_value'],
             last_close_netliq=data['last_close_netliq'],
             todays_pnl=data['todays_pnl'],

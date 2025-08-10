@@ -11,6 +11,7 @@ from app.handlers.health_handlers import HealthHandlers
 from app.handlers.dashboard_handlers import DashboardHandlers
 from app.handlers.docker_handlers import DockerHandlers
 from app.handlers.config_handlers import ConfigHandlers
+from app.handlers.websocket_handlers import WebSocketHandlers
 
 
 class Container:
@@ -31,6 +32,7 @@ class Container:
         self.dashboard_handlers = DashboardHandlers(self.queue_repository)
         self.docker_handlers = DockerHandlers()
         self.config_handlers = ConfigHandlers()
+        self.websocket_handlers = WebSocketHandlers()
     
     async def startup(self):
         """Initialize connections"""

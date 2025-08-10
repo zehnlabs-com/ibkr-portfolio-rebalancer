@@ -20,6 +20,7 @@ class Position(BaseModel):
 class AccountData(BaseModel):
     """Complete account data for dashboard"""
     account_id: str = Field(description="Account identifier")
+    strategy_name: Optional[str] = Field(description="Trading strategy name", default=None)
     current_value: float = Field(description="Current net liquidation value")
     last_close_netliq: float = Field(description="Previous close net liquidation value")
     todays_pnl: float = Field(description="Today's profit/loss in dollars")
@@ -37,6 +38,7 @@ class AccountData(BaseModel):
 class AccountSummary(BaseModel):
     """Summary data for accounts list"""
     account_id: str = Field(description="Account identifier")
+    strategy_name: Optional[str] = Field(description="Trading strategy name", default=None)
     current_value: float = Field(description="Current net liquidation value")
     todays_pnl: float = Field(description="Today's profit/loss in dollars")
     todays_pnl_percent: float = Field(description="Today's profit/loss as percentage")

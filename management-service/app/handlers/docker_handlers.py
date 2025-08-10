@@ -54,10 +54,22 @@ class DockerHandlers:
                         # Continue if stats fail - just log it
                         print(f"Failed to get stats for {container.name}: {e}")
                 
+                # Safely get image name
+                image_name = 'unknown'
+                try:
+                    if container.image and hasattr(container.image, 'tags') and container.image.tags:
+                        image_name = container.image.tags[0]
+                    elif container.image and hasattr(container.image, 'id'):
+                        # Use image ID if no tags available
+                        image_name = container.image.id[:12]
+                except Exception as e:
+                    # If image info fails, try to get from attrs
+                    image_name = container.attrs.get('Config', {}).get('Image', 'unknown')
+                
                 container_info = {
                     'id': container.id[:12],  # Short ID
                     'name': container.name,
-                    'image': container.image.tags[0] if container.image.tags else 'unknown',
+                    'image': image_name,
                     'status': container.status,
                     'state': container.attrs.get('State', {}).get('Status', 'unknown'),
                     'created': container.attrs.get('Created', ''),

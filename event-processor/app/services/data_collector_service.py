@@ -77,21 +77,24 @@ class DataCollectorService:
             
         app_logger.log_info(f"Collecting data for {len(accounts)} accounts")
         
-        # Process accounts sequentially to avoid overwhelming IBKR
+        # Process accounts sequentially with proper reqAccountUpdates handling
         for account_id in accounts:
             try:
                 await self.collect_account_data(account_id)
-                await asyncio.sleep(1)  # Small delay between accounts
+                # Small delay between accounts to avoid overwhelming IBKR
+                await asyncio.sleep(2)
             except Exception as e:
                 app_logger.log_error(f"Failed to collect data for account {account_id}: {e}")
+                # Continue with next account even if one fails
+                continue
                 
     async def collect_account_data(self, account_id: str) -> None:
         """Collect and cache data for a single account"""
         try:
             app_logger.log_debug(f"Collecting data for account {account_id}")
             
-            # Use existing IBKR client methods - let ib_async handle the complexity
-            positions = await self.ibkr_client.get_positions(account_id)
+            # Use portfolio() method to get complete position data with market prices
+            portfolio_items = await self.ibkr_client.get_portfolio_items(account_id)
             net_liq = await self.ibkr_client.get_account_value(account_id, "NetLiquidation")
             
             # Get P&L data directly from IBKR
@@ -114,26 +117,51 @@ class DataCollectorService:
             # This would be today's net_liq minus today's P&L
             last_close_netliq = net_liq - todays_pnl if todays_pnl else net_liq
                 
-            # Enhanced position data
+            # Enhanced position data from portfolio items
             enhanced_positions = []
-            for position in positions:
-                unrealized_pnl = position['market_value'] - (position['position'] * position['avg_cost'])
-                unrealized_pnl_percent = (unrealized_pnl / (position['position'] * position['avg_cost'])) * 100 if position['position'] * position['avg_cost'] != 0 else 0
-                current_price = position['market_value'] / position['position'] if position['position'] != 0 else 0
+            for item in portfolio_items:
+                # Calculate unrealized P&L percentage
+                cost_basis = item['position'] * item['avg_cost']
+                unrealized_pnl_percent = (item['unrealized_pnl'] / cost_basis) * 100 if cost_basis != 0 else 0
                 
                 enhanced_positions.append({
-                    'symbol': position['symbol'],
-                    'quantity': position['position'],
-                    'market_value': position['market_value'],
-                    'avg_cost': position['avg_cost'],
-                    'current_price': current_price,
-                    'unrealized_pnl': unrealized_pnl,
+                    'symbol': item['symbol'],
+                    'quantity': item['position'],
+                    'market_value': item['market_value'],
+                    'avg_cost': item['avg_cost'],
+                    'current_price': item['market_price'],  # Using actual market price from portfolio
+                    'unrealized_pnl': item['unrealized_pnl'],
                     'unrealized_pnl_percent': unrealized_pnl_percent
                 })
                 
+            # Get strategy name from notification channel in config and format it
+            strategy_name = None
+            try:
+                accounts_path = os.path.join("/app", "accounts.yaml")
+                if os.path.exists(accounts_path):
+                    with open(accounts_path, 'r') as f:
+                        yaml_data = yaml.safe_load(f)
+                    
+                    for acc in yaml_data.get('accounts', []):
+                        if acc.get('account_id') == account_id:
+                            raw_strategy = acc.get('notification', {}).get('channel')
+                            if raw_strategy:
+                                # Format strategy name: etf-blend-102-25 -> ETF Blend 102-25
+                                parts = raw_strategy.split('-')
+                                if len(parts) >= 4 and parts[0] == 'etf' and parts[1] == 'blend':
+                                    # ETF Blend strategies: capitalize first two parts, keep rest as-is
+                                    strategy_name = f"ETF Blend {'-'.join(parts[2:])}"
+                                else:
+                                    # Other strategies: capitalize each part
+                                    strategy_name = ' '.join(p.capitalize() for p in parts)
+                            break
+            except Exception as e:
+                app_logger.log_debug(f"Could not load strategy name for {account_id}: {e}")
+            
             # Build complete account data JSON document
             account_data = {
                 "account_id": account_id,
+                "strategy_name": strategy_name,
                 "current_value": net_liq,
                 "last_close_netliq": last_close_netliq,
                 "todays_pnl": todays_pnl,
