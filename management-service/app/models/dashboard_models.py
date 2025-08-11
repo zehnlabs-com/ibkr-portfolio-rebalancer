@@ -28,6 +28,7 @@ class AccountData(BaseModel):
     positions: List[Position] = Field(description="List of current positions")
     positions_count: int = Field(description="Number of positions")
     last_update: datetime = Field(description="Timestamp of last data update")
+    last_rebalanced_on: Optional[datetime] = Field(description="Timestamp of last successful rebalance", default=None)
     
     @property
     def enabled(self) -> bool:

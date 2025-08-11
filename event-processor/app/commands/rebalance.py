@@ -2,6 +2,8 @@
 Rebalance command implementation.
 """
 
+import json
+from datetime import datetime, timezone
 from typing import Dict, Any
 from app.commands.base import EventCommand, EventCommandResult, CommandStatus
 from app.logger import AppLogger
@@ -51,6 +53,35 @@ class RebalanceCommand(EventCommand):
             result = await rebalancer_service.rebalance_account(account_config, self.event)
             
             app_logger.log_info(f"Rebalance completed - orders: {len(result.orders)}", self.event)
+            
+            # Update last_rebalanced_on timestamp in Redis
+            redis_client = services.get('redis_client')
+            if redis_client:
+                try:
+                    account_id = self.event.account_id
+                    redis_key = f"account_data:{account_id}"
+                    
+                    # Get existing account data or create new
+                    existing_data = await redis_client.get(redis_key)
+                    if existing_data:
+                        account_data = json.loads(existing_data)
+                    else:
+                        # Create minimal account data if it doesn't exist
+                        account_data = {
+                            "account_id": account_id,
+                            "strategy_name": self.event.payload.get('strategy_name', ''),
+                        }
+                    
+                    # Update with current timestamp
+                    account_data['last_rebalanced_on'] = datetime.now(timezone.utc).isoformat()
+                    
+                    # Store back to Redis
+                    await redis_client.set(redis_key, json.dumps(account_data))
+                    app_logger.log_info(f"Updated last_rebalanced_on for account {account_id}", self.event)
+                    
+                except Exception as e:
+                    # Log error but don't fail the command
+                    app_logger.log_error(f"Failed to update last_rebalanced_on: {e}", self.event)
             
             return EventCommandResult(
                 status=CommandStatus.SUCCESS,

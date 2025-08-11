@@ -81,6 +81,12 @@ async def clear_all_queues():
     """Clear all events from all queues"""
     return await container.queue_handlers.clear_all_queues()
 
+# Account rebalance endpoint
+@app.post("/api/accounts/{account_id}/rebalance")
+async def trigger_account_rebalance(account_id: str):
+    """Trigger rebalance for a specific account"""
+    return await container.queue_handlers.trigger_account_rebalance(account_id)
+
 # Dashboard endpoints
 @app.get("/api/dashboard/overview", response_model=DashboardOverview)
 async def get_dashboard_overview():

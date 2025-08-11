@@ -2,6 +2,7 @@
 Queue management API handlers
 """
 import logging
+import yaml
 from typing import List
 from fastapi import HTTPException, status, Depends
 
@@ -103,4 +104,66 @@ class QueueHandlers:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to clear all queues: {str(e)}"
+            )
+    
+    async def trigger_account_rebalance(self, account_id: str) -> dict:
+        """Trigger rebalance for a specific account"""
+        try:
+            # Load accounts.yaml to get account configuration
+            accounts_path = "/app/accounts.yaml"
+            with open(accounts_path, 'r') as f:
+                accounts_data = yaml.safe_load(f)
+            
+            # Find the account configuration
+            account_config = None
+            for account in accounts_data.get('accounts', []):
+                if account.get('account_id') == account_id:
+                    account_config = account
+                    break
+            
+            if not account_config:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Account {account_id} not found in configuration"
+                )
+            
+            # Extract strategy name and cash reserve from account config
+            strategy_name = account_config.get('strategy_name', '')
+            cash_reserve_percent = account_config.get('cash_reserve_percent', 1.0)
+            
+            if not strategy_name:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Account {account_id} has no strategy_name configured"
+                )
+            
+            # Create and queue the rebalance event
+            event_request = AddEventRequest(
+                account_id=account_id,
+                exec_command="rebalance",
+                strategy_name=strategy_name,
+                cash_reserve_percent=cash_reserve_percent
+            )
+            
+            event_id = await self.queue_service.add_event(
+                account_id=event_request.account_id,
+                exec_command=event_request.exec_command,
+                data=event_request.to_data_dict()
+            )
+            
+            return {
+                "success": True,
+                "message": f"Rebalance triggered for account {account_id}",
+                "event_id": event_id,
+                "account_id": account_id,
+                "strategy_name": strategy_name
+            }
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to trigger rebalance for account {account_id}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to trigger rebalance: {str(e)}"
             )

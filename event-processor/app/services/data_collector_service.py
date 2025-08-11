@@ -158,6 +158,17 @@ class DataCollectorService:
             except Exception as e:
                 app_logger.log_debug(f"Could not load strategy name for {account_id}: {e}")
             
+            # Get existing data to preserve last_rebalanced_on
+            redis_key = f"account_data:{account_id}"
+            existing_data = await self.redis_client.get(redis_key)
+            last_rebalanced_on = None
+            if existing_data:
+                try:
+                    existing_account_data = json.loads(existing_data)
+                    last_rebalanced_on = existing_account_data.get('last_rebalanced_on')
+                except Exception:
+                    pass  # Ignore JSON parse errors
+            
             # Build complete account data JSON document
             account_data = {
                 "account_id": account_id,
@@ -168,12 +179,13 @@ class DataCollectorService:
                 "todays_pnl_percent": todays_pnl_percent,
                 "positions": enhanced_positions,
                 "positions_count": len(enhanced_positions),
-                "last_update": datetime.now(timezone.utc).isoformat()
+                "last_update": datetime.now(timezone.utc).isoformat(),
+                "last_rebalanced_on": last_rebalanced_on  # Preserve existing value or None
             }
             
             # Simple Redis storage (no TTL - keep data available even during collection delays)
             await self.redis_client.set(
-                f"account_data:{account_id}",
+                redis_key,
                 json.dumps(account_data)
             )
             

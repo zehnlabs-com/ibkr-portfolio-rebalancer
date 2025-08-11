@@ -172,6 +172,14 @@ class DashboardHandlers:
             ) for pos in data.get('positions', [])
         ]
         
+        # Parse last_rebalanced_on if present
+        last_rebalanced_on = None
+        if data.get('last_rebalanced_on'):
+            try:
+                last_rebalanced_on = datetime.fromisoformat(data['last_rebalanced_on'])
+            except Exception:
+                pass  # Ignore parse errors
+        
         return AccountData(
             account_id=data['account_id'],
             strategy_name=data.get('strategy_name'),
@@ -181,5 +189,6 @@ class DashboardHandlers:
             todays_pnl_percent=data['todays_pnl_percent'],
             positions=positions,
             positions_count=data['positions_count'],
-            last_update=datetime.fromisoformat(data['last_update'])
+            last_update=datetime.fromisoformat(data['last_update']),
+            last_rebalanced_on=last_rebalanced_on
         )
