@@ -214,12 +214,32 @@ update_system() {
     fi
 }
 
+# Configure Tailscale serve for Management Service
+configure_tailscale_serve() {
+    if command -v tailscale &> /dev/null && tailscale status &> /dev/null 2>&1; then
+        # Check if serve is already configured
+        if tailscale serve status 2>/dev/null | grep -q "/ms/.*http://127.0.0.1:8000"; then
+            print_success "Tailscale serve is already configured for Management Service at /ms/"
+        else
+            # Set up Tailscale serve for Management Service - MUST succeed
+            print_info "Setting up Tailscale serve for Management Service..."
+            if ! tailscale serve --bg /ms/ http://127.0.0.1:8000; then
+                print_error "Failed to configure Tailscale serve for Management Service"
+                print_error "This is a required step for remote access to the Management API"
+                exit 1
+            fi
+            print_success "Tailscale serve configured successfully for Management Service at /ms/"
+        fi
+    fi
+}
+
 # Complete Tailscale setup after system update
 complete_tailscale_setup() {
     if [ "$INSTALL_TAILSCALE" = "true" ]; then
         # Check if already authenticated (in case of re-run)
         if tailscale status &> /dev/null 2>&1; then
-            print_success "Tailscale is already authenticated, skipping setup"
+            print_success "Tailscale is already authenticated"
+            configure_tailscale_serve
             return
         fi
         
@@ -242,9 +262,10 @@ complete_tailscale_setup() {
 
             print_info "Authenticating Tailscale..."
             
-            if tailscale up --auth-key="$TAILSCALE_AUTH_KEY" 2>/dev/null; then
+            if tailscale up --hostname ibkr-portfolio-rebalancer-9897 --auth-key="$TAILSCALE_AUTH_KEY" 2>/dev/null; then
                 unset TAILSCALE_AUTH_KEY  # Immediately clear from memory
                 print_success "Tailscale authenticated successfully!"
+                configure_tailscale_serve
                 break
             else
                 unset TAILSCALE_AUTH_KEY  # Clear even on failure

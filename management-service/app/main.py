@@ -146,6 +146,16 @@ async def get_strategies():
     """Get available strategies from Zehnlabs Workers API"""
     return await container.strategies_handlers.get_strategies()
 
+# VNC configuration endpoint
+@app.get("/api/config/vnc")
+async def get_vnc_config():
+    """Get VNC configuration for NoVNC client"""
+    import os
+    return {
+        "host": "ws://ibkr-portfolio-rebalancer-9897:5900",
+        "password": os.getenv("VNC_PASSWORD", "")
+    }
+
 # Configuration management endpoints
 @app.get("/api/config/env")
 async def get_env_config():
