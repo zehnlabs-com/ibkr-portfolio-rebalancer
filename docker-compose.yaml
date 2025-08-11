@@ -117,6 +117,7 @@ services:
       - ./event-processor/config.yaml:/app/config/config.yaml
       - ./event-processor/logs:/app/logs
       - ./accounts.yaml:/app/accounts.yaml
+      - ./replacement-sets.yaml:/app/replacement-sets.yaml
       - /etc/localtime:/etc/localtime:ro
     networks:
       - ibkr-network
@@ -153,6 +154,7 @@ services:
       - ./management-service/logs:/app/logs
       - ./accounts.yaml:/app/config/accounts.yaml:rw
       - ./accounts.example.yaml:/app/config/accounts.example.yaml
+      - ./replacement-sets.yaml:/app/config/replacement-sets.yaml:rw
       - ./.env:/app/config/.env:rw
       - ./.env.example:/app/config/.env.example
       - /var/run/docker.sock:/var/run/docker.sock:ro

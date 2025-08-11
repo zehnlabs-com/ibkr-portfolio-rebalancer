@@ -161,8 +161,18 @@ async def update_accounts_config(config: Dict[str, Any]):
     """Update accounts.yaml configuration"""
     return await container.config_handlers.update_accounts_config(config)
 
+@app.get("/api/config/replacement-sets")
+async def get_replacement_sets_config():
+    """Get current replacement-sets.yaml configuration"""
+    return await container.config_handlers.get_replacement_sets_config()
+
+@app.put("/api/config/replacement-sets")
+async def update_replacement_sets_config(config: Dict[str, Any]):
+    """Update replacement-sets.yaml configuration"""
+    return await container.config_handlers.update_replacement_sets_config(config)
+
 @app.post("/api/config/restart-services")
-async def restart_affected_services(config_type: str = Query(..., regex="^(env|accounts)$")):
+async def restart_affected_services(config_type: str = Query(..., regex="^(env|accounts|replacement-sets)$")):
     """Restart services affected by configuration changes"""
     return await container.config_handlers.restart_affected_services(config_type)
 

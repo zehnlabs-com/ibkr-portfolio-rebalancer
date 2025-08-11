@@ -130,13 +130,12 @@ class ConfigHandlers:
                 accounts_data = yaml.safe_load(f)
             
             if not accounts_data:
-                accounts_data = {"accounts": [], "replacement_sets": {}}
+                accounts_data = {"accounts": []}
             
             return {
                 "file_exists": True,
                 "config": accounts_data,
                 "total_accounts": len(accounts_data.get('accounts', [])),
-                "replacement_sets": list(accounts_data.get('replacement_sets', {}).keys()),
                 "last_modified": datetime.fromtimestamp(os.path.getmtime(self.accounts_path)).isoformat()
             }
             
@@ -185,6 +184,86 @@ class ConfigHandlers:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to update accounts.yaml: {str(e)}")
     
+    async def get_replacement_sets_config(self) -> Dict[str, Any]:
+        """Get current replacement-sets.yaml configuration"""
+        replacement_sets_path = os.path.join(self.config_dir, "replacement-sets.yaml")
+        
+        if not os.path.exists(replacement_sets_path):
+            return {
+                "file_exists": False,
+                "config": {},
+                "total_sets": 0,
+                "set_names": []
+            }
+        
+        try:
+            with open(replacement_sets_path, 'r') as f:
+                replacement_sets_data = yaml.safe_load(f)
+            
+            if not replacement_sets_data:
+                replacement_sets_data = {}
+            
+            return {
+                "file_exists": True,
+                "config": replacement_sets_data,
+                "total_sets": len(replacement_sets_data),
+                "set_names": list(replacement_sets_data.keys()),
+                "last_modified": datetime.fromtimestamp(os.path.getmtime(replacement_sets_path)).isoformat()
+            }
+            
+        except yaml.YAMLError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid YAML in replacement-sets.yaml: {str(e)}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to read replacement-sets.yaml: {str(e)}")
+    
+    async def update_replacement_sets_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Update replacement-sets.yaml configuration"""
+        replacement_sets_path = os.path.join(self.config_dir, "replacement-sets.yaml")
+        
+        # Validate the structure
+        if not isinstance(config, dict):
+            raise HTTPException(status_code=400, detail="Configuration must be a dictionary")
+        
+        # Validate replacement sets structure
+        for set_name, rules in config.items():
+            if not isinstance(rules, list):
+                raise HTTPException(status_code=400, detail=f"Replacement set '{set_name}' must be a list of rules")
+            
+            for rule in rules:
+                if not isinstance(rule, dict):
+                    raise HTTPException(status_code=400, detail=f"Each rule in '{set_name}' must be a dictionary")
+                
+                required_fields = ['source', 'target', 'scale']
+                for field in required_fields:
+                    if field not in rule:
+                        raise HTTPException(status_code=400, detail=f"Rule missing required field '{field}' in set '{set_name}'")
+        
+        try:
+            # Create backup if file exists
+            if os.path.exists(replacement_sets_path):
+                backup_path = self._create_backup(replacement_sets_path)
+            else:
+                backup_path = ""
+            
+            # Write the new configuration
+            with open(replacement_sets_path, 'w') as f:
+                yaml.dump(config, f, default_flow_style=False, indent=2)
+            
+            return {
+                "success": True,
+                "backup_created": backup_path,
+                "total_sets": len(config),
+                "set_names": list(config.keys()),
+                "updated_at": datetime.now().isoformat()
+            }
+            
+        except yaml.YAMLError as e:
+            raise HTTPException(status_code=400, detail=f"Invalid YAML configuration: {str(e)}")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to update replacement-sets.yaml: {str(e)}")
+    
     async def restart_affected_services(self, config_type: str) -> Dict[str, Any]:
         """Trigger restart of services affected by configuration changes"""
         try:
@@ -200,8 +279,11 @@ class ConfigHandlers:
             elif config_type == "accounts":
                 # accounts.yaml changes typically affect event services
                 services_to_restart = ["event-broker", "event-processor"]
+            elif config_type == "replacement-sets":
+                # replacement-sets.yaml changes only affect event-processor
+                services_to_restart = ["event-processor"]
             else:
-                raise HTTPException(status_code=400, detail="Invalid config_type. Must be 'env' or 'accounts'")
+                raise HTTPException(status_code=400, detail="Invalid config_type. Must be 'env', 'accounts', or 'replacement-sets'")
             
             restart_results = []
             for service in services_to_restart:

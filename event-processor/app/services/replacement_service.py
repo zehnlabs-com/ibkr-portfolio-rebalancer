@@ -29,24 +29,18 @@ class ReplacementService:
         self._load_replacement_sets()
     
     def _load_replacement_sets(self):
-        """Load replacement sets from accounts.yaml"""
+        """Load replacement sets from replacement-sets.yaml"""
         try:
-            accounts_path = os.path.join("/app", "accounts.yaml")
-            if not os.path.exists(accounts_path):
-                app_logger.log_warning(f"accounts.yaml not found at {accounts_path}")
+            replacement_sets_path = os.path.join("/app", "replacement-sets.yaml")
+            if not os.path.exists(replacement_sets_path):
+                app_logger.log_warning(f"replacement-sets.yaml not found at {replacement_sets_path}")
                 return
             
-            with open(accounts_path, 'r') as f:
-                yaml_data = yaml.safe_load(f)
+            with open(replacement_sets_path, 'r') as f:
+                replacement_sets_data = yaml.safe_load(f)
             
-            if not yaml_data:
-                return
-            
-            # Extract replacement sets from new YAML structure
-            
-            replacement_sets_data = yaml_data.get('replacement_sets', {})
             if not replacement_sets_data:
-                app_logger.log_info("No replacement_sets found in accounts.yaml")
+                app_logger.log_info("replacement-sets.yaml is empty")
                 return
             
             # Parse replacement sets
