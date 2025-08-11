@@ -2,7 +2,7 @@
 Strategies handlers for fetching available strategies from Zehnlabs Workers API
 """
 import asyncio
-import httpx
+import aiohttp
 from typing import List, Dict, Any
 from fastapi import HTTPException
 import logging
@@ -19,36 +19,37 @@ class StrategiesHandlers:
     async def get_strategies(self) -> List[Dict[str, Any]]:
         """Get available strategies from Zehnlabs Workers API"""
         try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.get(f"{self.workers_api_url}/strategies")
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=self.timeout)) as session:
+                async with session.get(f"{self.workers_api_url}/strategies/") as response:
+                    
+                    if response.status != 200:
+                        response_text = await response.text()
+                        logger.error(f"Failed to fetch strategies: {response.status} - {response_text}")
+                        raise HTTPException(
+                            status_code=502, 
+                            detail="Failed to fetch strategies from external API"
+                        )
+                    
+                    data = await response.json()
+                    strategies = data.get("strategies", [])
+                    
+                    # Transform to simpler format for frontend
+                    result = []
+                    for strategy in strategies:
+                        result.append({
+                            "name": self._format_strategy_name(strategy.get("strategy_name", "")),
+                            "long_name": strategy.get("strategy_name", "")
+                        })
+                    
+                    # Sort by name for consistency
+                    result.sort(key=lambda x: x["name"])
+                    
+                    return result
                 
-                if response.status_code != 200:
-                    logger.error(f"Failed to fetch strategies: {response.status_code} - {response.text}")
-                    raise HTTPException(
-                        status_code=502, 
-                        detail="Failed to fetch strategies from external API"
-                    )
-                
-                data = response.json()
-                strategies = data.get("strategies", [])
-                
-                # Transform to simpler format for frontend
-                result = []
-                for strategy in strategies:
-                    result.append({
-                        "name": self._format_strategy_name(strategy.get("strategy_name", "")),
-                        "long_name": strategy.get("strategy_name", "")
-                    })
-                
-                # Sort by name for consistency
-                result.sort(key=lambda x: x["name"])
-                
-                return result
-                
-        except httpx.TimeoutException:
+        except asyncio.TimeoutError:
             logger.error("Timeout while fetching strategies")
             raise HTTPException(status_code=504, detail="Timeout fetching strategies")
-        except httpx.RequestError as e:
+        except aiohttp.ClientError as e:
             logger.error(f"Request error while fetching strategies: {str(e)}")
             raise HTTPException(status_code=502, detail="Failed to connect to strategies API")
         except Exception as e:

@@ -68,7 +68,7 @@ class NotificationHandlers:
         """Get count of unread notifications"""
         try:
             count = await self.redis.get('user_notifications:unread_count')
-            unread_count = int(count) if count else 0
+            unread_count = int(count) if count is not None else 0
             return UnreadCountResponse(count=unread_count)
         except Exception as e:
             logger.error(f"Failed to get unread count: {e}")

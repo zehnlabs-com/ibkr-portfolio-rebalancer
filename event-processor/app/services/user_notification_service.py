@@ -124,6 +124,10 @@ class UserNotificationService:
             elif event_type == 'event_critical_error':
                 error_message = extra_details.get('error_message') if extra_details else None
                 await self.notify_event_critical_error(event_info, error_message)
+            elif event_type == 'event_permanent_failure':
+                await self._queue_notification_internal(event_info, event_type, extra_details)
+            elif event_type == 'event_partial_execution_suspected':
+                await self._queue_notification_internal(event_info, event_type, extra_details)
             else:
                 app_logger.log_warning(f"Unknown event type for notification: {event_type}")
             
@@ -195,7 +199,9 @@ class UserNotificationService:
             'event_delayed': f"Rebalance delayed until {details.get('delayed_until', 'unknown')} for {strategy_name} at {time_str}",
             'event_retry': f"Rebalance queued for retry for {strategy_name} at {time_str}",
             'event_connection_error': f"Connection error for {strategy_name} at {time_str}",
-            'event_critical_error': f"Critical error for {strategy_name} at {time_str}"
+            'event_critical_error': f"Critical error for {strategy_name} at {time_str}",
+            'event_permanent_failure': f"Account/Permission issue for {strategy_name} at {time_str} - Manual fix required",
+            'event_partial_execution_suspected': f"Partial execution suspected for {strategy_name} at {time_str} - Manual review required"
         }
         
         return event_formats.get(event_type, f"Event {event_type} for {strategy_name} at {time_str}")
@@ -217,11 +223,17 @@ class UserNotificationService:
 - Times Queued: `{times_queued}`
 - Timestamp: `{time_str}`"""
         
-        if event_type in ['event_connection_error', 'event_critical_error'] and details.get('error_message'):
+        if event_type in ['event_connection_error', 'event_critical_error', 'event_permanent_failure', 'event_partial_execution_suspected'] and details.get('error_message'):
             base_info += f"\n\n**Error Message**\n```\n{details['error_message']}\n```"
         
         if event_type == 'event_delayed' and details.get('delayed_until'):
             base_info += f"\n\n**Delayed Until**: {details['delayed_until']}"
+            
+        if event_type == 'event_permanent_failure':
+            base_info += f"\n\n**Action Required**: Check account permissions, trading restrictions, or available funds. This event will not be retried automatically."
+            
+        if event_type == 'event_partial_execution_suspected':
+            base_info += f"\n\n**Action Required**: Review account positions manually. Some orders may have executed before the failure occurred. This event was not retried to prevent PDT violations."
         
         return base_info
     

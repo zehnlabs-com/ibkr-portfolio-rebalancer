@@ -110,7 +110,7 @@ class QueueHandlers:
         """Trigger rebalance for a specific account"""
         try:
             # Load accounts.yaml to get account configuration
-            accounts_path = "/app/accounts.yaml"
+            accounts_path = "/app/config/accounts.yaml"
             with open(accounts_path, 'r') as f:
                 accounts_data = yaml.safe_load(f)
             

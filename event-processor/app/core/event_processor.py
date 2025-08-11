@@ -3,6 +3,7 @@ Refactored event processor using command pattern.
 """
 
 import asyncio
+import re
 from typing import Dict, Any
 from app.core.service_container import ServiceContainer
 from app.commands.base import CommandStatus
@@ -171,26 +172,100 @@ class EventProcessor:
             app_logger.log_error(f"Error processing event {event_info.event_id}: {e}", event_info)
             await self._handle_failed_event(event_info, str(e))
     
+    def _classify_error_type(self, error_message: str) -> str:
+        """Classify error as retryable, non_retryable, or partial_execution"""
+        
+        # Extract IBKR error code and message from ib_async.wrapper format
+        # Pattern: "Error 201, reqId 123: Order rejected - insufficient buying power"
+        error_match = re.search(r'Error (\d+).*?:\s*(.+)', error_message)
+        
+        if error_match:
+            error_code = error_match.group(1)
+            error_reason = error_match.group(2).lower()
+            
+            # Error 201 with specific non-retryable reasons
+            if error_code == "201":
+                non_retryable_patterns = [
+                    "insufficient buying power",
+                    "insufficient funds",
+                    "trading permission",
+                    "account restriction",
+                    "security trading restricted",
+                    "order rejected"
+                ]
+                
+                for pattern in non_retryable_patterns:
+                    if pattern in error_reason:
+                        return "non_retryable"
+        
+        # Check for partial execution indicators
+        partial_execution_patterns = [
+            "timeout during execution",
+            "some orders filled", 
+            "partial fill",
+            "order.*failed with status.*partial",
+            "execution failed.*after.*orders"
+        ]
+        
+        error_lower = error_message.lower()
+        for pattern in partial_execution_patterns:
+            if re.search(pattern, error_lower):
+                return "partial_execution"
+        
+        # Default to retryable for connection issues, temporary failures
+        return "retryable"
+
     async def _handle_failed_event(self, event_info: EventInfo, error_message: str):
-        """Handle failed events by requeuing them automatically"""
+        """Handle failed events with PDT-safe error classification"""
         try:
-            # Determine error type for notification
+            error_classification = self._classify_error_type(error_message)
+            queue_service = self.service_container.get_queue_service()
+            
+            if error_classification == "non_retryable":
+                # Send notification and mark complete (no retry)
+                await self.user_notification_service.send_notification(
+                    event_info, 
+                    'event_permanent_failure', 
+                    {
+                        'error_message': error_message,
+                        'error_type': 'Account/Permission Issue - Manual Fix Required'
+                    }
+                )
+                
+                # Remove from active events (complete the event)
+                await queue_service.remove_from_queued(event_info.account_id, event_info.exec_command)
+                app_logger.log_warning(f"Non-retryable error detected - event completed with notification: {error_message}", event_info)
+                return
+                
+            elif error_classification == "partial_execution":
+                # Send notification and mark complete (avoid PDT risk)
+                await self.user_notification_service.send_notification(
+                    event_info,
+                    'event_partial_execution_suspected',
+                    {
+                        'error_message': error_message,
+                        'error_type': 'Partial Execution Suspected - Manual Review Required'
+                    }
+                )
+                
+                await queue_service.remove_from_queued(event_info.account_id, event_info.exec_command)
+                app_logger.log_warning(f"Partial execution suspected - event completed with notification: {error_message}", event_info)
+                return
+            
+            # Continue with normal retry logic for retryable errors
             error_type = 'event_connection_error' if 'connection' in error_message.lower() or 'timeout' in error_message.lower() else 'event_critical_error'
             await self.user_notification_service.send_notification(event_info, error_type, {'error_message': error_message})
-            
-            # Failure tracking now handled in Redis only
             
             # Update event status
             event_info.status = 'failed'
             
             # Requeue event automatically (goes to back of queue)
-            queue_service = self.service_container.get_queue_service()
             updated_event_info = await queue_service.requeue_event_retry(event_info)
             
-            app_logger.log_info(f"Event requeued after failure: {error_message}", updated_event_info)
+            app_logger.log_info(f"Event requeued after retryable failure: {error_message}", updated_event_info)
             
         except Exception as e:
-            app_logger.log_error(f"Failed to requeue event {event_info.event_id}: {e}", event_info)
+            app_logger.log_error(f"Failed to handle failed event {event_info.event_id}: {e}", event_info)
     
     async def _handle_permanent_failure(self, event_info: EventInfo, error_message: str):
         """Handle permanent failures by discarding event and logging error"""
