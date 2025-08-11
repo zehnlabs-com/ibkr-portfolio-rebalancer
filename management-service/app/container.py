@@ -13,6 +13,8 @@ from app.handlers.docker_handlers import DockerHandlers
 from app.handlers.config_handlers import ConfigHandlers
 from app.handlers.websocket_handlers import WebSocketHandlers
 from app.handlers.strategies_handlers import StrategiesHandlers
+from app.handlers.notification_handlers import NotificationHandlers
+from app.services.notification_cleanup_service import NotificationCleanupService
 
 
 class Container:
@@ -35,14 +37,18 @@ class Container:
         self.config_handlers = ConfigHandlers()
         self.websocket_handlers = WebSocketHandlers()
         self.strategies_handlers = StrategiesHandlers()
+        self.notification_handlers = NotificationHandlers(self.queue_repository.redis)
+        self.notification_cleanup_service = NotificationCleanupService(self.queue_repository.redis)
     
     async def startup(self):
         """Initialize connections"""
         await self.queue_repository.connect()
         await self.health_repository.connect()
+        await self.notification_cleanup_service.start()
     
     async def shutdown(self):
         """Clean up connections"""
+        await self.notification_cleanup_service.stop()
         await self.queue_repository.disconnect()
         await self.health_repository.disconnect()
 

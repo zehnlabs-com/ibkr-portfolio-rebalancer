@@ -93,6 +93,14 @@ class WebSocketManager:
             "data": system_data
         }
         await self.broadcast(message)
+    
+    async def send_notification_count_update(self, unread_count: int):
+        """Send notification count update to all connected clients"""
+        message = {
+            "type": "notification_count_update",
+            "data": {"unread_count": unread_count}
+        }
+        await self.broadcast(message)
 
 # Global WebSocket manager instance
 websocket_manager = WebSocketManager()

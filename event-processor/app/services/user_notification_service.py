@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-User Notification Service for ntfy.sh integration with Redis-backed buffering
+User Notification Service with Redis-based notification queue
 """
 import json
-import asyncio  
-import time
+import uuid
+import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 import redis.asyncio as redis
@@ -28,30 +28,19 @@ class UserNotificationEvent:
 
 class UserNotificationService:
     """
-    Redis-backed user notification service with buffering for ntfy.sh
-    Groups notifications by account and flushes periodically to prevent spam
+    Redis-based user notification service
+    Stores notifications in a global queue with automatic cleanup
     """
     
     def __init__(self):
         self.redis = None
         self._redis_url = f"redis://{config.redis.host}:{config.redis.port}/{config.redis.db}"
-        self.flush_task = None
+        self.cleanup_task = None
         self.running = False
         
         # Notification settings from config
-        self.server_url = config.user_notification.server_url
-        self.auth_token = config.user_notification.auth_token
-        self.buffer_seconds = config.user_notification.buffer_seconds
         self.enabled = config.user_notification.enabled
-        self.channel_prefix = config.user_notification.channel_prefix
-        
-        # Priority mapping
-        self.priority_map = {
-            'silent': 1,
-            'default': 3, 
-            'high': 4,
-            'urgent': 5
-        }
+        self.management_api_url = "http://management-service:8000"
     
     async def _get_redis(self):
         """Get or create Redis connection"""
@@ -60,14 +49,14 @@ class UserNotificationService:
         return self.redis
     
     async def start(self):
-        """Start the user notification service and background flush task"""
+        """Start the user notification service and background cleanup task"""
         if not self.enabled:
             app_logger.log_info("Notifications disabled, skipping start")
             return
             
-        app_logger.log_info(f"Starting notification service with {self.buffer_seconds}s buffer")
+        app_logger.log_info("Starting notification service")
         self.running = True
-        self.flush_task = asyncio.create_task(self._flush_loop())
+        self.cleanup_task = asyncio.create_task(self._cleanup_loop())
     
     async def stop(self):
         """Stop the user notification service"""
@@ -77,15 +66,12 @@ class UserNotificationService:
         app_logger.log_info("Stopping notification service")
         self.running = False
         
-        if self.flush_task and not self.flush_task.done():
-            self.flush_task.cancel()
+        if self.cleanup_task and not self.cleanup_task.done():
+            self.cleanup_task.cancel()
             try:
-                await self.flush_task
+                await self.cleanup_task
             except asyncio.CancelledError:
                 pass
-        
-        # Final flush before shutdown
-        await self._flush_notifications()
     
     async def notify_event_started(self, event: EventInfo):
         """Queue notification for event start"""
@@ -109,14 +95,14 @@ class UserNotificationService:
         await self._queue_notification_internal(event, 'event_retry')
     
     async def notify_event_connection_error(self, event: EventInfo, error_message: Optional[str] = None):
-        """Send immediate notification for connection error (not buffered)"""
+        """Queue notification for connection error"""
         extra_details = {'error_message': error_message} if error_message else {}
-        await self._send_immediate_notification(event, 'event_connection_error', extra_details)
+        await self._queue_notification_internal(event, 'event_connection_error', extra_details)
     
     async def notify_event_critical_error(self, event: EventInfo, error_message: Optional[str] = None):
-        """Send immediate notification for critical error (not buffered)"""
+        """Queue notification for critical error"""
         extra_details = {'error_message': error_message} if error_message else {}
-        await self._send_immediate_notification(event, 'event_critical_error', extra_details)
+        await self._queue_notification_internal(event, 'event_critical_error', extra_details)
     
     async def send_notification(self, event_info: EventInfo, event_type: str, extra_details: Optional[Dict[str, Any]] = None):
         """Route notification to appropriate method based on event type"""
@@ -146,7 +132,7 @@ class UserNotificationService:
     
     async def _queue_notification_internal(self, event: EventInfo, event_type: str, extra_details: Optional[Dict[str, Any]] = None):
         """
-        Internal method to queue a notification for later batch sending
+        Internal method to queue a notification in the global notification queue
         """
         if not self.enabled:
             return
@@ -170,29 +156,25 @@ class UserNotificationService:
             if extra_details:
                 details.update(extra_details)
             
-            # Create notification event
+            # Create notification
             timestamp = datetime.now()
-            notification = UserNotificationEvent(
-                event_type=event_type,
-                message=self._format_event_message(event_type, details, timestamp),
-                timestamp=timestamp,
-                details=details
-            )
+            notification_id = str(uuid.uuid4())
             
-            # Store in Redis buffer
-            buffer_key = f"notifications:{event.account_id}"
             notification_data = {
-                'event_type': notification.event_type,
-                'message': notification.message,
-                'timestamp': notification.timestamp.isoformat(),
-                'details': notification.details
+                'id': notification_id,
+                'account_id': event.account_id,
+                'strategy_name': strategy_name,
+                'event_type': event_type,
+                'message': self._format_event_message(event_type, details, timestamp),
+                'timestamp': timestamp.isoformat(),
+                'status': 'new',
+                'markdown_body': self._format_markdown_body(event_type, details, timestamp)
             }
             
+            # Store in Redis ZSET ordered by timestamp
             pipe = redis.pipeline()
-            pipe.lpush(buffer_key, json.dumps(notification_data))
-            pipe.sadd("pending_accounts", event.account_id)
-            # Set expiry on buffer to prevent orphaned data
-            pipe.expire(buffer_key, self.buffer_seconds * 2)
+            pipe.zadd('user_notifications', {json.dumps(notification_data): timestamp.timestamp()})
+            pipe.incr('user_notifications:unread_count')
             await pipe.execute()
             
             app_logger.log_debug(f"Queued {event_type} notification for account {event.account_id}")
@@ -200,231 +182,105 @@ class UserNotificationService:
         except Exception as e:
             app_logger.log_error(f"Failed to queue notification: {e}")
     
-    async def _send_immediate_notification(self, event: EventInfo, event_type: str, extra_details: Optional[Dict[str, Any]] = None):
-        """
-        Send immediate notification without buffering (for errors)
-        """
-        if not self.enabled:
-            return
-            
-        try:
-            # Extract strategy name from event payload
-            strategy_name = event.payload.get('strategy_name', 'unknown')
-            
-            # Build details from event information
-            details = {
-                'event_id': event.event_id,
-                'account_id': event.account_id,
-                'strategy_name': strategy_name,
-                'exec_command': event.exec_command,
-                'times_queued': event.times_queued
-            }
-            
-            # Add extra details if provided
-            if extra_details:
-                details.update(extra_details)
-            
-            # Create immediate notification
-            timestamp = datetime.now()
-            message = self._format_event_message(event_type, details, timestamp)
-            title = f"{event.account_id} Portfolio Rebalancing"
-            
-            # Determine priority and emoji tags
-            if 'error' in event_type:
-                priority = 'urgent'
-                emoji_tags = 'rotating_light'
-            else:
-                priority = 'default'
-                emoji_tags = 'warning'
-            
-            # Send immediately to ntfy.sh
-            await self._send_to_ntfy(event.account_id, title, message, priority, emoji_tags)
-            
-            app_logger.log_info(f"Sent immediate {event_type} notification for account {event.account_id}")
-            
-        except Exception as e:
-            app_logger.log_error(f"Failed to send immediate notification: {e}")
     
     def _format_event_message(self, event_type: str, details: Dict[str, Any], timestamp: Optional[datetime] = None) -> str:
-        """Format individual event message without markdown (mobile compatible)"""
-        event_id = details.get('event_id', 'unknown')
+        """Format concise event message for notification title"""
         strategy_name = details.get('strategy_name', 'unknown')
         time_str = (timestamp or datetime.now()).strftime('%H:%M:%S')
         
-        # Event type to message mapping without markdown (mobile compatible)
         event_formats = {
-            'event_started': f"Rebalance started for strategy {strategy_name} at {time_str} with event Id {event_id}",
-            'event_success_first': f"Rebalance completed for strategy {strategy_name} at {time_str} with event Id {event_id}",
-            'event_success_retry': f"Rebalance completed after retry for strategy {strategy_name} at {time_str} with event Id {event_id}",
-            'event_delayed': f"Rebalance delayed until {details.get('delayed_until', 'unknown')} for strategy {strategy_name} at {time_str} with event Id {event_id}",
-            'event_retry': f"Rebalance queued for retry for strategy {strategy_name} at {time_str} with event Id {event_id}",
-            'event_connection_error': f"Connection error for strategy {strategy_name} at {time_str} with event Id {event_id}{': ' + details.get('error_message', '') if details.get('error_message') else ''}",
-            'event_critical_error': f"Critical error for strategy {strategy_name} at {time_str} with event Id {event_id}{': ' + details.get('error_message', '') if details.get('error_message') else ''}"
+            'event_started': f"Rebalance started for {strategy_name} at {time_str}",
+            'event_success_first': f"Rebalance completed for {strategy_name} at {time_str}",
+            'event_success_retry': f"Rebalance completed after retry for {strategy_name} at {time_str}",
+            'event_delayed': f"Rebalance delayed until {details.get('delayed_until', 'unknown')} for {strategy_name} at {time_str}",
+            'event_retry': f"Rebalance queued for retry for {strategy_name} at {time_str}",
+            'event_connection_error': f"Connection error for {strategy_name} at {time_str}",
+            'event_critical_error': f"Critical error for {strategy_name} at {time_str}"
         }
         
-        return event_formats.get(event_type, f"Event {event_type} for strategy {strategy_name} at {time_str} with event Id {event_id}")
+        return event_formats.get(event_type, f"Event {event_type} for {strategy_name} at {time_str}")
     
-    async def _flush_loop(self):
-        """Background task to flush notifications periodically"""
+    def _format_markdown_body(self, event_type: str, details: Dict[str, Any], timestamp: Optional[datetime] = None) -> str:
+        """Format detailed markdown body for notification"""
+        event_id = details.get('event_id', 'unknown')
+        strategy_name = details.get('strategy_name', 'unknown')
+        account_id = details.get('account_id', 'unknown')
+        exec_command = details.get('exec_command', 'unknown')
+        times_queued = details.get('times_queued', 0)
+        time_str = (timestamp or datetime.now()).strftime('%Y-%m-%d %H:%M:%S')
+        
+        base_info = f"""**Event Details**
+- Event ID: `{event_id}`
+- Account: `{account_id}`
+- Strategy: `{strategy_name}`
+- Command: `{exec_command}`
+- Times Queued: `{times_queued}`
+- Timestamp: `{time_str}`"""
+        
+        if event_type in ['event_connection_error', 'event_critical_error'] and details.get('error_message'):
+            base_info += f"\n\n**Error Message**\n```\n{details['error_message']}\n```"
+        
+        if event_type == 'event_delayed' and details.get('delayed_until'):
+            base_info += f"\n\n**Delayed Until**: {details['delayed_until']}"
+        
+        return base_info
+    
+    async def _cleanup_loop(self):
+        """Background task to cleanup read notifications older than 7 days"""
         while self.running:
             try:
-                await asyncio.sleep(self.buffer_seconds)
+                # Run cleanup every 24 hours
+                await asyncio.sleep(86400)
                 if self.running:
-                    await self._flush_notifications()
+                    await self._cleanup_old_notifications()
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                app_logger.log_error(f"Error in notification flush loop: {e}")
-                await asyncio.sleep(10)
+                app_logger.log_error(f"Error in notification cleanup loop: {e}")
+                await asyncio.sleep(3600)  # Retry in 1 hour on error
     
-    async def _flush_notifications(self):
-        """Flush all buffered notifications by account"""
-        if not self.enabled:
-            return
-            
+    async def _cleanup_old_notifications(self):
+        """Remove read notifications older than 7 days"""
         try:
             redis = await self._get_redis()
             
-            # Get all accounts with pending notifications
-            pending_accounts = await redis.smembers("pending_accounts")
-            if not pending_accounts:
-                app_logger.log_debug("No pending notifications to flush")
-                return
+            # Calculate cutoff timestamp (7 days ago)
+            cutoff_time = datetime.now() - timedelta(days=7)
+            cutoff_timestamp = cutoff_time.timestamp()
             
-            app_logger.log_debug(f"Flushing notifications for {len(pending_accounts)} accounts")
+            # Get notifications older than cutoff
+            old_notifications = await redis.zrangebyscore('user_notifications', 0, cutoff_timestamp)
             
-            # Process each account
-            for account_id in pending_accounts:
-                await self._flush_account_notifications(account_id)
-            
-            # Clear pending accounts set
-            await redis.delete("pending_accounts")
-            
-        except Exception as e:
-            app_logger.log_error(f"Failed to flush notifications: {e}")
-    
-    async def _flush_account_notifications(self, account_id: str):
-        """Flush all notifications for a specific account"""
-        try:
-            redis = await self._get_redis()
-            buffer_key = f"notifications:{account_id}"
-            
-            # Get all notifications for this account
-            notifications_data = await redis.lrange(buffer_key, 0, -1)
-            if not notifications_data:
-                return
-            
-            # Parse notifications
-            notifications = []
-            for notification_json in reversed(notifications_data):  # Reverse to get chronological order
+            removed_count = 0
+            for notification_json in old_notifications:
                 try:
                     notification_data = json.loads(notification_json)
-                    notifications.append(UserNotificationEvent(
-                        event_type=notification_data['event_type'],
-                        message=notification_data['message'],
-                        timestamp=datetime.fromisoformat(notification_data['timestamp']),
-                        details=notification_data['details']
-                    ))
-                except (json.JSONDecodeError, KeyError) as e:
-                    app_logger.log_warning(f"Failed to parse notification data: {e}")
-                    continue
+                    if notification_data.get('status') == 'read':
+                        # Remove read notification
+                        await redis.zrem('user_notifications', notification_json)
+                        removed_count += 1
+                except (json.JSONDecodeError, KeyError):
+                    # Remove corrupted data
+                    await redis.zrem('user_notifications', notification_json)
+                    removed_count += 1
             
-            if notifications:
-                # Group and send notification
-                await self._send_grouped_notification(account_id, notifications)
-                
-                # Clear buffer for this account
-                await redis.delete(buffer_key)
-                
-        except Exception as e:
-            app_logger.log_error(f"Failed to flush notifications for account {account_id}: {e}")
-    
-    async def _send_grouped_notification(self, account_id: str, notifications: List[UserNotificationEvent]):
-        """Send grouped notification for an account"""
-        try:
-            # Title with account ID
-            title = f"{account_id} Portfolio Rebalancing"
-            
-            # Build message content with icons and Unicode line separators (mobile compatible)
-            message_lines = []
-            for i, notification in enumerate(notifications):
-                if i > 0:
-                    message_lines.append("━━━━━━━━━━")
-                icon = self._get_event_icon(notification.event_type)
-                message_lines.append(f"{icon} {notification.message}")
-            
-            message = "\n".join(message_lines)
-            
-            # Determine priority and emoji tags based on notification types
-            priority, emoji_tags = self._determine_priority_and_tags(notifications)
-            
-            # Send to ntfy.sh
-            await self._send_to_ntfy(account_id, title, message, priority, emoji_tags)
-            
-            app_logger.log_info(f"Sent grouped notification to account {account_id} with {len(notifications)} events")
+            if removed_count > 0:
+                app_logger.log_info(f"Cleaned up {removed_count} old read notifications")
             
         except Exception as e:
-            app_logger.log_error(f"Failed to send grouped notification for account {account_id}: {e}")
+            app_logger.log_error(f"Failed to cleanup old notifications: {e}")
     
-    def _determine_priority_and_tags(self, notifications: List[UserNotificationEvent]) -> tuple[str, str]:
-        """Determine priority and emoji tags for grouped notifications"""
-        has_error = any('error' in notification.event_type for notification in notifications)
-        has_warning = any(notification.event_type in ['event_delayed', 'event_retry', 'event_success_retry'] 
-                         for notification in notifications)
-        has_success = any(notification.event_type in ['event_success_first', 'event_success_retry'] 
-                         for notification in notifications)
-        
-        # Use 'file_folder' emoji for grouped notifications to indicate multiple items
-        if has_error:
-            return 'urgent', 'file_folder'
-        elif has_warning:
-            return 'default', 'file_folder'
-        elif has_success:
-            return 'default', 'file_folder'
-        else:
-            return 'default', 'file_folder'
-    
-    def _get_event_icon(self, event_type: str) -> str:
-        """Get appropriate icon for individual event types"""
-        event_icons = {
-            'event_started': '▶',
-            'event_success_first': '✅',
-            'event_success_retry': '🔄',
-            'event_delayed': '⏰',
-            'event_retry': '🔄',
-            'event_connection_error': '🌐',
-            'event_critical_error': '🚨'
-        }
-        return event_icons.get(event_type, '📈')
-    
-    async def _send_to_ntfy(self, account_id: str, title: str, message: str, priority: str = 'default', tags: str = 'chart_with_upwards_trend'):
-        """Send notification to ntfy.sh"""
+    async def _broadcast_count_update(self, unread_count: int):
+        """Broadcast unread count update to WebSocket clients via management API"""
         try:
-            channel = f"{self.channel_prefix}-{account_id}"
-            url = f"{self.server_url}/{channel}"
-            
-            headers = {
-                'Title': title,
-                'Priority': str(self.priority_map.get(priority, 3)),
-                'Tags': tags,
-                'Content-Type': 'text/plain'
-            }
-            
-            # Add auth token if configured
-            if self.auth_token:
-                headers['Authorization'] = f"Bearer {self.auth_token}"
-            
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, data=message, headers=headers, timeout=10) as response:
-                    if response.status == 200:
-                        app_logger.log_info(f"Successfully sent notification to {channel}")
-                    else:
-                        app_logger.log_warning(f"ntfy.sh returned status {response.status} for {channel}: {await response.text()}")
-                        
-        except asyncio.TimeoutError:
-            app_logger.log_warning(f"Timeout sending notification to {account_id}")
+                await session.post(
+                    f"{self.management_api_url}/api/internal/broadcast-notification-count",
+                    json={"unread_count": unread_count},
+                    timeout=aiohttp.ClientTimeout(total=5)
+                )
         except Exception as e:
-            app_logger.log_error(f"Failed to send notification to ntfy.sh: {e}")
+            app_logger.log_debug(f"Failed to broadcast count update: {e}")
     
     async def is_connected(self) -> bool:
         """Check if service is connected and operational"""

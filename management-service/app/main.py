@@ -12,6 +12,7 @@ from app.container import container
 from app.models.queue_models import QueueStatus, QueueEvent, AddEventRequest, AddEventResponse, RemoveEventResponse, ClearQueuesResponse
 from app.models.health_models import DetailedHealthStatus
 from app.models.dashboard_models import DashboardOverview, AccountData, AccountSummary, Position
+from app.models.notification_models import NotificationsResponse, UnreadCountResponse, MarkReadResponse, MarkAllReadResponse, DeleteNotificationResponse
 from app.config.settings import settings
 
 # Configure logging
@@ -196,6 +197,43 @@ async def restart_affected_services(config_type: str = Query(..., regex="^(env|a
 async def get_config_backups():
     """Get list of configuration file backups"""
     return await container.config_handlers.get_config_backups()
+
+# Notification endpoints
+@app.get("/api/notifications", response_model=NotificationsResponse)
+async def get_notifications(
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    limit: int = Query(50, ge=1, le=100, description="Number of notifications to retrieve")
+):
+    """Get paginated notifications"""
+    return await container.notification_handlers.get_notifications(offset=offset, limit=limit)
+
+@app.get("/api/notifications/unread-count", response_model=UnreadCountResponse)
+async def get_unread_count():
+    """Get count of unread notifications"""
+    return await container.notification_handlers.get_unread_count()
+
+@app.post("/api/notifications/{notification_id}/mark-read", response_model=MarkReadResponse)
+async def mark_notification_read(notification_id: str):
+    """Mark a specific notification as read"""
+    return await container.notification_handlers.mark_notification_read(notification_id)
+
+@app.post("/api/notifications/mark-all-read", response_model=MarkAllReadResponse)
+async def mark_all_read():
+    """Mark all notifications as read"""
+    return await container.notification_handlers.mark_all_read()
+
+@app.delete("/api/notifications/{notification_id}", response_model=DeleteNotificationResponse)
+async def delete_notification(notification_id: str):
+    """Delete a specific notification"""
+    return await container.notification_handlers.delete_notification(notification_id)
+
+# Internal API endpoint for broadcasting notification count updates
+@app.post("/api/internal/broadcast-notification-count")
+async def broadcast_notification_count(data: Dict[str, Any]):
+    """Internal endpoint for broadcasting notification count updates via WebSocket"""
+    unread_count = data.get("unread_count", 0)
+    await container.websocket_handlers.manager.send_notification_count_update(unread_count)
+    return {"success": True, "broadcasted_count": unread_count}
 
 # WebSocket endpoint for real-time updates
 @app.websocket("/api/dashboard/stream")
