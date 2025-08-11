@@ -140,6 +140,12 @@ async def restart_container(container_name: str):
     """Restart a container"""
     return await container.docker_handlers.restart_container(container_name)
 
+# Strategies endpoints
+@app.get("/api/strategies")
+async def get_strategies():
+    """Get available strategies from Zehnlabs Workers API"""
+    return await container.strategies_handlers.get_strategies()
+
 # Configuration management endpoints
 @app.get("/api/config/env")
 async def get_env_config():
