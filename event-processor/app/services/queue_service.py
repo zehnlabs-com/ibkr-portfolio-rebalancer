@@ -59,8 +59,8 @@ class QueueService:
             for account in accounts_data:
                 if account.get('account_id') == account_id:
                     return {
-                        'strategy_name': account.get('notification', {}).get('channel', ''),
-                        'cash_reserve_percent': account.get('rebalancing', {}).get('cash_reserve_percent', 0.0),
+                        'strategy_name': account.get('strategy_name', ''),
+                        'cash_reserve_percent': account.get('cash_reserve_percent', 0.0),
                         'replacement_set': account.get('replacement_set')
                     }
             

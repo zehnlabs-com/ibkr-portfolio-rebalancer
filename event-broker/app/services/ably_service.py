@@ -18,12 +18,11 @@ class AccountConfig:
     
     def __init__(self, data: Dict[str, Any]):
         self.account_id = data.get('account_id')
-        self.strategy_name = data.get('notification', {}).get('channel')
+        self.strategy_name = data.get('strategy_name')
         self.type = data.get('type')
+        self.enabled = data.get('enabled', True)
         self.replacement_set = data.get('replacement_set')
-        # Add rebalancing configuration
-        rebalancing_data = data.get('rebalancing', {})
-        self.cash_reserve_percent = rebalancing_data.get('cash_reserve_percent', rebalancing_data.get('equity_reserve_percentage', 0.0))
+        self.cash_reserve_percent = data.get('cash_reserve_percent', 0.0)
 
 
 class AblyEventSubscriber:
@@ -131,8 +130,11 @@ class AblyEventSubscriber:
             raise
     
     async def _subscribe_to_channels(self):
-        """Subscribe to Ably channels for all configured accounts"""
-        for account in self.accounts:
+        """Subscribe to Ably channels for enabled accounts only"""
+        enabled_accounts = [account for account in self.accounts if account.enabled]
+        logger.info(f"Found {len(enabled_accounts)} enabled accounts out of {len(self.accounts)} total accounts")
+        
+        for account in enabled_accounts:
             try:
                 channel_name = account.strategy_name
                 logger.info(f"Subscribing to channel: {channel_name} for account: {account.account_id}")

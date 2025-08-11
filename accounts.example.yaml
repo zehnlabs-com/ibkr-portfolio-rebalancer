@@ -12,17 +12,17 @@ accounts:
     # Account type: "paper" for paper trading, "live" for live trading
     # Only accounts matching TRADING_MODE environment variable will be processed
     type: paper
+    # Enable/disable account: if set to false, any allocation triggers will be ignored
+    enabled: true
     # Optional: specify replacement_set for IRA accounts that cannot trade certain ETFs
     # replacement_set: ira
-    notification:
-      # Name of the strategy that this account will trade.
-      # All lowercase letters, spaces replaced with hyphens.
-      # You must have a valid subscription for this strategy.    
-      channel: "etf-blend-200-35"
-    rebalancing:
-      # Percentage of equity to reserve as a buffer for quickly changing prices.
-      # Valid values are 0% to 100%, default 0%
-      cash_reserve_percent: 1.0
+    # Name of the strategy that this account will trade.
+    # All lowercase letters, spaces replaced with hyphens.
+    # You must have a valid subscription for this strategy.    
+    strategy_name: "etf-blend-200-35"
+    # Percentage of equity to reserve as a buffer for quickly changing prices.
+    # Valid values are 0% to 100%, default 0%
+    cash_reserve_percent: 1.0
 
   # Account 2  
   ############
@@ -31,17 +31,17 @@ accounts:
     # Account type: "paper" for paper trading, "live" for live trading
     # Only accounts matching TRADING_MODE environment variable will be processed
     type: paper
+    # Enable/disable account: if set to false, any allocation triggers will be ignored
+    enabled: false
     # Optional: specify replacement_set for IRA accounts that cannot trade certain ETFs
     # replacement_set: ira
-    notification:
-      # Name of the strategy that this account will trade.
-      # All lowercase letters, spaces replaced with hyphens.
-      # You must have a valid subscription for this strategy.
-      channel: "etf-blend-301-20" # Strategy name, all lowercase, spaces replaced with hyphens
-    rebalancing:
-      # Percentage of equity to reserve as a buffer for quickly changing prices.
-      # Valid values are 0% to 100%, default 0%
-      cash_reserve_percent: 1.0
+    # Name of the strategy that this account will trade.
+    # All lowercase letters, spaces replaced with hyphens.
+    # You must have a valid subscription for this strategy.
+    strategy_name: "etf-blend-301-20" # Strategy name, all lowercase, spaces replaced with hyphens
+    # Percentage of equity to reserve as a buffer for quickly changing prices.
+    # Valid values are 0% to 100%, default 0%
+    cash_reserve_percent: 1.0
 
 # ETF Replacement Sets for IRA Account Restrictions
 # Configure replacement rules for accounts that cannot trade certain ETFs

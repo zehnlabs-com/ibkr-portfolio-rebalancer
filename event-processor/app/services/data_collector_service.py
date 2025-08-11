@@ -134,7 +134,7 @@ class DataCollectorService:
                     'unrealized_pnl_percent': unrealized_pnl_percent
                 })
                 
-            # Get strategy name from notification channel in config and format it
+            # Get strategy name from config and format it
             strategy_name = None
             try:
                 accounts_path = os.path.join("/app", "accounts.yaml")
@@ -144,7 +144,7 @@ class DataCollectorService:
                     
                     for acc in yaml_data.get('accounts', []):
                         if acc.get('account_id') == account_id:
-                            raw_strategy = acc.get('notification', {}).get('channel')
+                            raw_strategy = acc.get('strategy_name')
                             if raw_strategy:
                                 # Format strategy name: etf-blend-102-25 -> ETF Blend 102-25
                                 parts = raw_strategy.split('-')
