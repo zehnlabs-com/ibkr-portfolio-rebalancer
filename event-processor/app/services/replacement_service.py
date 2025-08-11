@@ -131,11 +131,26 @@ class ReplacementService:
                     allocation['allocation'] *= scale_factor
                     app_logger.log_debug(f"Scaled down {allocation['symbol']}: {old_allocation:.3f} -> {allocation['allocation']:.3f}", event)
         
+        # Step 3: Consolidate duplicate symbols that resulted from replacements
+        symbol_consolidation = {}
+        for allocation in modified_allocations:
+            symbol = allocation['symbol']
+            if symbol in symbol_consolidation:
+                symbol_consolidation[symbol] += allocation['allocation']
+            else:
+                symbol_consolidation[symbol] = allocation['allocation']
+        
+        # Convert back to list format
+        consolidated_allocations = [
+            {'symbol': symbol, 'allocation': total_allocation}
+            for symbol, total_allocation in symbol_consolidation.items()
+        ]
+        
         # Verify final total
-        final_total = sum(a['allocation'] for a in modified_allocations)
-        app_logger.log_debug(f"Final allocation total: {final_total:.3f} (should be ~1.0)", event)
+        final_total = sum(a['allocation'] for a in consolidated_allocations)
+        app_logger.log_debug(f"After consolidation: {len(consolidated_allocations)} unique symbols, total: {final_total:.3f} (should be ~1.0)", event)
         
         if abs(final_total - 1.0) > 0.01:
             app_logger.log_warning(f"Final allocation total is {final_total:.3f}, not 1.0 - may indicate replacement scaling issues", event)
         
-        return modified_allocations
+        return consolidated_allocations
