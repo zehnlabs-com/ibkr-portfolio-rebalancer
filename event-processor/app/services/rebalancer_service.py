@@ -346,7 +346,7 @@ class RebalancerService:
         if trade.isDone():
             # Check status immediately for already completed orders
             if trade.orderStatus.status != 'Filled':
-                raise Exception(f"Order {trade.order.orderId} failed with status: {trade.orderStatus.status}")
+                raise Exception(self.ibkr_client.get_order_failure_message(trade))
             return
         
         # Poll for completion instead of relying on events
@@ -357,7 +357,7 @@ class RebalancerService:
             # Check if order is done
             if trade.isDone():
                 if trade.orderStatus.status != 'Filled':
-                    raise Exception(f"Order {trade.order.orderId} failed with status: {trade.orderStatus.status}")
+                    raise Exception(self.ibkr_client.get_order_failure_message(trade))
                 return
             
             # Check timeout

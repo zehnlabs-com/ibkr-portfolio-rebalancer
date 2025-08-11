@@ -189,6 +189,9 @@ class EventProcessor:
                     "insufficient buying power",
                     "insufficient funds",
                     "trading permission",
+                    "no trading permission",
+                    "customer ineligible",
+                    "not permitted for retirement",
                     "account restriction",
                     "security trading restricted",
                     "order rejected"

@@ -391,6 +391,23 @@ class IBKRClient:
         
         return trade
     
+    def get_order_failure_message(self, trade) -> str:
+        """
+        Extract detailed error message from a failed trade.
+        Returns formatted error message with IBKR error code if available,
+        otherwise returns generic status-based message.
+        """
+        order_id = trade.order.orderId
+        
+        # Check trade log for detailed error information
+        if hasattr(trade, 'log') and trade.log:
+            for log_entry in trade.log:
+                if hasattr(log_entry, 'errorCode') and log_entry.errorCode:
+                    return f"Order {order_id} failed - Error {log_entry.errorCode}: {log_entry.message}"
+        
+        # Fallback to generic status message
+        return f"Order {order_id} failed with status: {trade.orderStatus.status}"
+    
     async def cancel_all_orders(self, account_id: str, event=None) -> List[Dict]:
         """Cancel all pending orders for the given account.
         
