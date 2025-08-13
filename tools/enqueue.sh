@@ -23,18 +23,29 @@ send_curl_request() {
     local account_id="$1"
     local strategy_name="$2"
     local cash_reserve_percent="$3"
-    local command="$4"
+    local replacement_set="$4"
+    local command="$5"
     
-    echo "Sending $command request for account: $account_id (strategy: $strategy_name, cash_reserve: $cash_reserve_percent%)"
+    echo "Sending $command request for account: $account_id (strategy: $strategy_name, cash_reserve: $cash_reserve_percent%, replacement_set: $replacement_set)"
+    
+    # Build JSON payload conditionally including replacement_set
+    local json_payload='{
+        "account_id": "'"$account_id"'",
+        "exec_command": "'"$command"'",
+        "strategy_name": "'"$strategy_name"'",
+        "cash_reserve_percent": '"$cash_reserve_percent"''
+    
+    if [[ -n "$replacement_set" && "$replacement_set" != "null" ]]; then
+        json_payload+=',
+        "replacement_set": "'"$replacement_set"'"'
+    fi
+    
+    json_payload+='
+    }'
     
     curl -X POST "$API_URL" \
          -H "Content-Type: application/json" \
-         -d '{
-               "account_id": "'"$account_id"'",
-               "exec_command": "'"$command"'",
-               "strategy_name": "'"$strategy_name"'",
-               "cash_reserve_percent": '"$cash_reserve_percent"'
-             }'
+         -d "$json_payload"
     echo
 }
 
@@ -46,31 +57,32 @@ parse_accounts_yaml() {
         exit 1
     fi
     
-    # Parse YAML using awk to extract account_id, channel, and cash_reserve_percent
+    # Parse YAML using awk to extract account_id, strategy_name, cash_reserve_percent, and replacement_set
     awk '
-    BEGIN { account_id = ""; channel = ""; cash_reserve_percent = "" }
+    BEGIN { account_id = ""; strategy_name = ""; cash_reserve_percent = ""; replacement_set = "" }
     
     /^[[:space:]]*-[[:space:]]*account_id:/ {
         # Output previous account if complete
-        if (account_id != "" && channel != "" && cash_reserve_percent != "") {
+        if (account_id != "" && strategy_name != "" && cash_reserve_percent != "") {
             if (target == "" || account_id == target) {
-                print account_id "|" channel "|" cash_reserve_percent
+                print account_id "|" strategy_name "|" cash_reserve_percent "|" replacement_set
             }
         }
         # Start new account
         gsub(/^[[:space:]]*-[[:space:]]*account_id:[[:space:]]*"?/, "")
         gsub(/"?[[:space:]]*$/, "")
         account_id = $0
-        channel = ""
+        strategy_name = ""
         cash_reserve_percent = ""
+        replacement_set = ""
     }
     
-    /^[[:space:]]+channel:/ {
-        gsub(/^[[:space:]]+channel:[[:space:]]*"?/, "")
+    /^[[:space:]]+strategy_name:/ {
+        gsub(/^[[:space:]]+strategy_name:[[:space:]]*"?/, "")
         gsub(/"?[[:space:]]*$/, "")
         gsub(/#.*$/, "")  # Remove comments
         gsub(/[[:space:]]+$/, "")  # Remove trailing spaces
-        channel = $0
+        strategy_name = $0
     }
     
     /^[[:space:]]+cash_reserve_percent:/ {
@@ -80,11 +92,19 @@ parse_accounts_yaml() {
         cash_reserve_percent = $0
     }
     
+    /^[[:space:]]+replacement_set:/ {
+        gsub(/^[[:space:]]+replacement_set:[[:space:]]*"?/, "")
+        gsub(/"?[[:space:]]*$/, "")
+        gsub(/#.*$/, "")  # Remove comments
+        gsub(/[[:space:]]+$/, "")  # Remove trailing spaces
+        replacement_set = $0
+    }
+    
     END {
         # Output the last account
-        if (account_id != "" && channel != "" && cash_reserve_percent != "") {
+        if (account_id != "" && strategy_name != "" && cash_reserve_percent != "") {
             if (target == "" || account_id == target) {
-                print account_id "|" channel "|" cash_reserve_percent
+                print account_id "|" strategy_name "|" cash_reserve_percent "|" replacement_set
             }
         }
     }
@@ -111,9 +131,9 @@ main() {
     case "$1" in
         -all)
             echo "Processing all accounts from $ACCOUNTS_FILE with command: $command"
-            while IFS='|' read -r account_id strategy_name cash_reserve_percent; do
+            while IFS='|' read -r account_id strategy_name cash_reserve_percent replacement_set; do
                 if [[ -n "$account_id" && -n "$strategy_name" && -n "$cash_reserve_percent" ]]; then
-                    send_curl_request "$account_id" "$strategy_name" "$cash_reserve_percent" "$command"
+                    send_curl_request "$account_id" "$strategy_name" "$cash_reserve_percent" "$replacement_set" "$command"
                 fi
             done < <(parse_accounts_yaml "")
             ;;
@@ -127,9 +147,9 @@ main() {
             echo "Processing account: $account_id with command: $command"
             
             account_found=false
-            while IFS='|' read -r acc_id strategy_name cash_reserve_percent; do
+            while IFS='|' read -r acc_id strategy_name cash_reserve_percent replacement_set; do
                 if [[ "$acc_id" == "$account_id" ]]; then
-                    send_curl_request "$acc_id" "$strategy_name" "$cash_reserve_percent" "$command"
+                    send_curl_request "$acc_id" "$strategy_name" "$cash_reserve_percent" "$replacement_set" "$command"
                     account_found=true
                     break
                 fi

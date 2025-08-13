@@ -118,10 +118,21 @@ async def get_strategies():
 @app.get("/api/config/vnc")
 async def get_vnc_config():
     """Get VNC configuration for NoVNC client"""
-    import os
+    # Get env config from the mounted .env file
+    env_data = await container.config_handlers.get_env_config()
+    
+    # Extract VNC configuration with defaults
+    vnc_host = "ws://ibkr-portfolio-rebalancer-9897:5900"
+    vnc_password = ""
+    
+    if env_data.get("file_exists") and env_data.get("config"):
+        config = env_data["config"]
+        vnc_host = config.get("VNC_HOST", vnc_host)
+        vnc_password = config.get("VNC_PASSWORD", vnc_password)
+    
     return {
-        "host": "ws://ibkr-portfolio-rebalancer-9897:5900",
-        "password": os.getenv("VNC_PASSWORD", "")
+        "host": vnc_host,
+        "password": vnc_password
     }
 
 # Configuration management endpoints

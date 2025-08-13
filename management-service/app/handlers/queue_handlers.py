@@ -127,9 +127,10 @@ class QueueHandlers:
                     detail=f"Account {account_id} not found in configuration"
                 )
             
-            # Extract strategy name and cash reserve from account config
+            # Extract strategy name, cash reserve, and replacement set from account config
             strategy_name = account_config.get('strategy_name', '')
             cash_reserve_percent = account_config.get('cash_reserve_percent', 1.0)
+            replacement_set = account_config.get('replacement_set')
             
             if not strategy_name:
                 raise HTTPException(
@@ -142,7 +143,8 @@ class QueueHandlers:
                 account_id=account_id,
                 exec_command="rebalance",
                 strategy_name=strategy_name,
-                cash_reserve_percent=cash_reserve_percent
+                cash_reserve_percent=cash_reserve_percent,
+                replacement_set=replacement_set
             )
             
             event_id = await self.queue_service.add_event(

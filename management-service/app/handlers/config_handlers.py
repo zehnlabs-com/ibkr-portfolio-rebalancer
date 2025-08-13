@@ -50,11 +50,7 @@ class ConfigHandlers:
                     line = line.strip()
                     if line and not line.startswith('#') and '=' in line:
                         key, value = line.split('=', 1)
-                        # Mask sensitive values
-                        if any(sensitive in key.upper() for sensitive in ['PASSWORD', 'TOKEN', 'SECRET', 'KEY']):
-                            env_config[key] = '*' * len(value) if value else ''
-                        else:
-                            env_config[key] = value
+                        env_config[key] = value
             
             return {
                 "file_exists": True,

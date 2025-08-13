@@ -492,6 +492,12 @@ class IBKRClient:
         """
         order_id = trade.order.orderId
         
+        # DEBUG: Log all trade.log contents for investigation
+        app_logger.log_debug(f"DEBUG Order {order_id}: trade.log contains {len(trade.log) if hasattr(trade, 'log') and trade.log else 0} entries")
+        if hasattr(trade, 'log') and trade.log:
+            for i, log_entry in enumerate(trade.log):
+                app_logger.log_debug(f"DEBUG Order {order_id} log[{i}]: time={getattr(log_entry, 'time', 'N/A')}, status={getattr(log_entry, 'status', 'N/A')}, message={getattr(log_entry, 'message', 'N/A')}, errorCode={getattr(log_entry, 'errorCode', 'N/A')}")
+        
         # Check trade log for detailed error information
         if hasattr(trade, 'log') and trade.log:
             for log_entry in trade.log:

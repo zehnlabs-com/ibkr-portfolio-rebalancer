@@ -11,25 +11,30 @@ from app.logger import setup_logger
 
 class SafeJSONEncoder(json.JSONEncoder):
     """JSON encoder that handles NaN and infinity values"""
-    def encode(self, obj):
+    
+    def _sanitize_value(self, obj):
+        """Recursively sanitize NaN and infinity values in nested structures"""
         if isinstance(obj, float):
-            if math.isnan(obj):
-                return "0"
-            elif math.isinf(obj):
-                return "0"
-        return super().encode(obj)
+            if math.isnan(obj) or math.isinf(obj):
+                return 0
+            return obj
+        elif isinstance(obj, dict):
+            return {k: self._sanitize_value(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._sanitize_value(v) for v in obj]
+        elif isinstance(obj, tuple):
+            return tuple(self._sanitize_value(v) for v in obj)
+        return obj
+    
+    def encode(self, obj):
+        """Encode after sanitizing the object"""
+        sanitized = self._sanitize_value(obj)
+        return super().encode(sanitized)
     
     def iterencode(self, obj, _one_shot=False):
         """Encode the given object and return an iterator of string chunks."""
-        if isinstance(obj, dict):
-            obj = {k: (0 if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v) 
-                   for k, v in obj.items()}
-        elif isinstance(obj, list):
-            obj = [0 if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v 
-                   for v in obj]
-        elif isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
-            obj = 0
-        return super().iterencode(obj, _one_shot)
+        sanitized = self._sanitize_value(obj)
+        return super().iterencode(sanitized, _one_shot)
 
 def safe_json_dumps(obj):
     """JSON dumps with NaN/infinity handling"""
