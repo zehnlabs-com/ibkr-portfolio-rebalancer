@@ -93,16 +93,6 @@ async def get_account_details(account_id: str):
     """Get detailed data for a specific account"""
     return await container.dashboard_handlers.get_account_details(account_id)
 
-# Position and P&L endpoints - REMOVED - Data included in account details
-
-# Docker management endpoints
-@app.get("/api/containers")
-async def get_containers():
-    """Get list of all containers with status and stats"""
-    return await container.docker_handlers.get_containers()
-
-# Container detail endpoints - REMOVED - Use list data and WebSocket for logs
-
 @app.post("/api/containers/{container_name}/start")
 async def start_container(container_name: str):
     """Start a container"""
@@ -174,11 +164,6 @@ async def restart_affected_services(config_type: str = Query(..., regex="^(env|a
 async def get_config_backups():
     """Get list of configuration file backups"""
     return await container.config_handlers.get_config_backups()
-
-# Notification endpoints
-# Notification endpoints - REMOVED - All operations via WebSocket commands
-
-# Internal broadcast endpoint - REMOVED - Direct WebSocket broadcasting
 
 # WebSocket endpoint for real-time updates
 @app.websocket("/api/dashboard/stream")
