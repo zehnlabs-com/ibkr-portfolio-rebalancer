@@ -36,6 +36,10 @@ class IBKRClient:
                 timeout=10  # Use same timeout as old working code
             )
             app_logger.log_debug(f"Successfully connected to IB Gateway at {config.ibkr.host}:{config.ibkr.port}")
+            
+            # Set market data type for proper price data (1=real-time, 3=delayed, 4=frozen)
+            self.ib.reqMarketDataType(3)  # Use delayed data (should work without special permissions)
+            
             return True
         except TimeoutError as e:
             app_logger.log_error(f"Connection timeout to IB Gateway at {config.ibkr.host}:{config.ibkr.port}: {e}")
@@ -53,8 +57,11 @@ class IBKRClient:
             raise Exception("Unable to establish IBKR connection")
         
         try:
-            # Use accountSummaryAsync like simple algorithm, but filter by account
-            account_summary = await self.ib.accountSummaryAsync()
+            # Use accountSummaryAsync with timeout to prevent hanging
+            account_summary = await asyncio.wait_for(
+                self.ib.accountSummaryAsync(),
+                timeout=30.0
+            )
             for av in account_summary:
                 if av.tag == tag and av.currency == "USD" and av.account == account_id:
                     return float(av.value)
@@ -158,39 +165,125 @@ class IBKRClient:
             raise
     
     async def get_portfolio_items(self, account_id: str, event=None) -> List[Dict]:
-        """Get portfolio items using reqAccountUpdatesAsync"""
+        """Get portfolio items using existing position and price fetching methods"""
         if not await self.ensure_connected():
             raise Exception("Unable to establish IBKR connection")
         
         try:
-            app_logger.log_debug(f"Getting portfolio items for account {account_id}", event)
+            # Get basic position data
+            positions = await asyncio.wait_for(
+                self.ib.reqPositionsAsync(),
+                timeout=30.0
+            )
             
-            # Use the async version to avoid event loop conflicts
-            await self.ib.reqAccountUpdatesAsync(account=account_id)
+            # Filter positions for this account
+            account_positions = [p for p in positions if p.account == account_id and p.position != 0]
             
-            # Now get portfolio items for this specific account
-            portfolio_items = self.ib.portfolio(account=account_id)
+            if not account_positions:
+                return []
+            
+            # Extract symbols and get current market prices using existing method
+            symbols = [pos.contract.symbol for pos in account_positions]
+            
+            try:
+                prices = await self.get_multiple_market_prices(symbols, event)
+            except Exception as e:
+                app_logger.log_warning(f"Could not get market prices: {e}", event)
+                prices = {}
             
             result = []
-            for item in portfolio_items:
-                if item.position != 0:  # Only include non-zero positions
-                    result.append({
-                        'symbol': item.contract.symbol,
-                        'position': item.position,
-                        'market_value': item.marketValue,
-                        'market_price': item.marketPrice,
-                        'avg_cost': item.averageCost,
-                        'unrealized_pnl': item.unrealizedPNL,
-                        'realized_pnl': item.realizedPNL
-                    })
+            for position in account_positions:
+                symbol = position.contract.symbol
+                current_price = prices.get(symbol, 0.0)
+                
+                # Calculate market value and P&L
+                market_value = abs(position.position) * current_price
+                cost_basis = abs(position.position) * position.avgCost
+                unrealized_pnl = market_value - cost_basis
+                
+                result.append({
+                    'symbol': symbol,
+                    'position': position.position,
+                    'market_value': market_value,
+                    'market_price': current_price, 
+                    'avg_cost': position.avgCost,
+                    'unrealized_pnl': unrealized_pnl,
+                    'realized_pnl': 0.0
+                })
             
-            app_logger.log_debug(f"Found {len(result)} portfolio items for account {account_id}", event)
             return result
             
         except Exception as e:
-            app_logger.log_error(f"Failed to get portfolio items: {e}", event)
+            app_logger.log_error(f"Failed to get portfolio items for {account_id}: {str(e)} - {type(e).__name__}", event)
+            import traceback
+            app_logger.log_error(f"Traceback: {traceback.format_exc()}", event)
             raise
     
+    async def _portfolio_snapshot(self, accounts, timeout=15.0):
+        """Get portfolio snapshot using simple subscription approach"""
+        try:
+            # Use simple approach: subscribe to account updates and wait
+            for account in accounts:
+                await self.ib.reqAccountUpdatesMultiAsync(account=account, modelCode='')
+            
+            # Wait for data to populate
+            await asyncio.sleep(3)
+            
+            # Collect snapshot data
+            result = {}
+            for account in accounts:
+                items = self.ib.portfolio(account)
+                
+                formatted_items = []
+                for item in items:
+                    if item.position != 0:
+                        formatted_items.append({
+                            'symbol': item.contract.localSymbol or item.contract.symbol,
+                            'position': item.position,
+                            'avgCost': item.avgCost,
+                            'marketPrice': item.marketPrice,
+                            'marketValue': item.marketValue,
+                            'unrealizedPNL': item.unrealizedPNL,
+                            'realizedPNL': getattr(item, 'realizedPNL', 0.0),
+                        })
+                
+                result[account] = formatted_items
+            
+            return result
+            
+        except Exception as e:
+            raise Exception(f"Portfolio snapshot failed: {e}")
+
+    async def _get_current_price(self, contract) -> float:
+        """Get current market price for a contract"""
+        try:
+            # Request market data snapshot (use sync method, it returns a ticker)
+            ticker = self.ib.reqMktData(contract, "", True, False)
+            
+            # Wait for data to populate
+            await asyncio.sleep(2)
+            
+            # Get the current price (try bid/ask first, then last)
+            price = ticker.marketPrice()
+            if price and price > 0:
+                return float(price)
+            
+            # Fallback to last price if market price not available
+            if ticker.last and ticker.last > 0:
+                return float(ticker.last)
+                
+            # Cancel the market data subscription
+            self.ib.cancelMktData(contract)
+            
+            return 0.0
+            
+        except Exception as e:
+            # Try to cancel subscription on error
+            try:
+                self.ib.cancelMktData(contract)
+            except:
+                pass
+            raise Exception(f"Failed to get price for {contract.symbol}: {e}")
     
     async def _fetch_single_snapshot_price(self, contract: 'Contract') -> Optional[Tuple[str, float]]:
         """

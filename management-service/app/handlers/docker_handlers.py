@@ -3,11 +3,16 @@ Docker container management handlers
 """
 import asyncio
 import json
+import threading
+import queue
 from datetime import datetime
 from typing import List, Dict, Optional
 from fastapi import HTTPException
 import docker
 from docker.errors import DockerException, APIError, NotFound
+from app.logger import setup_logger
+
+logger = setup_logger(__name__)
 
 
 class DockerHandlers:
@@ -74,7 +79,6 @@ class DockerHandlers:
                     'state': container.attrs.get('State', {}).get('Status', 'unknown'),
                     'created': container.attrs.get('Created', ''),
                     'ports': self._format_ports(container.ports),
-                    'labels': container.labels,
                     'stats': stats,
                     'last_update': datetime.now().isoformat()
                 }
@@ -86,6 +90,55 @@ class DockerHandlers:
             raise HTTPException(status_code=500, detail=f"Docker error: {str(e)}")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get containers: {str(e)}")
+    
+    async def get_container(self, container_name: str) -> Dict:
+        """Get detailed information for a specific container"""
+        try:
+            if not self.docker_client:
+                self._initialize_client()
+                
+            if not self.docker_client:
+                raise HTTPException(status_code=503, detail="Docker connection not available")
+                
+            container = self.docker_client.containers.get(container_name)
+            
+            # Get container stats if running
+            stats = None
+            if container.status == 'running':
+                try:
+                    stats_data = container.stats(stream=False)
+                    stats = self._parse_container_stats(stats_data)
+                except Exception as e:
+                    print(f"Failed to get stats for {container.name}: {e}")
+            
+            # Safely get image name
+            image_name = 'unknown'
+            try:
+                if container.image and hasattr(container.image, 'tags') and container.image.tags:
+                    image_name = container.image.tags[0]
+                elif container.image and hasattr(container.image, 'id'):
+                    image_name = container.image.id[:12]
+            except Exception:
+                image_name = container.attrs.get('Config', {}).get('Image', 'unknown')
+            
+            return {
+                'id': container.id[:12],  # Short ID
+                'name': container.name,
+                'image': image_name,
+                'status': container.status,
+                'state': container.attrs.get('State', {}).get('Status', 'unknown'),
+                'created': container.attrs.get('Created', ''),
+                'ports': self._format_ports(container.ports),
+                'stats': stats,
+                'last_update': datetime.now().isoformat()
+            }
+            
+        except NotFound:
+            raise HTTPException(status_code=404, detail=f"Container {container_name} not found")
+        except DockerException as e:
+            raise HTTPException(status_code=500, detail=f"Docker error: {str(e)}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to get container: {str(e)}")
     
     async def get_container_stats(self, container_name: str) -> Dict:
         """Get detailed stats for a specific container"""
@@ -139,6 +192,86 @@ class DockerHandlers:
             raise HTTPException(status_code=500, detail=f"Docker error: {str(e)}")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get container logs: {str(e)}")
+    
+    async def stream_container_logs(self, container_name: str, websocket, tail: int = 100):
+        """Stream real-time logs from a specific container via WebSocket"""
+        try:
+            if not self.docker_client:
+                self._initialize_client()
+                
+            container = self.docker_client.containers.get(container_name)
+            
+            # Send initial logs batch
+            initial_logs = container.logs(tail=tail, timestamps=True).decode('utf-8')
+            initial_lines = initial_logs.split('\n') if initial_logs else []
+            initial_lines = [line.strip() for line in initial_lines if line.strip()]
+            
+            if initial_lines:
+                await websocket.send_text(json.dumps({
+                    "type": "container_logs_initial",
+                    "container": container_name,
+                    "logs": initial_lines
+                }))
+            
+            # Start streaming new logs in a separate thread to avoid blocking
+            log_queue = queue.Queue()
+            stop_event = threading.Event()
+            
+            def stream_logs():
+                try:
+                    log_stream = container.logs(stream=True, follow=True, timestamps=True)
+                    for log_line in log_stream:
+                        if stop_event.is_set():
+                            break
+                        line = log_line.decode('utf-8').strip()
+                        if line:
+                            log_queue.put(line)
+                except Exception as e:
+                    logger.error(f"Error in log streaming thread: {e}")
+                    log_queue.put(None)  # Signal end
+            
+            # Start streaming thread
+            stream_thread = threading.Thread(target=stream_logs)
+            stream_thread.daemon = True
+            stream_thread.start()
+            
+            # Process queued logs
+            while True:
+                try:
+                    # Non-blocking check for new logs
+                    try:
+                        line = log_queue.get_nowait()
+                        if line is None:  # End signal
+                            break
+                        await websocket.send_text(json.dumps({
+                            "type": "container_logs_new",
+                            "container": container_name,
+                            "log": line
+                        }))
+                    except queue.Empty:
+                        await asyncio.sleep(0.1)  # Small delay to avoid busy waiting
+                        continue
+                except Exception as e:
+                    logger.error(f"Error sending log line: {e}")
+                    break
+            
+            stop_event.set()
+                    
+        except NotFound:
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "message": f"Container {container_name} not found"
+            }))
+        except DockerException as e:
+            await websocket.send_text(json.dumps({
+                "type": "error", 
+                "message": f"Docker error: {str(e)}"
+            }))
+        except Exception as e:
+            await websocket.send_text(json.dumps({
+                "type": "error",
+                "message": f"Failed to stream container logs: {str(e)}"
+            }))
     
     async def start_container(self, container_name: str) -> Dict:
         """Start a container"""

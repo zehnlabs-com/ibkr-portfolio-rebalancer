@@ -187,6 +187,7 @@ class DashboardHandlers:
             last_close_netliq=data['last_close_netliq'],
             todays_pnl=data['todays_pnl'],
             todays_pnl_percent=data['todays_pnl_percent'],
+            total_unrealized_pnl=data.get('total_unrealized_pnl', 0.0),
             positions=positions,
             positions_count=data['positions_count'],
             last_update=datetime.fromisoformat(data['last_update']),

@@ -119,6 +119,11 @@ async def get_containers():
     """Get list of all containers with status and stats"""
     return await container.docker_handlers.get_containers()
 
+@app.get("/api/containers/{container_name}")
+async def get_container(container_name: str):
+    """Get detailed information for a specific container"""
+    return await container.docker_handlers.get_container(container_name)
+
 @app.get("/api/containers/{container_name}/stats")
 async def get_container_stats(container_name: str):
     """Get detailed stats for a specific container"""
@@ -246,6 +251,25 @@ async def broadcast_notification_count(data: Dict[str, Any]):
 async def dashboard_websocket(websocket: WebSocket):
     """WebSocket endpoint for real-time dashboard updates"""
     await container.websocket_handlers.dashboard_stream(websocket)
+
+# WebSocket endpoint for real-time container logs
+@app.websocket("/api/containers/{container_name}/logs/stream")
+async def container_logs_websocket(websocket: WebSocket, container_name: str):
+    """WebSocket endpoint for real-time container log streaming"""
+    logger.info(f"Container logs WebSocket endpoint hit for: {container_name}")
+    try:
+        logger.info(f"Attempting to accept WebSocket connection for container: {container_name}")
+        await websocket.accept()
+        logger.info(f"WebSocket accepted for container logs: {container_name}")
+        await container.docker_handlers.stream_container_logs(container_name, websocket, tail=50)
+    except Exception as e:
+        logger.error(f"Error in container logs WebSocket: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        try:
+            await websocket.close()
+        except:
+            pass
 
 # Startup and shutdown events
 @app.on_event("startup")

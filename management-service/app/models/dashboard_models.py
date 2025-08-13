@@ -25,6 +25,7 @@ class AccountData(BaseModel):
     last_close_netliq: float = Field(description="Previous close net liquidation value")
     todays_pnl: float = Field(description="Today's profit/loss in dollars")
     todays_pnl_percent: float = Field(description="Today's profit/loss as percentage")
+    total_unrealized_pnl: float = Field(description="Total unrealized profit/loss across all positions")
     positions: List[Position] = Field(description="List of current positions")
     positions_count: int = Field(description="Number of positions")
     last_update: datetime = Field(description="Timestamp of last data update")

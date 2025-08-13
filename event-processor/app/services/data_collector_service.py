@@ -6,6 +6,7 @@ and caches the data in Redis for dashboard consumption.
 """
 import asyncio
 import json
+import math
 import os
 import yaml
 from datetime import datetime, timedelta, timezone
@@ -100,6 +101,7 @@ class DataCollectorService:
             # Get P&L data directly from IBKR
             pnl_data = await self.ibkr_client.get_account_pnl(account_id)
             todays_pnl = pnl_data["daily_pnl"]
+            account_unrealized_pnl = pnl_data["unrealized_pnl"]
             
             # Calculate today's P&L percentage
             # If we have today's P&L, we can calculate the starting value
@@ -119,10 +121,27 @@ class DataCollectorService:
                 
             # Enhanced position data from portfolio items
             enhanced_positions = []
+            total_calculated_pnl = 0.0
+            
+            # First pass: calculate total P&L for proportional distribution
             for item in portfolio_items:
-                # Calculate unrealized P&L percentage
-                cost_basis = item['position'] * item['avg_cost']
-                unrealized_pnl_percent = (item['unrealized_pnl'] / cost_basis) * 100 if cost_basis != 0 else 0
+                total_calculated_pnl += item['unrealized_pnl']
+            
+            # Second pass: build enhanced positions with proportionally adjusted P&L
+            for item in portfolio_items:
+                # Proportionally distribute IBKR's unrealized P&L across positions
+                # This ensures the sum of position P&Ls equals the account's unrealized P&L
+                if total_calculated_pnl != 0 and not math.isnan(account_unrealized_pnl):
+                    # Scale factor to adjust our calculated P&L to match IBKR's total
+                    scale_factor = account_unrealized_pnl / total_calculated_pnl
+                    adjusted_unrealized_pnl = item['unrealized_pnl'] * scale_factor
+                else:
+                    # Fallback to calculated P&L if no scaling possible
+                    adjusted_unrealized_pnl = item['unrealized_pnl']
+                
+                # Calculate unrealized P&L percentage based on adjusted P&L
+                cost_basis = abs(item['position']) * item['avg_cost']
+                unrealized_pnl_percent = (adjusted_unrealized_pnl / cost_basis) * 100 if cost_basis != 0 else 0
                 
                 enhanced_positions.append({
                     'symbol': item['symbol'],
@@ -130,7 +149,7 @@ class DataCollectorService:
                     'market_value': item['market_value'],
                     'avg_cost': item['avg_cost'],
                     'current_price': item['market_price'],  # Using actual market price from portfolio
-                    'unrealized_pnl': item['unrealized_pnl'],
+                    'unrealized_pnl': adjusted_unrealized_pnl,
                     'unrealized_pnl_percent': unrealized_pnl_percent
                 })
                 
@@ -169,6 +188,7 @@ class DataCollectorService:
                 except Exception:
                     pass  # Ignore JSON parse errors
             
+            
             # Build complete account data JSON document
             account_data = {
                 "account_id": account_id,
@@ -177,6 +197,7 @@ class DataCollectorService:
                 "last_close_netliq": last_close_netliq,
                 "todays_pnl": todays_pnl,
                 "todays_pnl_percent": todays_pnl_percent,
+                "total_unrealized_pnl": account_unrealized_pnl,  # Add total unrealized P&L
                 "positions": enhanced_positions,
                 "positions_count": len(enhanced_positions),
                 "last_update": datetime.now(timezone.utc).isoformat(),
