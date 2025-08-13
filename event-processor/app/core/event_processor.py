@@ -194,7 +194,10 @@ class EventProcessor:
                     "not permitted for retirement",
                     "account restriction",
                     "security trading restricted",
-                    "order rejected"
+                    "order rejected",
+                    "pattern day trader",
+                    "pdt",
+                    "day trading buying power"
                 ]
                 
                 for pattern in non_retryable_patterns:

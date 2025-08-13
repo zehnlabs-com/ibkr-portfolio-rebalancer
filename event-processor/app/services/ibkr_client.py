@@ -1,6 +1,8 @@
 import asyncio
 import math
 import random
+import json
+import redis.asyncio as aioredis
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from typing import List, Dict, Optional, Tuple, Any
@@ -21,6 +23,10 @@ class IBKRClient:
         # Add synchronization locks
         self._connection_lock = asyncio.Lock()
         self._order_lock = asyncio.Lock()
+        
+        # Initialize Redis client for error storage
+        self.redis_client = None
+        self._redis_initialized = False
     
     async def connect(self) -> bool:
         if self.ib.isConnected():  # This method is synchronous and safe to use
@@ -40,6 +46,13 @@ class IBKRClient:
             # Set market data type for proper price data (1=real-time, 3=delayed, 4=frozen)
             self.ib.reqMarketDataType(3)  # Use delayed data (should work without special permissions)
             
+            # Subscribe to error events
+            self.ib.errorEvent += self._on_error_event
+            
+            # Initialize Redis connection if not already done
+            if not self._redis_initialized:
+                await self._init_redis()
+            
             return True
         except TimeoutError as e:
             app_logger.log_error(f"Connection timeout to IB Gateway at {config.ibkr.host}:{config.ibkr.port}: {e}")
@@ -50,6 +63,65 @@ class IBKRClient:
         except Exception as e:
             app_logger.log_error(f"Failed to connect to IB Gateway at {config.ibkr.host}:{config.ibkr.port}: {type(e).__name__}: {e}")
             return False    
+    
+    async def _init_redis(self):
+        """Initialize Redis connection for error storage"""
+        try:
+            self.redis_client = aioredis.Redis(host='redis', port=6379, decode_responses=True)
+            await self.redis_client.ping()
+            self._redis_initialized = True
+        except Exception as e:
+            app_logger.log_error(f"Failed to initialize Redis connection: {e}")
+            self.redis_client = None
+    
+    def _on_error_event(self, reqId, errorCode, errorString, advancedOrderRejectJson):
+        """Event handler for IB errors - stores detailed error information in Redis"""
+        if self.redis_client and errorCode:
+            # Store error details with reqId as key
+            error_data = {
+                'error_code': errorCode,
+                'error_string': errorString,
+                'timestamp': datetime.now().isoformat(),
+                'advanced_order_reject_json': advancedOrderRejectJson
+            }
+            
+            # Run Redis operation in background to avoid blocking
+            asyncio.create_task(self._store_error_async(reqId, error_data))
+    
+    async def _store_error_async(self, reqId, error_data):
+        """Store error data in Redis with TTL"""
+        try:
+            key = f"ibkr_error:{reqId}"
+            await self.redis_client.setex(key, 28800, json.dumps(error_data))  # 8 hour TTL
+        except Exception as e:
+            app_logger.log_error(f"Failed to store error in Redis: {e}")
+    
+    async def _store_order_mapping(self, reqId, orderId):
+        """Store reqId -> orderId mapping for error correlation"""
+        try:
+            key = f"ibkr_order_mapping:{reqId}"
+            await self.redis_client.setex(key, 28800, str(orderId))  # 8 hour TTL
+        except Exception as e:
+            app_logger.log_error(f"Failed to store order mapping in Redis: {e}")
+    
+    async def getOrderErrors(self, orderId: int) -> Optional[Dict]:
+        """Get detailed error information for an order"""
+        if not self.redis_client:
+            return None
+        
+        try:
+            # First try direct reqId lookup (assuming reqId == orderId for orders)
+            error_key = f"ibkr_error:{orderId}"
+            error_data = await self.redis_client.get(error_key)
+            
+            if error_data:
+                return json.loads(error_data)
+            
+            return None
+            
+        except Exception as e:
+            app_logger.log_error(f"Failed to get order errors from Redis: {e}")
+            return None
     
     
     async def get_account_value(self, account_id: str, tag: str = "NetLiquidation", event=None) -> float:
@@ -482,9 +554,14 @@ class IBKRClient:
         trade = self.ib.placeOrder(contract, order)
         app_logger.log_info(f"Order placed: ID={trade.order.orderId}; {action} {abs(quantity)} shares of {symbol}", event)
         
+        # Store reqId -> orderId mapping for error correlation
+        if self.redis_client and hasattr(trade, 'order') and hasattr(trade.order, 'orderId'):
+            # The reqId for order placement is typically the orderId
+            asyncio.create_task(self._store_order_mapping(trade.order.orderId, trade.order.orderId))
+        
         return trade
     
-    def get_order_failure_message(self, trade) -> str:
+    async def get_order_failure_message(self, trade) -> str:
         """
         Extract detailed error message from a failed trade.
         Returns formatted error message with IBKR error code if available,
@@ -492,11 +569,14 @@ class IBKRClient:
         """
         order_id = trade.order.orderId
         
-        # DEBUG: Log all trade.log contents for investigation
-        app_logger.log_debug(f"DEBUG Order {order_id}: trade.log contains {len(trade.log) if hasattr(trade, 'log') and trade.log else 0} entries")
-        if hasattr(trade, 'log') and trade.log:
-            for i, log_entry in enumerate(trade.log):
-                app_logger.log_debug(f"DEBUG Order {order_id} log[{i}]: time={getattr(log_entry, 'time', 'N/A')}, status={getattr(log_entry, 'status', 'N/A')}, message={getattr(log_entry, 'message', 'N/A')}, errorCode={getattr(log_entry, 'errorCode', 'N/A')}")
+        # First try to get detailed error from Redis
+        error_details = await self.getOrderErrors(order_id)
+        if error_details:
+            error_code = error_details.get('error_code', 'Unknown')
+            error_string = error_details.get('error_string', 'Unknown error')
+            return f"Order {order_id} failed - Error {error_code}: {error_string}"
+        
+        # Check trade log for detailed error information as fallback
         
         # Check trade log for detailed error information
         if hasattr(trade, 'log') and trade.log:
