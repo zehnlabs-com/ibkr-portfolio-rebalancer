@@ -81,15 +81,9 @@ class AllocationService:
                     if last_rebalance:
                         app_logger.log_info(f"Last rebalance: {last_rebalance}", event)
                     
-                    # Apply ETF replacements with scaling if account has replacement set configured
-                    if account_config.replacement_set:
-                        app_logger.log_info(f"Applying replacement set '{account_config.replacement_set}' for account {account_config.account_id}", event)
-                        allocations = self.replacement_service.apply_replacements_with_scaling(
-                            allocations=allocations,
-                            replacement_set_name=account_config.replacement_set,
-                            event=event
-                        )
-                        app_logger.log_info(f"Applied replacements - final allocation count: {len(allocations)}", event)
+                    # Note: ETF replacements are applied later during buy order recalculation
+                    # to ensure sell orders use original symbols (what we own) and buy orders
+                    # use replacement symbols (what we should buy)
                     
                     return allocations
                     

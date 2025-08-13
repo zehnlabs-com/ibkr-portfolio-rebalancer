@@ -69,7 +69,22 @@ class RebalancerService:
                 )
                 
                 # Extract market prices from calculation for later use
+                # Include both original symbols (for sells) and replacement symbols (for buys)
                 all_symbols = [allocation['symbol'] for allocation in target_allocations]
+                
+                # Add replacement symbols for buy orders if replacement set is configured
+                if account_config.replacement_set:
+                    from app.services.replacement_service import ReplacementService
+                    replacement_service = ReplacementService()
+                    buy_target_allocations = replacement_service.apply_replacements_with_scaling(
+                        allocations=target_allocations,
+                        replacement_set_name=account_config.replacement_set,
+                        event=event
+                    )
+                    replacement_symbols = [allocation['symbol'] for allocation in buy_target_allocations]
+                    all_symbols = list(set(all_symbols + replacement_symbols))  # Remove duplicates
+                    app_logger.log_debug(f"Fetching prices for {len(all_symbols)} symbols (original + replacement)", event)
+                
                 market_prices = await self.ibkr_client.get_multiple_market_prices(all_symbols, event)
                 
                 # Cancel all pending orders before executing any trades
@@ -225,8 +240,21 @@ class RebalancerService:
         buy_orders = []
         total_allocated_cash = 0.0
         
+        # Apply ETF replacements to target allocations for buy orders only
+        buy_target_allocations = target_allocations
+        if account_config.replacement_set:
+            from app.services.replacement_service import ReplacementService
+            replacement_service = ReplacementService()
+            app_logger.log_info(f"Applying replacement set '{account_config.replacement_set}' for buy orders", event)
+            buy_target_allocations = replacement_service.apply_replacements_with_scaling(
+                allocations=target_allocations,
+                replacement_set_name=account_config.replacement_set,
+                event=event
+            )
+            app_logger.log_info(f"Applied replacements for buy orders - final allocation count: {len(buy_target_allocations)}", event)
+        
         # Recalculate allocations based on available cash
-        for allocation in target_allocations:
+        for allocation in buy_target_allocations:
             symbol = allocation['symbol']
             target_cash_amount = available_cash * allocation['allocation'] * scaling_factor
             current_price = market_prices[symbol]
