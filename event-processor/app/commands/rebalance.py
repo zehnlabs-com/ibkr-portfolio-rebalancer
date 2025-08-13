@@ -10,6 +10,7 @@ from app.logger import AppLogger
 from app.models.account_config import EventAccountConfig
 from app.services.rebalancer_service import TradingHoursException
 from app.config import config
+import redis.asyncio as redis
 
 app_logger = AppLogger(__name__)
 
@@ -55,33 +56,37 @@ class RebalanceCommand(EventCommand):
             app_logger.log_info(f"Rebalance completed - orders: {len(result.orders)}", self.event)
             
             # Update last_rebalanced_on timestamp in Redis
-            redis_client = services.get('redis_client')
-            if redis_client:
-                try:
-                    account_id = self.event.account_id
-                    redis_key = f"account_data:{account_id}"
-                    
-                    # Get existing account data or create new
-                    existing_data = await redis_client.get(redis_key)
-                    if existing_data:
-                        account_data = json.loads(existing_data)
-                    else:
-                        # Create minimal account data if it doesn't exist
-                        account_data = {
-                            "account_id": account_id,
-                            "strategy_name": self.event.payload.get('strategy_name', ''),
-                        }
-                    
-                    # Update with current timestamp
-                    account_data['last_rebalanced_on'] = datetime.now(timezone.utc).isoformat()
-                    
-                    # Store back to Redis
-                    await redis_client.set(redis_key, json.dumps(account_data))
-                    app_logger.log_info(f"Updated last_rebalanced_on for account {account_id}", self.event)
-                    
-                except Exception as e:
-                    # Log error but don't fail the command
-                    app_logger.log_error(f"Failed to update last_rebalanced_on: {e}", self.event)
+            try:                
+                redis_url = f"redis://{config.redis.host}:{config.redis.port}/{config.redis.db}"
+                redis_client = await redis.from_url(redis_url, decode_responses=True)
+                
+                account_id = self.event.account_id
+                redis_key = f"account_data:{account_id}"
+                
+                # Get existing account data or create new
+                existing_data = await redis_client.get(redis_key)
+                if existing_data:
+                    account_data = json.loads(existing_data)
+                else:
+                    # Create minimal account data if it doesn't exist
+                    account_data = {
+                        "account_id": account_id,
+                        "strategy_name": self.event.payload.get('strategy_name', ''),
+                    }
+                
+                # Update with current timestamp
+                account_data['last_rebalanced_on'] = datetime.now(timezone.utc).isoformat()
+                
+                # Store back to Redis
+                await redis_client.set(redis_key, json.dumps(account_data))
+                app_logger.log_info(f"Updated last_rebalanced_on for account {account_id}", self.event)
+                
+                # Close Redis connection
+                await redis_client.aclose()
+                
+            except Exception as e:
+                # Log error but don't fail the command
+                app_logger.log_error(f"Failed to update last_rebalanced_on: {e}", self.event)
             
             return EventCommandResult(
                 status=CommandStatus.SUCCESS,
