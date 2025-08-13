@@ -91,7 +91,8 @@ class DockerHandlers:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get containers: {str(e)}")
     
-    async def get_container(self, container_name: str) -> Dict:
+    # REMOVED: get_container - Use list data instead
+    async def get_container_REMOVED(self, container_name: str) -> Dict:
         """Get detailed information for a specific container"""
         try:
             if not self.docker_client:
@@ -140,7 +141,8 @@ class DockerHandlers:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get container: {str(e)}")
     
-    async def get_container_stats(self, container_name: str) -> Dict:
+    # REMOVED: get_container_stats - Stats included in container list
+    async def get_container_stats_REMOVED(self, container_name: str) -> Dict:
         """Get detailed stats for a specific container"""
         try:
             if not self.docker_client:
@@ -169,7 +171,8 @@ class DockerHandlers:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to get container stats: {str(e)}")
     
-    async def get_container_logs(self, container_name: str, tail: int = 100) -> List[str]:
+    # REMOVED: get_container_logs - WebSocket streaming only
+    async def get_container_logs_REMOVED(self, container_name: str, tail: int = 100) -> List[str]:
         """Get logs from a specific container"""
         try:
             if not self.docker_client:

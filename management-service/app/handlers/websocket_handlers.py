@@ -4,9 +4,36 @@ WebSocket handlers for real-time dashboard updates
 import json
 import asyncio
 import logging
+import math
 from typing import Dict, Set, Any
 from fastapi import WebSocket, WebSocketDisconnect
 from app.logger import setup_logger
+
+class SafeJSONEncoder(json.JSONEncoder):
+    """JSON encoder that handles NaN and infinity values"""
+    def encode(self, obj):
+        if isinstance(obj, float):
+            if math.isnan(obj):
+                return "0"
+            elif math.isinf(obj):
+                return "0"
+        return super().encode(obj)
+    
+    def iterencode(self, obj, _one_shot=False):
+        """Encode the given object and return an iterator of string chunks."""
+        if isinstance(obj, dict):
+            obj = {k: (0 if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v) 
+                   for k, v in obj.items()}
+        elif isinstance(obj, list):
+            obj = [0 if isinstance(v, float) and (math.isnan(v) or math.isinf(v)) else v 
+                   for v in obj]
+        elif isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+            obj = 0
+        return super().iterencode(obj, _one_shot)
+
+def safe_json_dumps(obj):
+    """JSON dumps with NaN/infinity handling"""
+    return json.dumps(obj, cls=SafeJSONEncoder)
 
 logger = setup_logger(__name__)
 
@@ -46,7 +73,7 @@ class WebSocketManager:
     async def send_personal_message(self, message: Dict[str, Any], websocket: WebSocket):
         """Send a message to a specific connection"""
         try:
-            await websocket.send_text(json.dumps(message))
+            await websocket.send_text(safe_json_dumps(message))
         except Exception as e:
             logger.error(f"Error sending personal message: {e}")
             self.disconnect(websocket)
@@ -57,7 +84,7 @@ class WebSocketManager:
             return
             
         disconnected = set()
-        message_str = json.dumps(message)
+        message_str = safe_json_dumps(message)
         
         for connection in self.active_connections.copy():
             try:
@@ -108,18 +135,125 @@ websocket_manager = WebSocketManager()
 class WebSocketHandlers:
     """WebSocket endpoint handlers"""
     
-    def __init__(self):
+    def __init__(self, dashboard_handlers=None):
         self.manager = websocket_manager
+        self.dashboard_handlers = dashboard_handlers
+    
+    async def _send_container_data_async(self, websocket: WebSocket):
+        """Send container data asynchronously to avoid blocking other data"""
+        try:
+            from app.container import container
+            containers_data = await container.docker_handlers.get_containers()
+            
+            container_message = {
+                "type": "container",
+                "action": "update", 
+                "data": containers_data,
+                "timestamp": safe_json_dumps({"timestamp": "now"})
+            }
+            await websocket.send_text(safe_json_dumps(container_message))
+            logger.info(f"Sent initial container data with {len(containers_data)} containers")
+        except Exception as e:
+            logger.error(f"Error sending container data: {e}")
     
     async def dashboard_stream(self, websocket: WebSocket):
         """Handle WebSocket connection for dashboard real-time updates"""
         await self.manager.connect(websocket)
         try:
             # Send initial connection success message
-            await websocket.send_text(json.dumps({
+            await websocket.send_text(safe_json_dumps({
                 "type": "connection_established",
                 "message": "Real-time dashboard stream connected"
             }))
+            
+            # Send initial dashboard data if dashboard_handlers is available
+            if self.dashboard_handlers:
+                try:
+                    accounts_data = await self.dashboard_handlers._get_all_accounts_data()
+                    
+                    # Calculate dashboard summary data with safe math
+                    total_value = sum(account.current_value for account in accounts_data)
+                    total_pnl = sum(account.todays_pnl for account in accounts_data)
+                    
+                    # Safe percentage calculation to avoid division by zero
+                    denominator = total_value - total_pnl
+                    if denominator > 0:
+                        total_pnl_percent = (total_pnl / denominator) * 100
+                    else:
+                        total_pnl_percent = 0.0
+                    
+                    total_positions = sum(account.positions_count for account in accounts_data)
+                    
+                    dashboard_data = {
+                        "type": "dashboard",
+                        "action": "update",
+                        "data": {
+                            "total_value": total_value,
+                            "total_pnl": total_pnl,
+                            "total_pnl_percent": total_pnl_percent,
+                            "total_positions": total_positions,
+                            "accounts_count": len(accounts_data),
+                            "accounts": [
+                                {
+                                    "account_id": account.account_id,
+                                    "strategy_name": account.strategy_name,
+                                    "current_value": account.current_value,
+                                    "todays_pnl": account.todays_pnl,
+                                    "todays_pnl_percent": account.todays_pnl_percent,
+                                    "positions_count": account.positions_count,
+                                    "last_update": account.last_update.isoformat()
+                                } for account in accounts_data
+                            ],
+                            "last_update": accounts_data[0].last_update.isoformat() if accounts_data else None
+                        },
+                        "timestamp": safe_json_dumps({"timestamp": "now"})
+                    }
+                    
+                    await websocket.send_text(safe_json_dumps(dashboard_data))
+                    logger.info(f"Sent initial dashboard data with {len(accounts_data)} accounts")
+                    
+                    # Also send account data for AccountList component
+                    account_message = {
+                        "type": "account",
+                        "action": "update",
+                        "data": [
+                            {
+                                "account_id": account.account_id,
+                                "strategy_name": account.strategy_name,
+                                "current_value": account.current_value,
+                                "last_close_netliq": account.last_close_netliq,
+                                "todays_pnl": account.todays_pnl,
+                                "todays_pnl_percent": account.todays_pnl_percent,
+                                "total_unrealized_pnl": account.total_unrealized_pnl,
+                                "positions_count": account.positions_count,
+                                "last_update": account.last_update.isoformat(),
+                                "last_rebalanced_on": account.last_rebalanced_on.isoformat() if account.last_rebalanced_on else None
+                            } for account in accounts_data
+                        ],
+                        "timestamp": safe_json_dumps({"timestamp": "now"})
+                    }
+                    await websocket.send_text(safe_json_dumps(account_message))
+                    logger.info(f"Sent initial account data with {len(accounts_data)} accounts")
+                    
+                    # Send container data asynchronously to avoid blocking dashboard/account data
+                    asyncio.create_task(self._send_container_data_async(websocket))
+                except Exception as e:
+                    logger.error(f"Error sending initial dashboard data: {e}")
+                    # Send a basic message so frontend doesn't timeout
+                    await websocket.send_text(safe_json_dumps({
+                        "type": "dashboard",
+                        "action": "update", 
+                        "data": {
+                            "total_value": 0,
+                            "total_pnl": 0,
+                            "total_pnl_percent": 0,
+                            "total_positions": 0,
+                            "accounts_count": 0,
+                            "accounts": [],
+                            "last_update": None
+                        },
+                        "timestamp": safe_json_dumps({"timestamp": "now"})
+                    }))
             
             while True:
                 # Keep the connection alive and listen for client messages
@@ -134,7 +268,7 @@ class WebSocketHandlers:
                             try:
                                 data = json.loads(message["text"])
                                 if data.get("type") == "ping":
-                                    await websocket.send_text(json.dumps({"type": "pong"}))
+                                    await websocket.send_text(safe_json_dumps({"type": "pong"}))
                             except json.JSONDecodeError:
                                 logger.warning(f"Invalid JSON received: {message['text']}")
                     elif message["type"] == "websocket.disconnect":

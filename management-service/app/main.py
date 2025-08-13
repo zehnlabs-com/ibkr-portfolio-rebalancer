@@ -11,8 +11,7 @@ from fastapi.responses import HTMLResponse
 from app.container import container
 from app.models.queue_models import QueueStatus, QueueEvent, AddEventRequest, AddEventResponse, RemoveEventResponse, ClearQueuesResponse
 from app.models.health_models import DetailedHealthStatus
-from app.models.dashboard_models import DashboardOverview, AccountData, AccountSummary, Position
-from app.models.notification_models import NotificationsResponse, UnreadCountResponse, MarkReadResponse, MarkAllReadResponse, DeleteNotificationResponse
+from app.models.dashboard_models import AccountData
 from app.config.settings import settings
 
 # Configure logging
@@ -87,31 +86,14 @@ async def trigger_account_rebalance(account_id: str):
     """Trigger rebalance for a specific account"""
     return await container.queue_handlers.trigger_account_rebalance(account_id)
 
-# Dashboard endpoints
-@app.get("/api/dashboard/overview", response_model=DashboardOverview)
-async def get_dashboard_overview():
-    """Get system-wide portfolio overview"""
-    return await container.dashboard_handlers.get_dashboard_overview()
-
-@app.get("/api/dashboard/accounts", response_model=List[AccountSummary])
-async def get_accounts_summary():
-    """Get summary data for all accounts"""
-    return await container.dashboard_handlers.get_accounts_summary()
+# Dashboard endpoints - REMOVED - Data now via WebSocket only
 
 @app.get("/api/dashboard/accounts/{account_id}", response_model=AccountData)
 async def get_account_details(account_id: str):
     """Get detailed data for a specific account"""
     return await container.dashboard_handlers.get_account_details(account_id)
 
-@app.get("/api/dashboard/accounts/{account_id}/positions", response_model=List[Position])
-async def get_account_positions(account_id: str):
-    """Get positions for a specific account"""
-    return await container.dashboard_handlers.get_account_positions(account_id)
-
-@app.get("/api/dashboard/accounts/{account_id}/pnl")
-async def get_account_pnl(account_id: str):
-    """Get P&L data for a specific account"""
-    return await container.dashboard_handlers.get_account_pnl(account_id)
+# Position and P&L endpoints - REMOVED - Data included in account details
 
 # Docker management endpoints
 @app.get("/api/containers")
@@ -119,23 +101,7 @@ async def get_containers():
     """Get list of all containers with status and stats"""
     return await container.docker_handlers.get_containers()
 
-@app.get("/api/containers/{container_name}")
-async def get_container(container_name: str):
-    """Get detailed information for a specific container"""
-    return await container.docker_handlers.get_container(container_name)
-
-@app.get("/api/containers/{container_name}/stats")
-async def get_container_stats(container_name: str):
-    """Get detailed stats for a specific container"""
-    return await container.docker_handlers.get_container_stats(container_name)
-
-@app.get("/api/containers/{container_name}/logs")
-async def get_container_logs(
-    container_name: str, 
-    tail: int = Query(100, ge=1, le=1000, description="Number of log lines to retrieve")
-):
-    """Get logs from a specific container"""
-    return await container.docker_handlers.get_container_logs(container_name, tail)
+# Container detail endpoints - REMOVED - Use list data and WebSocket for logs
 
 @app.post("/api/containers/{container_name}/start")
 async def start_container(container_name: str):
@@ -210,41 +176,9 @@ async def get_config_backups():
     return await container.config_handlers.get_config_backups()
 
 # Notification endpoints
-@app.get("/api/notifications", response_model=NotificationsResponse)
-async def get_notifications(
-    offset: int = Query(0, ge=0, description="Offset for pagination"),
-    limit: int = Query(50, ge=1, le=100, description="Number of notifications to retrieve")
-):
-    """Get paginated notifications"""
-    return await container.notification_handlers.get_notifications(offset=offset, limit=limit)
+# Notification endpoints - REMOVED - All operations via WebSocket commands
 
-@app.get("/api/notifications/unread-count", response_model=UnreadCountResponse)
-async def get_unread_count():
-    """Get count of unread notifications"""
-    return await container.notification_handlers.get_unread_count()
-
-@app.post("/api/notifications/{notification_id}/mark-read", response_model=MarkReadResponse)
-async def mark_notification_read(notification_id: str):
-    """Mark a specific notification as read"""
-    return await container.notification_handlers.mark_notification_read(notification_id)
-
-@app.post("/api/notifications/mark-all-read", response_model=MarkAllReadResponse)
-async def mark_all_read():
-    """Mark all notifications as read"""
-    return await container.notification_handlers.mark_all_read()
-
-@app.delete("/api/notifications/{notification_id}", response_model=DeleteNotificationResponse)
-async def delete_notification(notification_id: str):
-    """Delete a specific notification"""
-    return await container.notification_handlers.delete_notification(notification_id)
-
-# Internal API endpoint for broadcasting notification count updates
-@app.post("/api/internal/broadcast-notification-count")
-async def broadcast_notification_count(data: Dict[str, Any]):
-    """Internal endpoint for broadcasting notification count updates via WebSocket"""
-    unread_count = data.get("unread_count", 0)
-    await container.websocket_handlers.manager.send_notification_count_update(unread_count)
-    return {"success": True, "broadcasted_count": unread_count}
+# Internal broadcast endpoint - REMOVED - Direct WebSocket broadcasting
 
 # WebSocket endpoint for real-time updates
 @app.websocket("/api/dashboard/stream")

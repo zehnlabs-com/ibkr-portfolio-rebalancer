@@ -35,7 +35,7 @@ class Container:
         self.dashboard_handlers = DashboardHandlers(self.queue_repository)
         self.docker_handlers = DockerHandlers()
         self.config_handlers = ConfigHandlers()
-        self.websocket_handlers = WebSocketHandlers()
+        self.websocket_handlers = WebSocketHandlers(self.dashboard_handlers)
         self.strategies_handlers = StrategiesHandlers()
         self.notification_handlers = NotificationHandlers(self.queue_repository.redis)
         self.notification_cleanup_service = NotificationCleanupService(self.queue_repository.redis)
