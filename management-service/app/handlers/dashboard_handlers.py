@@ -4,8 +4,7 @@ Dashboard API handlers for portfolio monitoring
 import json
 from datetime import datetime
 from typing import List, Optional
-from fastapi import HTTPException
-from app.models.dashboard_models import AccountData, AccountSummary, DashboardOverview, Position
+from app.models.dashboard_models import AccountData, Position
 
 
 class DashboardHandlers:
@@ -13,31 +12,6 @@ class DashboardHandlers:
     
     def __init__(self, redis_repository):
         self.redis_repository = redis_repository
-    
-    # REMOVED: get_dashboard_overview - Data now sent via WebSocket only
-    # REMOVED: get_accounts_summary - Data now sent via WebSocket only
-    
-    async def get_account_details(self, account_id: str) -> AccountData:
-        """Get detailed data for a specific account"""
-        try:
-            redis = self.redis_repository.redis
-            if not redis:
-                raise RuntimeError("Redis connection not established")
-            account_data_str = await redis.get(f"account_data:{account_id}")
-            
-            if not account_data_str:
-                raise HTTPException(status_code=404, detail=f"Account data not found for {account_id}")
-            
-            account_data_dict = json.loads(account_data_str)
-            return self._parse_account_data(account_data_dict)
-            
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to get account details: {str(e)}")
-    
-    # REMOVED: get_account_positions - Positions included in account details
-    # REMOVED: get_account_pnl - P&L data included in account details
     
     async def _get_all_accounts_data(self) -> List[AccountData]:
         """Helper method to get all account data from Redis"""

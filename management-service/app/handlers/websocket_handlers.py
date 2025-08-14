@@ -240,6 +240,38 @@ class WebSocketHandlers:
                     await websocket.send_text(safe_json_dumps(account_message))
                     logger.info(f"Sent initial account data with {len(accounts_data)} accounts")
                     
+                    # Send individual account details for each account so AccountShow pages work immediately
+                    for account in accounts_data:
+                        account_detail_message = {
+                            "type": "account_update",
+                            "data": {
+                                "account_id": account.account_id,
+                                "strategy_name": account.strategy_name,
+                                "current_value": account.current_value,
+                                "last_close_netliq": account.last_close_netliq,
+                                "todays_pnl": account.todays_pnl,
+                                "todays_pnl_percent": account.todays_pnl_percent,
+                                "total_unrealized_pnl": account.total_unrealized_pnl,
+                                "positions": [
+                                    {
+                                        "symbol": pos.symbol,
+                                        "quantity": pos.quantity,
+                                        "market_value": pos.market_value,
+                                        "avg_cost": pos.avg_cost,
+                                        "current_price": pos.current_price,
+                                        "unrealized_pnl": pos.unrealized_pnl,
+                                        "unrealized_pnl_percent": pos.unrealized_pnl_percent
+                                    } for pos in account.positions
+                                ],
+                                "positions_count": account.positions_count,
+                                "last_update": account.last_update.isoformat(),
+                                "last_rebalanced_on": account.last_rebalanced_on.isoformat() if account.last_rebalanced_on else None
+                            }
+                        }
+                        await websocket.send_text(safe_json_dumps(account_detail_message))
+                    
+                    logger.info(f"Sent initial account details for {len(accounts_data)} accounts")
+                    
                     # Send container data asynchronously to avoid blocking dashboard/account data
                     asyncio.create_task(self._send_container_data_async(websocket))
                 except Exception as e:

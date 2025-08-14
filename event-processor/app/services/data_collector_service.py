@@ -88,6 +88,9 @@ class DataCollectorService:
                 app_logger.log_error(f"Failed to collect data for account {account_id}: {e}")
                 # Continue with next account even if one fails
                 continue
+        
+        # After collecting all accounts, publish dashboard summary update
+        await self._publish_dashboard_summary_update()
                 
     async def collect_account_data(self, account_id: str) -> None:
         """Collect and cache data for a single account"""
@@ -210,11 +213,59 @@ class DataCollectorService:
                 json.dumps(account_data)
             )
             
+            # Publish account data update notification for real-time dashboard updates
+            await self._publish_account_update(account_id, account_data)
+            
             app_logger.log_debug(f"Cached data for account {account_id} with {len(enhanced_positions)} positions")
             
         except Exception as e:
             app_logger.log_error(f"Failed to collect account data for {account_id}: {e}")
             raise
+    
+    async def _publish_account_update(self, account_id: str, account_data: dict) -> None:
+        """Publish account data update notification via Redis pub/sub"""
+        try:
+            # Publish to account-specific channel
+            await self.redis_client.publish(
+                f"account_update:{account_id}",
+                json.dumps({
+                    "type": "account_update",
+                    "account_id": account_id,
+                    "data": account_data,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                })
+            )
+            
+            # Also publish to general account updates channel
+            await self.redis_client.publish(
+                "dashboard_updates",
+                json.dumps({
+                    "type": "account_data_updated",
+                    "account_id": account_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                })
+            )
+            
+            app_logger.log_info(f"Published account update notification for {account_id}")
+            
+        except Exception as e:
+            app_logger.log_warning(f"Failed to publish account update for {account_id}: {e}")
+    
+    async def _publish_dashboard_summary_update(self) -> None:
+        """Publish dashboard summary update notification after collecting all accounts"""
+        try:
+            await self.redis_client.publish(
+                "dashboard_updates",
+                json.dumps({
+                    "type": "dashboard_summary_updated",
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                })
+            )
+            
+            app_logger.log_info("Published dashboard summary update notification")
+            
+        except Exception as e:
+            app_logger.log_warning(f"Failed to publish dashboard summary update: {e}")
             
     def load_accounts_config(self) -> List[str]:
         """Load account IDs from accounts.yaml filtered by TRADING_MODE"""

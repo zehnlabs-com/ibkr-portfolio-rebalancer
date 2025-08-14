@@ -11,7 +11,6 @@ from fastapi.responses import HTMLResponse
 from app.container import container
 from app.models.queue_models import QueueStatus, QueueEvent, AddEventRequest, AddEventResponse, RemoveEventResponse, ClearQueuesResponse
 from app.models.health_models import DetailedHealthStatus
-from app.models.dashboard_models import AccountData
 from app.config.settings import settings
 
 # Configure logging
@@ -87,11 +86,6 @@ async def trigger_account_rebalance(account_id: str):
     return await container.queue_handlers.trigger_account_rebalance(account_id)
 
 # Dashboard endpoints - REMOVED - Data now via WebSocket only
-
-@app.get("/api/dashboard/accounts/{account_id}", response_model=AccountData)
-async def get_account_details(account_id: str):
-    """Get detailed data for a specific account"""
-    return await container.dashboard_handlers.get_account_details(account_id)
 
 @app.post("/api/containers/{container_name}/start")
 async def start_container(container_name: str):

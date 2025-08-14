@@ -15,6 +15,8 @@ from app.handlers.websocket_handlers import WebSocketHandlers
 from app.handlers.strategies_handlers import StrategiesHandlers
 from app.handlers.notification_handlers import NotificationHandlers
 from app.services.notification_cleanup_service import NotificationCleanupService
+from app.services.realtime_update_service import RealtimeUpdateService
+from app.handlers.websocket_handlers import get_websocket_manager
 
 
 class Container:
@@ -39,15 +41,18 @@ class Container:
         self.strategies_handlers = StrategiesHandlers()
         self.notification_handlers = NotificationHandlers(self.queue_repository.redis)
         self.notification_cleanup_service = NotificationCleanupService(self.queue_repository.redis)
+        self.realtime_update_service = RealtimeUpdateService(settings.redis_url, get_websocket_manager())
     
     async def startup(self):
         """Initialize connections"""
         await self.queue_repository.connect()
         await self.health_repository.connect()
         await self.notification_cleanup_service.start()
+        await self.realtime_update_service.start()
     
     async def shutdown(self):
         """Clean up connections"""
+        await self.realtime_update_service.stop()
         await self.notification_cleanup_service.stop()
         await self.queue_repository.disconnect()
         await self.health_repository.disconnect()
