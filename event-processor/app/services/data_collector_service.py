@@ -1,8 +1,8 @@
 """
-Portfolio Data Collector Service for Dashboard
+Portfolio Data Collection Service for Dashboard
 
-This service periodically collects portfolio data from IBKR for all accounts
-and caches the data in Redis for dashboard consumption.
+This service polls IBKR account data and caches it in Redis
+for dashboard consumption with real-time WebSocket updates.
 """
 import asyncio
 import json
@@ -20,28 +20,41 @@ app_logger = AppLogger(__name__)
 
 
 class DataCollectorService:
-    """Service for collecting and caching portfolio data for dashboard"""
+    """Service for periodic portfolio data collection and caching for dashboard"""
     
     def __init__(self, ibkr_client: IBKRClient, redis_client):
         self.ibkr_client = ibkr_client
         self.redis_client = redis_client
         self._collection_task: Optional[asyncio.Task] = None
         self._running = False
+        self._accounts = []
+        self._collection_interval = 60  # Poll every 60 seconds
         
     async def start_collection_tasks(self) -> None:
-        """Start background data collection tasks"""
+        """Start periodic data collection"""
         if self._running:
             app_logger.log_warning("Data collection already running")
             return
-            
+        
         self._running = True
         app_logger.log_info("Starting portfolio data collection service")
         
-        # Start the main collection loop - let ib_async handle the complexity
-        self._collection_task = asyncio.create_task(self._collection_loop())
+        # Load accounts from config
+        self._accounts = self.load_accounts_config()
+        if not self._accounts:
+            app_logger.log_warning("No accounts found in accounts.yaml")
+            return
+        
+        # Perform initial data sync to populate Redis
+        await self.perform_initial_sync()
+        
+        # Start periodic collection task
+        self._collection_task = asyncio.create_task(self._periodic_collection_loop())
+        
+        app_logger.log_info(f"Data collection service started for {len(self._accounts)} accounts (polling every {self._collection_interval}s)")
         
     async def stop_collection_tasks(self) -> None:
-        """Stop background data collection tasks"""
+        """Stop periodic data collection"""
         self._running = False
         
         if self._collection_task:
@@ -52,45 +65,61 @@ class DataCollectorService:
                 pass
                 
         app_logger.log_info("Portfolio data collection service stopped")
+    
+    async def perform_initial_sync(self) -> None:
+        """Perform initial data sync to populate Redis with current account data"""
+        app_logger.log_debug(f"Performing initial sync for {len(self._accounts)} accounts")
         
-    async def _collection_loop(self) -> None:
-        """Main collection loop that runs every collection_interval seconds"""
-        while self._running:
-            try:
-                await self.collect_all_accounts()
-                await self.redis_client.set("collection:last_run", datetime.now(timezone.utc).isoformat())
-                await self.redis_client.set("collection:status", "running")
-                
-            except Exception as e:
-                app_logger.log_error(f"Error in data collection loop: {e}")
-                await self.redis_client.set("collection:status", f"error: {str(e)}")
-                
-            # Wait for next collection interval
-            collection_interval = getattr(config, 'data_collection', {}).get('collection_interval', 300)
-            await asyncio.sleep(collection_interval)
-            
-    async def collect_all_accounts(self) -> None:
-        """Collect portfolio data for all accounts in accounts.yaml"""
-        accounts = self.load_accounts_config()
-        if not accounts:
-            app_logger.log_warning("No accounts found in accounts.yaml")
-            return
-            
-        app_logger.log_info(f"Collecting data for {len(accounts)} accounts")
-        
-        # Process accounts sequentially with proper reqAccountUpdates handling
-        for account_id in accounts:
+        for account_id in self._accounts:
             try:
                 await self.collect_account_data(account_id)
-                # Small delay between accounts to avoid overwhelming IBKR
-                await asyncio.sleep(2)
+                await asyncio.sleep(1)  # Small delay to avoid overwhelming IBKR
             except Exception as e:
-                app_logger.log_error(f"Failed to collect data for account {account_id}: {e}")
-                # Continue with next account even if one fails
+                app_logger.log_error(f"Failed to sync initial data for account {account_id}: {e}")
                 continue
         
-        # After collecting all accounts, publish dashboard summary update
+        # Publish initial dashboard summary
         await self._publish_dashboard_summary_update()
+        await self.redis_client.set("collection:last_run", datetime.now(timezone.utc).isoformat())
+        await self.redis_client.set("collection:status", "polling")
+        
+        app_logger.log_info("Initial data sync completed")
+    
+    async def _periodic_collection_loop(self) -> None:
+        """Main loop for periodic data collection"""
+        while self._running:
+            try:
+                # Wait for the next collection interval
+                await asyncio.sleep(self._collection_interval)
+                
+                if not self._running:
+                    break
+                
+                app_logger.log_debug(f"Starting periodic data collection for {len(self._accounts)} accounts")
+                
+                # Collect data for all accounts
+                for account_id in self._accounts:
+                    if not self._running:
+                        break
+                    
+                    try:
+                        await self.collect_account_data(account_id)
+                        await asyncio.sleep(1)  # Small delay between accounts
+                    except Exception as e:
+                        app_logger.log_error(f"Failed to collect data for account {account_id}: {e}")
+                        continue
+                
+                # Update dashboard summary
+                await self._publish_dashboard_summary_update()
+                await self.redis_client.set("collection:last_run", datetime.now(timezone.utc).isoformat())
+                
+                app_logger.log_debug("Periodic data collection completed")
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                app_logger.log_error(f"Error in periodic collection loop: {e}")
+                await asyncio.sleep(10)  # Brief pause before retrying
                 
     async def collect_account_data(self, account_id: str) -> None:
         """Collect and cache data for a single account"""
@@ -104,197 +133,149 @@ class DataCollectorService:
             # Get P&L data directly from IBKR
             pnl_data = await self.ibkr_client.get_account_pnl(account_id)
             todays_pnl = pnl_data["daily_pnl"]
-            account_unrealized_pnl = pnl_data["unrealized_pnl"]
+            total_upnl = pnl_data["unrealized_pnl"]
             
-            # Calculate today's P&L percentage
-            # If we have today's P&L, we can calculate the starting value
-            # Starting value = Current value - Today's P&L
-            if net_liq > 0 and todays_pnl != 0:
-                starting_value = net_liq - todays_pnl
-                if starting_value > 0:
-                    todays_pnl_percent = (todays_pnl / starting_value) * 100
-                else:
-                    todays_pnl_percent = 0
-            else:
-                todays_pnl_percent = 0
+            # Get IRA status from accounts.yaml (based on replacement_set)
+            account_config = self._accounts.get(account_id, {})
+            is_ira = account_config.get("replacement_set") == "ira"
             
-            # For dashboard display, we still need a "last close" value
-            # This would be today's net_liq minus today's P&L
-            last_close_netliq = net_liq - todays_pnl if todays_pnl else net_liq
-                
-            # Enhanced position data from portfolio items
-            enhanced_positions = []
-            total_calculated_pnl = 0.0
+            # Get cash balance
+            cash_balance = await self.ibkr_client.get_account_value(account_id, "TotalCashBalance")
             
-            # First pass: calculate total P&L for proportional distribution
-            for item in portfolio_items:
-                total_calculated_pnl += item['unrealized_pnl']
-            
-            # Second pass: build enhanced positions with proportionally adjusted P&L
-            for item in portfolio_items:
-                # Proportionally distribute IBKR's unrealized P&L across positions
-                # This ensures the sum of position P&Ls equals the account's unrealized P&L
-                if total_calculated_pnl != 0 and not math.isnan(account_unrealized_pnl):
-                    # Scale factor to adjust our calculated P&L to match IBKR's total
-                    scale_factor = account_unrealized_pnl / total_calculated_pnl
-                    adjusted_unrealized_pnl = item['unrealized_pnl'] * scale_factor
-                else:
-                    # Fallback to calculated P&L if no scaling possible
-                    adjusted_unrealized_pnl = item['unrealized_pnl']
-                
-                # Calculate unrealized P&L percentage based on adjusted P&L
-                cost_basis = abs(item['position']) * item['avg_cost']
-                unrealized_pnl_percent = (adjusted_unrealized_pnl / cost_basis) * 100 if cost_basis != 0 else 0
-                
-                enhanced_positions.append({
-                    'symbol': item['symbol'],
-                    'quantity': item['position'],
-                    'market_value': item['market_value'],
-                    'avg_cost': item['avg_cost'],
-                    'current_price': item['market_price'],  # Using actual market price from portfolio
-                    'unrealized_pnl': adjusted_unrealized_pnl,
-                    'unrealized_pnl_percent': unrealized_pnl_percent
-                })
-                
-            # Get strategy name from config and format it
-            strategy_name = None
-            try:
-                accounts_path = os.path.join("/app", "accounts.yaml")
-                if os.path.exists(accounts_path):
-                    with open(accounts_path, 'r') as f:
-                        yaml_data = yaml.safe_load(f)
-                    
-                    for acc in yaml_data.get('accounts', []):
-                        if acc.get('account_id') == account_id:
-                            raw_strategy = acc.get('strategy_name')
-                            if raw_strategy:
-                                # Format strategy name: etf-blend-102-25 -> ETF Blend 102-25
-                                parts = raw_strategy.split('-')
-                                if len(parts) >= 4 and parts[0] == 'etf' and parts[1] == 'blend':
-                                    # ETF Blend strategies: capitalize first two parts, keep rest as-is
-                                    strategy_name = f"ETF Blend {'-'.join(parts[2:])}"
-                                else:
-                                    # Other strategies: capitalize each part
-                                    strategy_name = ' '.join(p.capitalize() for p in parts)
-                            break
-            except Exception as e:
-                app_logger.log_debug(f"Could not load strategy name for {account_id}: {e}")
-            
-            # Get existing data to preserve last_rebalanced_on
-            redis_key = f"account_data:{account_id}"
-            existing_data = await self.redis_client.get(redis_key)
-            last_rebalanced_on = None
-            if existing_data:
-                try:
-                    existing_account_data = json.loads(existing_data)
-                    last_rebalanced_on = existing_account_data.get('last_rebalanced_on')
-                except Exception:
-                    pass  # Ignore JSON parse errors
-            
-            
-            # Build complete account data JSON document
+            # Prepare dashboard data
             account_data = {
                 "account_id": account_id,
-                "strategy_name": strategy_name,
-                "current_value": net_liq,
-                "last_close_netliq": last_close_netliq,
+                "account_name": account_config.get("name", account_id),
+                "strategy_name": account_config.get("strategy"),
+                "is_ira": is_ira,
+                "net_liquidation": net_liq,
+                "cash_balance": cash_balance,
                 "todays_pnl": todays_pnl,
-                "todays_pnl_percent": todays_pnl_percent,
-                "total_unrealized_pnl": account_unrealized_pnl,  # Add total unrealized P&L
-                "positions": enhanced_positions,
-                "positions_count": len(enhanced_positions),
-                "last_update": datetime.now(timezone.utc).isoformat(),
-                "last_rebalanced_on": last_rebalanced_on  # Preserve existing value or None
+                "todays_pnl_percent": (todays_pnl / (net_liq - todays_pnl) * 100) if net_liq > todays_pnl else 0,
+                "total_upnl": total_upnl,
+                "total_upnl_percent": (total_upnl / net_liq * 100) if net_liq > 0 else 0,
+                "positions": []
             }
             
-            # Simple Redis storage (no TTL - keep data available even during collection delays)
-            await self.redis_client.set(
-                redis_key,
-                json.dumps(account_data)
-            )
+            # Calculate invested amount and process positions
+            invested_amount = 0.0
             
-            # Publish account data update notification for real-time dashboard updates
-            await self._publish_account_update(account_id, account_data)
+            if portfolio_items:
+                for item in portfolio_items:
+                    symbol = item['symbol']
+                    position = item['position']
+                    market_price = item['market_price']
+                    market_value = item['market_value']
+                    avg_cost = item['avg_cost']
+                    
+                    if position != 0:
+                        cost_basis = avg_cost * abs(position)
+                        unrealized_pnl = item['unrealized_pnl']
+                        unrealized_pnl_percent = (unrealized_pnl / cost_basis * 100) if cost_basis != 0 else 0
+                        
+                        position_data = {
+                            "symbol": symbol,
+                            "position": position,
+                            "market_price": market_price,
+                            "market_value": market_value,
+                            "avg_cost": avg_cost,
+                            "cost_basis": cost_basis,
+                            "unrealized_pnl": unrealized_pnl,
+                            "unrealized_pnl_percent": unrealized_pnl_percent,
+                            "weight": (market_value / net_liq * 100) if net_liq > 0 else 0
+                        }
+                        
+                        account_data["positions"].append(position_data)
+                        invested_amount += market_value
             
-            app_logger.log_debug(f"Cached data for account {account_id} with {len(enhanced_positions)} positions")
+            # Update invested amount
+            account_data["invested_amount"] = invested_amount
+            account_data["cash_percent"] = ((net_liq - invested_amount) / net_liq * 100) if net_liq > 0 else 0
+            account_data["last_updated"] = datetime.now(timezone.utc).isoformat()
+            
+            # Save to Redis
+            await self.redis_client.set(f"account:{account_id}", json.dumps(account_data))
+            
+            # Publish update notification
+            await self._publish_account_update(account_id)
+            
+            app_logger.log_debug(f"Successfully collected data for account {account_id}")
             
         except Exception as e:
             app_logger.log_error(f"Failed to collect account data for {account_id}: {e}")
             raise
-    
-    async def _publish_account_update(self, account_id: str, account_data: dict) -> None:
-        """Publish account data update notification via Redis pub/sub"""
+            
+    async def _publish_account_update(self, account_id: str) -> None:
+        """Publish account update notification via Redis pub/sub"""
         try:
-            # Publish to account-specific channel
-            await self.redis_client.publish(
-                f"account_update:{account_id}",
-                json.dumps({
-                    "type": "account_update",
-                    "account_id": account_id,
-                    "data": account_data,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                })
-            )
-            
-            # Also publish to general account updates channel
-            await self.redis_client.publish(
-                "dashboard_updates",
-                json.dumps({
-                    "type": "account_data_updated",
-                    "account_id": account_id,
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                })
-            )
-            
-            app_logger.log_info(f"Published account update notification for {account_id}")
-            
+            message = {
+                "type": "account_data_updated",
+                "account_id": account_id,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            await self.redis_client.publish("dashboard_updates", json.dumps(message))
+            app_logger.log_debug(f"Published account update notification for {account_id}")
         except Exception as e:
-            app_logger.log_warning(f"Failed to publish account update for {account_id}: {e}")
-    
-    async def _publish_dashboard_summary_update(self) -> None:
-        """Publish dashboard summary update notification after collecting all accounts"""
-        try:
-            await self.redis_client.publish(
-                "dashboard_updates",
-                json.dumps({
-                    "type": "dashboard_summary_updated",
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                })
-            )
+            app_logger.log_error(f"Failed to publish account update: {e}")
             
+    async def _publish_dashboard_summary_update(self) -> None:
+        """Publish dashboard summary update notification"""
+        try:
+            # Calculate summary statistics
+            total_value = 0
+            total_pnl_today = 0
+            total_accounts = 0
+            
+            for account_id in self._accounts:
+                account_data = await self.redis_client.get(f"account:{account_id}")
+                if account_data:
+                    data = json.loads(account_data)
+                    total_value += data.get("net_liquidation", 0)
+                    total_pnl_today += data.get("todays_pnl", 0)
+                    total_accounts += 1
+            
+            summary = {
+                "total_value": total_value,
+                "total_pnl_today": total_pnl_today,
+                "total_pnl_today_percent": (total_pnl_today / (total_value - total_pnl_today) * 100) if total_value > total_pnl_today else 0,
+                "total_accounts": total_accounts,
+                "last_updated": datetime.now(timezone.utc).isoformat()
+            }
+            
+            await self.redis_client.set("dashboard:summary", json.dumps(summary))
+            
+            # Publish notification
+            message = {
+                "type": "dashboard_summary_updated",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            await self.redis_client.publish("dashboard_updates", json.dumps(message))
             app_logger.log_info("Published dashboard summary update notification")
             
         except Exception as e:
-            app_logger.log_warning(f"Failed to publish dashboard summary update: {e}")
-            
-    def load_accounts_config(self) -> List[str]:
-        """Load account IDs from accounts.yaml filtered by TRADING_MODE"""
+            app_logger.log_error(f"Failed to publish dashboard summary: {e}")
+    
+    def load_accounts_config(self) -> dict:
+        """Load accounts configuration from accounts.yaml"""
         try:
-            accounts_path = os.path.join("/app", "accounts.yaml")
-            if not os.path.exists(accounts_path):
-                app_logger.log_warning(f"accounts.yaml not found at {accounts_path}")
-                return []
+            accounts_file = "accounts.yaml"
+            with open(accounts_file, 'r') as f:
+                config_data = yaml.safe_load(f)
                 
-            with open(accounts_path, 'r') as f:
-                yaml_data = yaml.safe_load(f)
-                
-            if not yaml_data:
-                return []
-                
-            # Get trading mode from config (defaults to 'paper')
-            trading_mode = os.getenv('TRADING_MODE', 'paper').lower()
+            accounts = {}
+            for account in config_data.get('accounts', []):
+                if account.get('type') == 'live' and account.get('enabled', False):
+                    account_id = account.get('account_id')
+                    if account_id:
+                        accounts[account_id] = {
+                            'name': account.get('name', account_id),
+                            'replacement_set': account.get('replacement_set'),
+                            'strategy': account.get('strategy_name')
+                        }
             
-            # Extract account IDs from accounts array, filtered by type
-            accounts_data = yaml_data.get('accounts', [])
-            account_ids = [
-                account.get('account_id') 
-                for account in accounts_data 
-                if account.get('account_id') and account.get('type', 'paper').lower() == trading_mode
-            ]
-                    
-            app_logger.log_info(f"Loaded {len(account_ids)} {trading_mode} accounts from accounts.yaml")
-            return account_ids
+            app_logger.log_info(f"Loaded {len(accounts)} live accounts from accounts.yaml")
+            return accounts
             
         except Exception as e:
-            app_logger.log_error(f"Failed to load accounts config: {e}")
-            return []
+            app_logger.log_error(f"Failed to load accounts configuration: {e}")
+            return {}

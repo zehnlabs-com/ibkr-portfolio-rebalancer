@@ -42,12 +42,12 @@ class ApplicationService:
             if recovered_count > 0:
                 app_logger.log_info(f"Startup recovery completed: {recovered_count} events recovered")
             
-            # Start data collector service for dashboard
+            # Start real-time portfolio event service for dashboard
             from app.services.data_collector_service import DataCollectorService
             ibkr_client = self.service_container.get_ibkr_client()
             redis_client = await queue_service._get_redis()
             self.data_collector_service = DataCollectorService(ibkr_client, redis_client)
-            await self.data_collector_service.start_collection_tasks()
+            await self.data_collector_service.start_collection_tasks()  # Now starts real-time event subscriptions
             
             self.running = True
             app_logger.log_info("Application services started successfully")
@@ -63,9 +63,9 @@ class ApplicationService:
         
         self.running = False
         
-        # Stop data collector service
+        # Stop real-time portfolio event service
         if self.data_collector_service:
-            await self.data_collector_service.stop_collection_tasks()
+            await self.data_collector_service.stop_collection_tasks()  # Now stops real-time event subscriptions
         
         # Stop user notification service
         if self.user_notification_service:

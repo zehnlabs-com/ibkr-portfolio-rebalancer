@@ -128,12 +128,42 @@ class RealtimeUpdateService:
                 return
                 
             # Fetch updated account data from Redis
-            account_data_str = await self.redis_client.get(f"account_data:{account_id}")
+            account_data_str = await self.redis_client.get(f"account:{account_id}")
             if not account_data_str:
                 logger.warning(f"No account data found for {account_id}")
                 return
                 
-            account_data = json.loads(account_data_str)
+            account_data_dict = json.loads(account_data_str)
+            
+            # Parse account data using dashboard handlers to get proper field mapping
+            from app.container import container
+            dashboard_handlers = container.dashboard_handlers
+            parsed_account = dashboard_handlers._parse_account_data(account_data_dict)
+            
+            # Convert to dictionary with proper field names for frontend
+            account_data = {
+                "account_id": parsed_account.account_id,
+                "strategy_name": parsed_account.strategy_name,
+                "current_value": parsed_account.current_value,
+                "last_close_netliq": parsed_account.last_close_netliq,
+                "todays_pnl": parsed_account.todays_pnl,
+                "todays_pnl_percent": parsed_account.todays_pnl_percent,
+                "total_unrealized_pnl": parsed_account.total_unrealized_pnl,
+                "positions": [
+                    {
+                        "symbol": pos.symbol,
+                        "quantity": pos.quantity,  # Properly mapped from redis 'position' field
+                        "market_value": pos.market_value,
+                        "avg_cost": pos.avg_cost,
+                        "current_price": pos.current_price,
+                        "unrealized_pnl": pos.unrealized_pnl,
+                        "unrealized_pnl_percent": pos.unrealized_pnl_percent
+                    } for pos in parsed_account.positions
+                ],
+                "positions_count": parsed_account.positions_count,
+                "last_update": parsed_account.last_update.isoformat(),
+                "last_rebalanced_on": parsed_account.last_rebalanced_on.isoformat() if parsed_account.last_rebalanced_on else None
+            }
             
             # Send account update to WebSocket clients
             await self.websocket_manager.send_account_update(account_data)
