@@ -523,7 +523,7 @@ class IBKRClient:
         
         # Single consolidated completion log
         phase2_msg = f", Phase 2 (Historical): {successful_historical}/{len(remaining_symbols) if remaining_symbols else 0}" if remaining_symbols else ""
-        app_logger.log_info(f"Market prices retrieved for {len(symbols)} symbols - Phase 1 (Snapshot): {successful_snapshots}/{len(qualified_contracts)}{phase2_msg}")
+        app_logger.log_debug(f"Market prices retrieved for {len(symbols)} symbols - Phase 1 (Snapshot): {successful_snapshots}/{len(qualified_contracts)}{phase2_msg}")
         return prices
     
     
@@ -680,7 +680,7 @@ class IBKRClient:
                 )
                 return True
             except (asyncio.TimeoutError, Exception) as e:
-                app_logger.log_info(f"Reconnecting to IBKR gateway...")
+                app_logger.log_debug(f"Reconnecting to IBKR gateway...")
                 return await self.connect()
     
     async def get_contract_details(self, symbols: List[str], event=None) -> Dict[str, Any]:

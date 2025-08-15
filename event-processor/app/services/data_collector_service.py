@@ -250,7 +250,7 @@ class DataCollectorService:
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
             await self.redis_client.publish("dashboard_updates", json.dumps(message))
-            app_logger.log_info("Published dashboard summary update notification")
+            app_logger.log_debug("Published dashboard summary update notification")
             
         except Exception as e:
             app_logger.log_error(f"Failed to publish dashboard summary: {e}")

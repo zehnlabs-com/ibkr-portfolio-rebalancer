@@ -15,6 +15,7 @@ from app.handlers.websocket_handlers import WebSocketHandlers
 from app.handlers.strategies_handlers import StrategiesHandlers
 from app.handlers.notification_handlers import NotificationHandlers
 from app.services.notification_cleanup_service import NotificationCleanupService
+from app.services.notification_monitor_service import NotificationMonitorService
 from app.services.realtime_update_service import RealtimeUpdateService
 from app.services.docker_event_service import DockerEventService
 from app.handlers.websocket_handlers import get_websocket_manager
@@ -42,6 +43,7 @@ class Container:
         self.strategies_handlers = StrategiesHandlers()
         self.notification_handlers = NotificationHandlers(self.queue_repository.redis)
         self.notification_cleanup_service = NotificationCleanupService(self.queue_repository.redis)
+        self.notification_monitor_service = NotificationMonitorService(settings.redis_url, get_websocket_manager())
         self.realtime_update_service = RealtimeUpdateService(settings.redis_url, get_websocket_manager())
         self.docker_event_service = DockerEventService(get_websocket_manager(), self.docker_handlers)
     
@@ -50,6 +52,7 @@ class Container:
         await self.queue_repository.connect()
         await self.health_repository.connect()
         await self.notification_cleanup_service.start()
+        await self.notification_monitor_service.start()
         await self.realtime_update_service.start()
         await self.docker_event_service.start_event_stream()
     
@@ -57,6 +60,7 @@ class Container:
         """Clean up connections"""
         await self.docker_event_service.stop_event_stream()
         await self.realtime_update_service.stop()
+        await self.notification_monitor_service.stop()
         await self.notification_cleanup_service.stop()
         await self.queue_repository.disconnect()
         await self.health_repository.disconnect()
