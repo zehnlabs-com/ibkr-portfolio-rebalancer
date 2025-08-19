@@ -34,7 +34,7 @@ class PrintRebalanceCommand(EventCommand):
                     error=f"No strategy_name found in event payload for account {self.event.account_id}"
                 )
             
-            account_config = EventAccountConfig(self.event.payload)
+            account_config = EventAccountConfig.from_dict(self.event.payload)
             
             # Execute dry run rebalancing
             result = await rebalancer_service.dry_run_rebalance(account_config)

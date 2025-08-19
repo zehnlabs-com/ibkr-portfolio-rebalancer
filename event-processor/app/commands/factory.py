@@ -18,8 +18,9 @@ app_logger = AppLogger(__name__)
 class CommandFactory:
     """Factory for creating event processing commands"""
     
-    def __init__(self):
+    def __init__(self, service_container=None):
         self._commands: Dict[str, Type[EventCommand]] = {}
+        self.service_container = service_container
         self._register_default_commands()
     
     def _register_default_commands(self):

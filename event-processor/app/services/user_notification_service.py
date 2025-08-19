@@ -7,12 +7,13 @@ import uuid
 import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
-import redis.asyncio as redis
 import aiohttp
 from dataclasses import dataclass
 from app.config import config
 from app.logger import AppLogger
 from app.models.events import EventInfo
+from app.services.redis_notification_service import RedisNotificationService
+from app.models.notification_data import NotificationData, NotificationType
 
 app_logger = AppLogger(__name__)
 
@@ -32,9 +33,9 @@ class UserNotificationService:
     Stores notifications in a global queue with automatic cleanup
     """
     
-    def __init__(self):
-        self.redis = None
-        self._redis_url = f"redis://{config.redis.host}:{config.redis.port}/{config.redis.db}"
+    def __init__(self, service_container=None, redis_notification_service=None):
+        self.service_container = service_container
+        self.redis_notification_service = redis_notification_service
         self.cleanup_task = None
         self.running = False
         
@@ -42,17 +43,16 @@ class UserNotificationService:
         self.enabled = config.user_notification.enabled
         self.management_api_url = "http://management-service:8000"
     
-    async def _get_redis(self):
-        """Get or create Redis connection"""
-        if self.redis is None:
-            self.redis = await redis.from_url(self._redis_url, decode_responses=True)
-        return self.redis
-    
     async def start(self):
         """Start the user notification service and background cleanup task"""
         if not self.enabled:
             app_logger.log_info("Notifications disabled, skipping start")
             return
+        
+        # Validate RedisNotificationService is available
+        if not self.redis_notification_service:
+            app_logger.log_error("UserNotificationService requires a RedisNotificationService")
+            raise RuntimeError("UserNotificationService requires a RedisNotificationService")
             
         app_logger.log_info("Starting notification service")
         self.running = True
@@ -142,8 +142,6 @@ class UserNotificationService:
             return
             
         try:
-            redis = await self._get_redis()
-            
             # Extract strategy name from event payload
             strategy_name = event.payload.get('strategy_name', 'unknown')
             
@@ -160,26 +158,27 @@ class UserNotificationService:
             if extra_details:
                 details.update(extra_details)
             
-            # Create notification
+            # Create strongly typed notification
             timestamp = datetime.now()
-            notification_id = str(uuid.uuid4())
             
-            notification_data = {
-                'id': notification_id,
-                'account_id': event.account_id,
-                'strategy_name': strategy_name,
-                'event_type': event_type,
-                'message': self._format_event_message(event_type, details, timestamp),
-                'timestamp': timestamp.isoformat(),
-                'status': 'new',
-                'markdown_body': self._format_markdown_body(event_type, details, timestamp)
-            }
+            # Convert event_type string to NotificationType enum
+            notification_type = None
+            try:
+                notification_type = NotificationType(event_type)
+            except ValueError:
+                notification_type = NotificationType.SYSTEM_INFO
             
-            # Store in Redis ZSET ordered by timestamp
-            pipe = redis.pipeline()
-            pipe.zadd('user_notifications', {json.dumps(notification_data): timestamp.timestamp()})
-            pipe.incr('user_notifications:unread_count')
-            await pipe.execute()
+            notification_data = NotificationData(
+                account_id=event.account_id,
+                strategy_name=strategy_name,
+                event_type=notification_type,
+                message=self._format_event_message(event_type, details, timestamp),
+                markdown_body=self._format_markdown_body(event_type, details, timestamp),
+                created_at=timestamp
+            )
+            
+            # Queue notification via Redis data service
+            await self.redis_notification_service.queue_notification(notification_data)
             
             app_logger.log_debug(f"Queued {event_type} notification for account {event.account_id}")
             
@@ -200,105 +199,63 @@ class UserNotificationService:
             'event_retry': f"Rebalance queued for retry for {strategy_name} at {time_str}",
             'event_connection_error': f"Connection error for {strategy_name} at {time_str}",
             'event_critical_error': f"Critical error for {strategy_name} at {time_str}",
-            'event_permanent_failure': f"Account/Permission issue for {strategy_name} at {time_str} - Manual fix required",
-            'event_partial_execution_suspected': f"Partial execution suspected for {strategy_name} at {time_str} - Manual review required"
+            'event_permanent_failure': f"Permanent failure for {strategy_name} at {time_str}",
+            'event_partial_execution_suspected': f"Partial execution suspected for {strategy_name} at {time_str}"
         }
         
         return event_formats.get(event_type, f"Event {event_type} for {strategy_name} at {time_str}")
     
     def _format_markdown_body(self, event_type: str, details: Dict[str, Any], timestamp: Optional[datetime] = None) -> str:
         """Format detailed markdown body for notification"""
-        event_id = details.get('event_id', 'unknown')
-        strategy_name = details.get('strategy_name', 'unknown')
         account_id = details.get('account_id', 'unknown')
+        strategy_name = details.get('strategy_name', 'unknown')
         exec_command = details.get('exec_command', 'unknown')
-        times_queued = details.get('times_queued', 0)
-        time_str = (timestamp or datetime.now()).strftime('%Y-%m-%d %H:%M:%S')
+        times_queued = details.get('times_queued', 1)
+        time_str = (timestamp or datetime.now()).strftime('%H:%M:%S')
         
-        base_info = f"""**Event Details**
-- Event ID: `{event_id}`
-- Account: `{account_id}`
-- Strategy: `{strategy_name}`
-- Command: `{exec_command}`
-- Times Queued: `{times_queued}`
-- Timestamp: `{time_str}`"""
+        # Base information
+        body = f"**Account:** {account_id}\n"
+        body += f"**Strategy:** {strategy_name}\n"
+        body += f"**Command:** {exec_command}\n"
+        body += f"**Time:** {time_str}\n"
         
-        if event_type in ['event_connection_error', 'event_critical_error', 'event_permanent_failure', 'event_partial_execution_suspected'] and details.get('error_message'):
-            base_info += f"\n\n**Error Message**\n```\n{details['error_message']}\n```"
-        
-        if event_type == 'event_delayed' and details.get('delayed_until'):
-            base_info += f"\n\n**Delayed Until**: {details['delayed_until']}"
+        # Add event-specific details
+        if event_type == 'event_delayed':
+            body += f"**Delayed Until:** {details.get('delayed_until', 'unknown')}\n"
+        elif event_type in ['event_connection_error', 'event_critical_error']:
+            error_msg = details.get('error_message', 'No error details available')
+            body += f"**Error:** {error_msg}\n"
+        elif event_type == 'event_retry':
+            body += f"**Retry Attempt:** {times_queued}\n"
+        elif event_type == 'event_success_retry':
+            body += f"**Succeeded After:** {times_queued - 1} retries\n"
+        elif event_type == 'event_partial_execution_suspected':
+            body += f"**Warning:** Some orders may have been partially executed\n"
             
-        if event_type == 'event_permanent_failure':
-            base_info += f"\n\n**Action Required**: Check account permissions, trading restrictions, or available funds. This event will not be retried automatically."
-            
-        if event_type == 'event_partial_execution_suspected':
-            base_info += f"\n\n**Action Required**: Review account positions manually. Some orders may have executed before the failure occurred. This event was not retried to prevent PDT violations."
-        
-        return base_info
+        return body
     
     async def _cleanup_loop(self):
-        """Background task to cleanup read notifications older than 7 days"""
+        """Background task to periodically cleanup old notifications"""
         while self.running:
             try:
-                # Run cleanup every 24 hours
-                await asyncio.sleep(86400)
-                if self.running:
-                    await self._cleanup_old_notifications()
+                # Sleep for 1 hour between cleanups
+                await asyncio.sleep(3600)
+                
+                # Clean up old notifications
+                await self._cleanup_old_notifications()
+                
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                app_logger.log_error(f"Error in notification cleanup loop: {e}")
-                await asyncio.sleep(3600)  # Retry in 1 hour on error
+                app_logger.log_error(f"Error in cleanup loop: {e}")
+                # Sleep a bit before retrying
+                await asyncio.sleep(60)
     
     async def _cleanup_old_notifications(self):
-        """Remove read notifications older than 7 days"""
+        """Clean up old notifications (older than 24 hours)"""
         try:
-            redis = await self._get_redis()
-            
-            # Calculate cutoff timestamp (7 days ago)
-            cutoff_time = datetime.now() - timedelta(days=7)
-            cutoff_timestamp = cutoff_time.timestamp()
-            
-            # Get notifications older than cutoff
-            old_notifications = await redis.zrangebyscore('user_notifications', 0, cutoff_timestamp)
-            
-            removed_count = 0
-            for notification_json in old_notifications:
-                try:
-                    notification_data = json.loads(notification_json)
-                    if notification_data.get('status') == 'read':
-                        # Remove read notification
-                        await redis.zrem('user_notifications', notification_json)
-                        removed_count += 1
-                except (json.JSONDecodeError, KeyError):
-                    # Remove corrupted data
-                    await redis.zrem('user_notifications', notification_json)
-                    removed_count += 1
-            
-            if removed_count > 0:
-                app_logger.log_info(f"Cleaned up {removed_count} old read notifications")
-            
+            count = await self.redis_notification_service.cleanup_old_notifications(24)
+            if count > 0:
+                app_logger.log_info(f"Cleaned up {count} old notifications")
         except Exception as e:
             app_logger.log_error(f"Failed to cleanup old notifications: {e}")
-    
-    async def _broadcast_count_update(self, unread_count: int):
-        """Broadcast unread count update to WebSocket clients via management API"""
-        try:
-            async with aiohttp.ClientSession() as session:
-                await session.post(
-                    f"{self.management_api_url}/api/internal/broadcast-notification-count",
-                    json={"unread_count": unread_count},
-                    timeout=aiohttp.ClientTimeout(total=5)
-                )
-        except Exception as e:
-            app_logger.log_debug(f"Failed to broadcast count update: {e}")
-    
-    async def is_connected(self) -> bool:
-        """Check if service is connected and operational"""
-        try:
-            redis = await self._get_redis()
-            await redis.ping()
-            return True
-        except Exception:
-            return False

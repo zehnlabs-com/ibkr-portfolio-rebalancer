@@ -28,10 +28,10 @@ class AccountConfig:
 class AblyEventSubscriber:
     """Enhanced Ably service that subscribes to events and enqueues to Redis"""
     
-    def __init__(self):
+    def __init__(self, queue_service=None):
         self.api_key = config.REALTIME_API_KEY
         self.ably: Optional[AblyRealtime] = None
-        self.queue_service = QueueService()
+        self.queue_service = queue_service or QueueService()
         self.accounts: List[AccountConfig] = []
         self.channels: Dict[str, Any] = {}
         self.running = False

@@ -9,16 +9,6 @@ class IQueueRepository(ABC):
     """Abstract interface for queue data access"""
     
     @abstractmethod
-    async def connect(self) -> None:
-        """Connect to queue storage"""
-        pass
-    
-    @abstractmethod
-    async def disconnect(self) -> None:
-        """Disconnect from queue storage"""
-        pass
-    
-    @abstractmethod
     async def get_queue_length(self) -> int:
         """Get current queue length"""
         pass
@@ -82,16 +72,6 @@ class IQueueRepository(ABC):
 
 class IHealthRepository(ABC):
     """Abstract interface for health data access"""
-    
-    @abstractmethod
-    async def connect(self) -> None:
-        """Connect to health data source"""
-        pass
-    
-    @abstractmethod
-    async def disconnect(self) -> None:
-        """Disconnect from health data source"""
-        pass
     
     
     @abstractmethod

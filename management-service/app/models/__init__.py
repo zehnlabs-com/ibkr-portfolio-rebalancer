@@ -1,7 +1,8 @@
 """
-Data models for strongly typed Redis data structures
+Data models for management service Redis data structures
 """
 
+# Import local copies of strongly typed models
 from .event_data import EventData, EventType
 from .account_data import AccountData, PositionData, DashboardSummary
 from .notification_data import NotificationData, NotificationType
@@ -10,7 +11,7 @@ from .queue_data import QueueStats, QueueEventSummary
 __all__ = [
     'EventData',
     'EventType',
-    'AccountData',
+    'AccountData', 
     'PositionData',
     'DashboardSummary',
     'NotificationData',

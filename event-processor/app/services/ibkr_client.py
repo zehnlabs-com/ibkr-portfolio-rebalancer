@@ -2,7 +2,7 @@ import asyncio
 import math
 import random
 import json
-import redis.asyncio as aioredis
+# Redis operations are handled via RedisDataService
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from typing import List, Dict, Optional, Tuple, Any
@@ -13,7 +13,7 @@ from app.logger import AppLogger
 
 app_logger = AppLogger(__name__)
 class IBKRClient:
-    def __init__(self):
+    def __init__(self, service_container=None):
         self.ib = IB()
         self.ib.RequestTimeout = 10.0  # Match rebalancer-api timeout
         
@@ -24,8 +24,9 @@ class IBKRClient:
         self._connection_lock = asyncio.Lock()
         self._order_lock = asyncio.Lock()
         
-        # Initialize Redis client for error storage
-        self.redis_client = None
+        # Get Redis data service from DI container
+        self.service_container = service_container
+        self.redis_data_service = None
         self._redis_initialized = False
     
     async def connect(self) -> bool:
@@ -49,9 +50,10 @@ class IBKRClient:
             # Subscribe to error events
             self.ib.errorEvent += self._on_error_event
             
-            # Initialize Redis connection if not already done
-            if not self._redis_initialized:
-                await self._init_redis()
+            # Initialize Redis data service from DI container if available
+            if not self._redis_initialized and self.service_container:
+                self.redis_data_service = self.service_container.redis_account_service()
+                self._redis_initialized = True
             
             return True
         except TimeoutError as e:
@@ -64,19 +66,11 @@ class IBKRClient:
             app_logger.log_error(f"Failed to connect to IB Gateway at {config.ibkr.host}:{config.ibkr.port}: {type(e).__name__}: {e}")
             return False    
     
-    async def _init_redis(self):
-        """Initialize Redis connection for error storage"""
-        try:
-            self.redis_client = aioredis.Redis(host='redis', port=6379, decode_responses=True)
-            await self.redis_client.ping()
-            self._redis_initialized = True
-        except Exception as e:
-            app_logger.log_error(f"Failed to initialize Redis connection: {e}")
-            self.redis_client = None
+    # Removed _init_redis method as RedisDataService is now injected
     
     def _on_error_event(self, reqId, errorCode, errorString, advancedOrderRejectJson):
         """Event handler for IB errors - stores detailed error information in Redis"""
-        if self.redis_client and errorCode:
+        if self._redis_initialized and errorCode:
             # Store error details with reqId as key
             error_data = {
                 'error_code': errorCode,
@@ -86,42 +80,18 @@ class IBKRClient:
             }
             
             # Run Redis operation in background to avoid blocking
-            asyncio.create_task(self._store_error_async(reqId, error_data))
+            asyncio.create_task(self.redis_data_service.store_ibkr_error(reqId, error_data))
     
-    async def _store_error_async(self, reqId, error_data):
-        """Store error data in Redis with TTL"""
-        try:
-            key = f"ibkr_error:{reqId}"
-            await self.redis_client.setex(key, 28800, json.dumps(error_data))  # 8 hour TTL
-        except Exception as e:
-            app_logger.log_error(f"Failed to store error in Redis: {e}")
     
     async def _store_order_mapping(self, reqId, orderId):
         """Store reqId -> orderId mapping for error correlation"""
-        try:
-            key = f"ibkr_order_mapping:{reqId}"
-            await self.redis_client.setex(key, 28800, str(orderId))  # 8 hour TTL
-        except Exception as e:
-            app_logger.log_error(f"Failed to store order mapping in Redis: {e}")
+        await self.redis_data_service.store_order_mapping(reqId, orderId)
     
     async def getOrderErrors(self, orderId: int) -> Optional[Dict]:
         """Get detailed error information for an order"""
-        if not self.redis_client:
+        if not self._redis_initialized:
             return None
-        
-        try:
-            # First try direct reqId lookup (assuming reqId == orderId for orders)
-            error_key = f"ibkr_error:{orderId}"
-            error_data = await self.redis_client.get(error_key)
-            
-            if error_data:
-                return json.loads(error_data)
-            
-            return None
-            
-        except Exception as e:
-            app_logger.log_error(f"Failed to get order errors from Redis: {e}")
-            return None
+        return await self.redis_data_service.get_ibkr_error(orderId)
     
     
     async def get_account_value(self, account_id: str, tag: str = "NetLiquidation", event=None) -> float:
@@ -555,9 +525,10 @@ class IBKRClient:
         app_logger.log_info(f"Order placed: ID={trade.order.orderId}; {action} {abs(quantity)} shares of {symbol}", event)
         
         # Store reqId -> orderId mapping for error correlation
-        if self.redis_client and hasattr(trade, 'order') and hasattr(trade.order, 'orderId'):
+        if self._redis_initialized and hasattr(trade, 'order') and hasattr(trade.order, 'orderId'):
             # The reqId for order placement is typically the orderId
-            asyncio.create_task(self._store_order_mapping(trade.order.orderId, trade.order.orderId))
+            if self._redis_initialized:
+                asyncio.create_task(self._store_order_mapping(trade.order.orderId, trade.order.orderId))
         
         return trade
     

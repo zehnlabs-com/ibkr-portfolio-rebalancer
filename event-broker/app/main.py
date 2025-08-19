@@ -18,7 +18,11 @@ class EventBrokerApp:
     """Main application class for the Event Broker Service"""
     
     def __init__(self):
-        self.ably_subscriber = AblyEventSubscriber()
+        # Initialize DI container
+        from app.container import Container
+        
+        self.container = Container()
+        self.ably_subscriber = self.container.ably_subscriber()
         self.running = False
         
     async def start(self):

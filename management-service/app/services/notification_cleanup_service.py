@@ -5,7 +5,7 @@ import json
 import logging
 import asyncio
 from datetime import datetime, timedelta
-import redis.asyncio as redis
+from app.services.redis_data_service import RedisDataService
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 class NotificationCleanupService:
     """Service for cleaning up old read notifications"""
 
-    def __init__(self, redis_client: redis.Redis):
-        self.redis = redis_client
+    def __init__(self, redis_data_service: RedisDataService):
+        self.redis_data_service = redis_data_service
         self.cleanup_task = None
         self.running = False
 
@@ -56,26 +56,8 @@ class NotificationCleanupService:
     async def _cleanup_old_notifications(self):
         """Remove read notifications older than 7 days"""
         try:
-            # Calculate cutoff timestamp (7 days ago)
-            cutoff_time = datetime.now() - timedelta(days=7)
-            cutoff_timestamp = cutoff_time.timestamp()
-
-            # Get notifications older than cutoff
-            old_notifications = await self.redis.zrangebyscore('user_notifications', 0, cutoff_timestamp)
-
-            removed_count = 0
-            for notification_json in old_notifications:
-                try:
-                    notification_data = json.loads(notification_json)
-                    if notification_data.get('status') == 'read':
-                        # Remove read notification
-                        await self.redis.zrem('user_notifications', notification_json)
-                        removed_count += 1
-                except (json.JSONDecodeError, KeyError):
-                    # Remove corrupted data
-                    await self.redis.zrem('user_notifications', notification_json)
-                    removed_count += 1
-
+            # Use RedisDataService to cleanup old notifications (7 days retention)
+            removed_count = await self.redis_data_service.cleanup_old_notifications(7 * 24)  # 7 days in hours
             if removed_count > 0:
                 logger.info(f"Cleaned up {removed_count} old read notifications")
 

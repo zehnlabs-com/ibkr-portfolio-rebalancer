@@ -1,91 +1,78 @@
 """
-Service container for dependency injection.
+Service container using dependency-injector for Event Processor
 """
-
-from typing import Dict, Any, Optional, TypeVar, Type
+from dependency_injector import containers, providers
+from app.services.redis_queue_service import RedisQueueService
+from app.services.redis_account_service import RedisAccountService
+from app.services.redis_notification_service import RedisNotificationService
+from app.services.redis_monitoring_service import RedisMonitoringService
 from app.services.queue_service import QueueService
 from app.services.ibkr_client import IBKRClient
 from app.services.user_notification_service import UserNotificationService
 from app.commands.factory import CommandFactory
-from app.logger import AppLogger
-
-app_logger = AppLogger(__name__)
-
-T = TypeVar('T')
 
 
-class ServiceContainer:
-    """Container for managing service dependencies and their lifecycle"""
+class ServiceContainer(containers.DeclarativeContainer):
+    """DI Container for Event Processor service"""
     
-    def __init__(self):
-        self._services: Dict[str, Any] = {}
-        self._initialized = False
+    # Configuration
+    config = providers.Configuration()
     
-    def initialize(self):
-        """Initialize all services with their dependencies in proper order"""
-        if self._initialized:
-            return
-            
-        app_logger.log_info("Initializing service container...")
-        
-        # Phase 1: Initialize services with no dependencies
-        self._services['ibkr_client'] = IBKRClient()
-        self._services['user_notification_service'] = UserNotificationService()
-        self._services['command_factory'] = CommandFactory()
-        
-        # Phase 2: Initialize services that depend on Phase 1 services
-        self._services['queue_service'] = QueueService(self, self._services['user_notification_service'])
-        
-        # Phase 3: Initialize services with complex dependencies
-        # Import here to avoid circular dependencies
-        try:
-            from app.services.rebalancer_service import RebalancerService
-            self._services['rebalancer_service'] = RebalancerService(self._services['ibkr_client'])
-            app_logger.log_info("Rebalancer services initialized successfully")
-        except Exception as e:
-            app_logger.log_error(f"CRITICAL: Could not initialize rebalancer services: {e}")
-            app_logger.log_error("Application cannot proceed without real financial services")
-            raise RuntimeError(f"Failed to initialize critical financial services: {e}")
-        
-        self._initialized = True
-        app_logger.log_info("Service container initialized successfully")
+    # Redis Services (Singletons)
+    redis_queue_service = providers.Singleton(
+        RedisQueueService
+    )
     
-    def get_service(self, service_name: str) -> Optional[Any]:
-        """Get a service by name"""
-        if not self._initialized:
-            raise RuntimeError("Service container not initialized")
-        
-        return self._services.get(service_name)
+    redis_account_service = providers.Singleton(
+        RedisAccountService
+    )
     
-    def get_services(self) -> Dict[str, Any]:
-        """Get all services as a dictionary"""
-        if not self._initialized:
-            raise RuntimeError("Service container not initialized")
-        
-        return self._services.copy()
+    redis_notification_service = providers.Singleton(
+        RedisNotificationService
+    )
     
-    def register_service(self, service_name: str, service_instance: Any):
-        """Register a custom service instance"""
-        self._services[service_name] = service_instance
-        app_logger.log_debug(f"Registered service: {service_name}")
+    redis_monitoring_service = providers.Singleton(
+        RedisMonitoringService
+    )
     
-    def get_queue_service(self) -> QueueService:
-        """Get the queue service instance"""
-        return self.get_service('queue_service')
+    # User notification service
+    user_notification_service = providers.Singleton(
+        UserNotificationService,
+        redis_notification_service=redis_notification_service
+    )
     
+    # Queue service with dependencies
+    queue_service = providers.Singleton(
+        QueueService,
+        redis_queue_service=redis_queue_service,
+        user_notification_service=user_notification_service
+    )
     
-    def get_ibkr_client(self) -> IBKRClient:
-        """Get the IBKR client instance"""
-        return self.get_service('ibkr_client')
+    # IBKR client
+    ibkr_client = providers.Singleton(
+        IBKRClient,
+        service_container=providers.Self()
+    )
     
-    def get_command_factory(self) -> CommandFactory:
-        """Get the command factory instance"""
-        return self.get_service('command_factory')
+    # Command factory
+    command_factory = providers.Singleton(
+        CommandFactory,
+        service_container=providers.Self()
+    )
     
-    def get_user_notification_service(self) -> UserNotificationService:
-        """Get the user notification service instance"""
-        return self.get_service('user_notification_service')
-    
-    def is_initialized(self) -> bool:
-        """Check if container is initialized"""
-        return self._initialized
+    # Rebalancer service (lazy initialization for optional import)
+    rebalancer_service = providers.Singleton(
+        providers.Callable(
+            lambda ibkr_client: _get_rebalancer_service(ibkr_client)
+        ),
+        ibkr_client=ibkr_client
+    )
+
+
+def _get_rebalancer_service(ibkr_client):
+    """Lazy loader for rebalancer service to handle optional import"""
+    try:
+        from app.services.rebalancer_service import RebalancerService
+        return RebalancerService(ibkr_client)
+    except ImportError as e:
+        raise RuntimeError(f"Failed to initialize critical financial services: {e}")

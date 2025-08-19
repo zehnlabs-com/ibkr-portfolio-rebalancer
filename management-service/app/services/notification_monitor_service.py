@@ -8,8 +8,7 @@ import asyncio
 import logging
 from typing import Optional
 from datetime import datetime
-import redis.asyncio as redis
-
+from app.services.redis_data_service import RedisDataService
 from app.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -18,9 +17,8 @@ logger = setup_logger(__name__)
 class NotificationMonitorService:
     """Service for monitoring and broadcasting new notifications via WebSocket"""
     
-    def __init__(self, redis_url: str, websocket_manager):
-        self.redis_url = redis_url
-        self.redis: Optional[redis.Redis] = None
+    def __init__(self, redis_data_service: RedisDataService, websocket_manager):
+        self.redis_data_service = redis_data_service
         self.websocket_manager = websocket_manager
         self._monitor_task: Optional[asyncio.Task] = None
         self._running = False
@@ -33,12 +31,6 @@ class NotificationMonitorService:
             return
             
         try:
-            # Create Redis connection
-            self.redis = await redis.from_url(self.redis_url, decode_responses=True)
-            
-            # Test Redis connection
-            await self.redis.ping()
-            
             self._running = True
             self._last_check_timestamp = datetime.now().timestamp()
             
@@ -65,10 +57,6 @@ class NotificationMonitorService:
                 await self._monitor_task
             except asyncio.CancelledError:
                 pass
-        
-        if self.redis:
-            await self.redis.close()
-            self.redis = None
                 
         logger.info("Notification monitor service stopped")
         
@@ -91,119 +79,52 @@ class NotificationMonitorService:
         try:
             current_timestamp = datetime.now().timestamp()
             
-            # Get notifications added since last check
-            new_notifications = await self.redis.zrangebyscore(
-                'user_notifications',
-                self._last_check_timestamp,
-                current_timestamp
+            # Get new notifications using Redis data service
+            new_notifications = await self.redis_data_service.monitor_new_notifications(
+                self._last_check_timestamp
             )
             
             if new_notifications:
-                logger.info(f"Found {len(new_notifications)} new notifications")
-                
-                # Parse and broadcast each new notification
-                for notification_json in new_notifications:
-                    try:
-                        notification_data = json.loads(notification_json)
-                        await self._broadcast_notification(notification_data)
-                    except json.JSONDecodeError as e:
-                        logger.error(f"Failed to parse notification: {e}")
-                
-                # Also broadcast updated unread count
-                await self._broadcast_unread_count()
+                # Broadcast new notifications to WebSocket clients
+                await self._broadcast_notifications(new_notifications)
+                logger.debug(f"Broadcasted {len(new_notifications)} new notifications")
             
+            # Update timestamp for next check
             self._last_check_timestamp = current_timestamp
             
         except Exception as e:
             logger.error(f"Failed to check for new notifications: {e}")
-            
+    
     async def _send_all_notifications(self) -> None:
-        """Send all existing notifications on initial connection"""
+        """Send all current notifications to newly connected clients"""
         try:
-            # Get all notifications (newest first)
-            all_notifications = await self.redis.zrevrange('user_notifications', 0, -1)
+            # Get all notifications (limit to recent 100)
+            all_notifications = await self.redis_data_service.get_notifications(100)
             
-            notifications_list = []
-            for notification_json in all_notifications:
-                try:
-                    notification_data = json.loads(notification_json)
-                    notifications_list.append(notification_data)
-                except json.JSONDecodeError as e:
-                    logger.error(f"Failed to parse notification: {e}")
-                    continue
-            
-            if notifications_list:
-                # Send all notifications as a batch
-                message = {
-                    "type": "notifications",
-                    "action": "initial",
-                    "data": notifications_list
-                }
-                await self.websocket_manager.broadcast(message)
-                logger.info(f"Sent {len(notifications_list)} initial notifications")
-            
-            # Also send unread count
-            await self._broadcast_unread_count()
-            
+            if all_notifications:
+                await self._broadcast_notifications(all_notifications, is_initial=True)
+                logger.debug(f"Sent {len(all_notifications)} initial notifications")
+                
         except Exception as e:
             logger.error(f"Failed to send initial notifications: {e}")
-            
-    async def _broadcast_notification(self, notification_data: dict) -> None:
-        """Broadcast a single notification to all WebSocket clients"""
-        try:
-            message = {
-                "type": "notification",
-                "action": "new",
-                "data": notification_data
-            }
-            await self.websocket_manager.broadcast(message)
-            logger.info(f"Broadcast new notification: {notification_data.get('id')}")
-            
-        except Exception as e:
-            logger.error(f"Failed to broadcast notification: {e}")
-            
-    async def _broadcast_unread_count(self) -> None:
-        """Broadcast updated unread count to all WebSocket clients"""
-        try:
-            count = await self.redis.get('user_notifications:unread_count')
-            unread_count = int(count) if count is not None else 0
-            
-            message = {
-                "type": "notification_count",
-                "data": {"unread_count": unread_count}
-            }
-            await self.websocket_manager.broadcast(message)
-            logger.info(f"Broadcast unread count: {unread_count}")
-            
-        except Exception as e:
-            logger.error(f"Failed to broadcast unread count: {e}")
     
-    async def handle_notification_update(self, notification_id: str, action: str) -> None:
-        """Handle notification updates (mark read, delete) and broadcast changes"""
+    async def _broadcast_notifications(self, notifications: list, is_initial: bool = False) -> None:
+        """Broadcast notifications to all WebSocket clients"""
         try:
-            if action == "read" or action == "delete":
-                # Broadcast updated unread count
-                await self._broadcast_unread_count()
+            if not notifications:
+                return
                 
-                # Broadcast the action so frontend can update
-                message = {
-                    "type": "notification_update",
-                    "action": action,
-                    "data": {"notification_id": notification_id}
+            # Format message for WebSocket clients
+            message = {
+                "type": "notifications_initial" if is_initial else "notifications_update",
+                "data": {
+                    "notifications": notifications,
+                    "timestamp": datetime.now().isoformat()
                 }
-                await self.websocket_manager.broadcast(message)
-                
-            elif action == "mark_all_read":
-                # Broadcast mark all read action
-                message = {
-                    "type": "notification_update",
-                    "action": "mark_all_read",
-                    "data": {}
-                }
-                await self.websocket_manager.broadcast(message)
-                
-                # Broadcast updated unread count
-                await self._broadcast_unread_count()
-                
+            }
+            
+            # Broadcast to all connected WebSocket clients
+            await self.websocket_manager.broadcast(message)
+            
         except Exception as e:
-            logger.error(f"Failed to handle notification update: {e}")
+            logger.error(f"Failed to broadcast notifications: {e}")

@@ -15,6 +15,8 @@ from typing import List, Optional
 from app.config import config
 from app.logger import AppLogger
 from app.services.ibkr_client import IBKRClient
+from app.services.redis_account_service import RedisAccountService
+from app.models.account_data import AccountData, PositionData, DashboardSummary
 
 app_logger = AppLogger(__name__)
 
@@ -22,9 +24,9 @@ app_logger = AppLogger(__name__)
 class DataCollectorService:
     """Service for periodic portfolio data collection and caching for dashboard"""
     
-    def __init__(self, ibkr_client: IBKRClient, redis_client):
+    def __init__(self, ibkr_client: IBKRClient, redis_account_service: RedisAccountService):
         self.ibkr_client = ibkr_client
-        self.redis_client = redis_client
+        self.redis_account_service = redis_account_service
         self._collection_task: Optional[asyncio.Task] = None
         self._running = False
         self._accounts = []
@@ -80,8 +82,8 @@ class DataCollectorService:
         
         # Publish initial dashboard summary
         await self._publish_dashboard_summary_update()
-        await self.redis_client.set("collection:last_run", datetime.now(timezone.utc).isoformat())
-        await self.redis_client.set("collection:status", "polling")
+        await self.redis_account_service.update_collection_timestamp()
+        await self.redis_account_service.update_collection_status("polling")
         
         app_logger.log_info("Initial data sync completed")
     
@@ -111,7 +113,7 @@ class DataCollectorService:
                 
                 # Update dashboard summary
                 await self._publish_dashboard_summary_update()
-                await self.redis_client.set("collection:last_run", datetime.now(timezone.utc).isoformat())
+                await self.redis_account_service.update_collection_timestamp()
                 
                 app_logger.log_debug("Periodic data collection completed")
                 
@@ -142,22 +144,8 @@ class DataCollectorService:
             # Get cash balance
             cash_balance = await self.ibkr_client.get_account_value(account_id, "TotalCashBalance")
             
-            # Prepare dashboard data
-            account_data = {
-                "account_id": account_id,
-                "account_name": account_config.get("name", account_id),
-                "strategy_name": account_config.get("strategy"),
-                "is_ira": is_ira,
-                "net_liquidation": net_liq,
-                "cash_balance": cash_balance,
-                "todays_pnl": todays_pnl,
-                "todays_pnl_percent": (todays_pnl / (net_liq - todays_pnl) * 100) if net_liq > todays_pnl else 0,
-                "total_upnl": total_upnl,
-                "total_upnl_percent": (total_upnl / net_liq * 100) if net_liq > 0 else 0,
-                "positions": []
-            }
-            
-            # Calculate invested amount and process positions
+            # Prepare position data
+            positions = []
             invested_amount = 0.0
             
             if portfolio_items:
@@ -173,28 +161,41 @@ class DataCollectorService:
                         unrealized_pnl = item['unrealized_pnl']
                         unrealized_pnl_percent = (unrealized_pnl / cost_basis * 100) if cost_basis != 0 else 0
                         
-                        position_data = {
-                            "symbol": symbol,
-                            "position": position,
-                            "market_price": market_price,
-                            "market_value": market_value,
-                            "avg_cost": avg_cost,
-                            "cost_basis": cost_basis,
-                            "unrealized_pnl": unrealized_pnl,
-                            "unrealized_pnl_percent": unrealized_pnl_percent,
-                            "weight": (market_value / net_liq * 100) if net_liq > 0 else 0
-                        }
+                        position_data = PositionData(
+                            symbol=symbol,
+                            position=position,
+                            market_price=market_price,
+                            market_value=market_value,
+                            avg_cost=avg_cost,
+                            cost_basis=cost_basis,
+                            unrealized_pnl=unrealized_pnl,
+                            unrealized_pnl_percent=unrealized_pnl_percent,
+                            weight=(market_value / net_liq * 100) if net_liq > 0 else 0
+                        )
                         
-                        account_data["positions"].append(position_data)
+                        positions.append(position_data)
                         invested_amount += market_value
             
-            # Update invested amount
-            account_data["invested_amount"] = invested_amount
-            account_data["cash_percent"] = ((net_liq - invested_amount) / net_liq * 100) if net_liq > 0 else 0
-            account_data["last_updated"] = datetime.now(timezone.utc).isoformat()
+            # Create strongly typed AccountData
+            account_data = AccountData(
+                account_id=account_id,
+                account_name=account_config.get("name", account_id),
+                strategy_name=account_config.get("strategy"),
+                is_ira=is_ira,
+                net_liquidation=net_liq,
+                cash_balance=cash_balance,
+                todays_pnl=todays_pnl,
+                todays_pnl_percent=(todays_pnl / (net_liq - todays_pnl) * 100) if net_liq > todays_pnl else 0,
+                total_upnl=total_upnl,
+                total_upnl_percent=(total_upnl / net_liq * 100) if net_liq > 0 else 0,
+                invested_amount=invested_amount,
+                cash_percent=((net_liq - invested_amount) / net_liq * 100) if net_liq > 0 else 0,
+                last_updated=datetime.now(timezone.utc),
+                positions=positions
+            )
             
             # Save to Redis
-            await self.redis_client.set(f"account:{account_id}", json.dumps(account_data))
+            await self.redis_account_service.update_account_data(account_id, account_data)
             
             # Publish update notification
             await self._publish_account_update(account_id)
@@ -213,7 +214,7 @@ class DataCollectorService:
                 "account_id": account_id,
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
-            await self.redis_client.publish("dashboard_updates", json.dumps(message))
+            await self.redis_account_service.publish_dashboard_update(message)
             app_logger.log_debug(f"Published account update notification for {account_id}")
         except Exception as e:
             app_logger.log_error(f"Failed to publish account update: {e}")
@@ -227,29 +228,28 @@ class DataCollectorService:
             total_accounts = 0
             
             for account_id in self._accounts:
-                account_data = await self.redis_client.get(f"account:{account_id}")
-                if account_data:
-                    data = json.loads(account_data)
-                    total_value += data.get("net_liquidation", 0)
-                    total_pnl_today += data.get("todays_pnl", 0)
+                data = await self.redis_account_service.get_account_data(account_id)
+                if data:
+                    total_value += data.net_liquidation
+                    total_pnl_today += data.todays_pnl
                     total_accounts += 1
             
-            summary = {
-                "total_value": total_value,
-                "total_pnl_today": total_pnl_today,
-                "total_pnl_today_percent": (total_pnl_today / (total_value - total_pnl_today) * 100) if total_value > total_pnl_today else 0,
-                "total_accounts": total_accounts,
-                "last_updated": datetime.now(timezone.utc).isoformat()
-            }
+            summary = DashboardSummary(
+                total_value=total_value,
+                total_pnl_today=total_pnl_today,
+                total_pnl_today_percent=(total_pnl_today / (total_value - total_pnl_today) * 100) if total_value > total_pnl_today else 0,
+                total_accounts=total_accounts,
+                last_updated=datetime.now(timezone.utc)
+            )
             
-            await self.redis_client.set("dashboard:summary", json.dumps(summary))
+            await self.redis_account_service.update_dashboard_summary(summary)
             
             # Publish notification
             message = {
                 "type": "dashboard_summary_updated",
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
-            await self.redis_client.publish("dashboard_updates", json.dumps(message))
+            await self.redis_account_service.publish_dashboard_update(message)
             app_logger.log_debug("Published dashboard summary update notification")
             
         except Exception as e:

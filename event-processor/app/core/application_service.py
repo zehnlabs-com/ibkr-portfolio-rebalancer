@@ -24,11 +24,8 @@ class ApplicationService:
         app_logger.log_info("Starting application services...")
         
         try:
-            # Initialize service container
-            self.service_container.initialize()
-            
-            # Get user notification service after initialization
-            self.user_notification_service = self.service_container.get_user_notification_service()
+            # Get user notification service from container
+            self.user_notification_service = self.service_container.user_notification_service()
             
             # Set up signal handlers
             self.signal_handler.setup_signal_handlers()
@@ -37,16 +34,16 @@ class ApplicationService:
             await self.user_notification_service.start()
             
             # Recover any events stuck in active_events_set from previous service restart
-            queue_service = self.service_container.get_queue_service()
+            queue_service = self.service_container.queue_service()
             recovered_count = await queue_service.recover_stuck_active_events()
             if recovered_count > 0:
                 app_logger.log_info(f"Startup recovery completed: {recovered_count} events recovered")
             
             # Start real-time portfolio event service for dashboard
             from app.services.data_collector_service import DataCollectorService
-            ibkr_client = self.service_container.get_ibkr_client()
-            redis_client = await queue_service._get_redis()
-            self.data_collector_service = DataCollectorService(ibkr_client, redis_client)
+            ibkr_client = self.service_container.ibkr_client()
+            redis_account_service = self.service_container.redis_account_service()
+            self.data_collector_service = DataCollectorService(ibkr_client, redis_account_service)
             await self.data_collector_service.start_collection_tasks()  # Now starts real-time event subscriptions
             
             self.running = True

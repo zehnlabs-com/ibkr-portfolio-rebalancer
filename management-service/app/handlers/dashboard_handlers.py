@@ -3,56 +3,46 @@ Dashboard API handlers for portfolio monitoring
 """
 import json
 from datetime import datetime
-from typing import List, Optional
-from app.models.dashboard_models import AccountData, Position
+from typing import List, Optional, Dict, Any
+from app.services.redis_data_service import RedisDataService
+from app.models.dashboard_models import AccountData as DashboardAccountData, Position as DashboardPosition
+from app.models import AccountData, PositionData
 
 
 class DashboardHandlers:
     """Handlers for dashboard API endpoints"""
     
-    def __init__(self, redis_repository):
-        self.redis_repository = redis_repository
+    def __init__(self, redis_data_service: RedisDataService):
+        self.redis_data_service = redis_data_service
     
-    async def _get_all_accounts_data(self) -> List[AccountData]:
+    async def _get_all_accounts_data(self) -> List[DashboardAccountData]:
         """Helper method to get all account data from Redis"""
         try:
-            redis = self.redis_repository.redis
-            if not redis:
-                raise RuntimeError("Redis connection not established")
+            accounts_data = await self.redis_data_service.get_all_accounts_data()
             
-            # Get all account:* keys
-            keys = await redis.keys("account:*")
+            # Convert strongly typed AccountData to Dashboard models for API response
+            dashboard_accounts = []
+            for account_data in accounts_data:
+                try:
+                    # Convert dataclass to Pydantic model for API response
+                    parsed_data = self._parse_account_data(account_data.to_dict())
+                    dashboard_accounts.append(parsed_data)
+                except Exception as e:
+                    # Log error but continue with other accounts
+                    print(f"Failed to parse account data for {account_data.account_id}: {e}")
             
-            if not keys:
-                return []
-            
-            # Get all account data at once
-            account_data_strings = await redis.mget(keys)
-            
-            accounts_data = []
-            for i, data_str in enumerate(account_data_strings):
-                if data_str:
-                    try:
-                        account_data_dict = json.loads(data_str)
-                        account_data = self._parse_account_data(account_data_dict)
-                        accounts_data.append(account_data)
-                    except Exception as e:
-                        # Log error but continue with other accounts
-                        account_id = keys[i].split(':')[1] if ':' in keys[i] else 'unknown'
-                        print(f"Failed to parse account data for {account_id}: {e}")
-            
-            return accounts_data
+            return dashboard_accounts
             
         except Exception as e:
-            raise Exception(f"Failed to get accounts data from Redis: {str(e)}")
+            raise Exception(f"Failed to get accounts data: {str(e)}")
     
-    def _parse_account_data(self, data: dict) -> AccountData:
+    def _parse_account_data(self, data: dict) -> DashboardAccountData:
         """Parse account data dictionary into AccountData model"""
         # Bypass Position model validation and use raw dict data
         positions = []
         for pos in data.get('positions', []):
             try:
-                position_data = Position(
+                position_data = DashboardPosition(
                     symbol=pos['symbol'],
                     quantity=pos['position'],  # Redis stores as 'position'
                     market_value=pos['market_value'],
@@ -77,7 +67,7 @@ class DashboardHandlers:
             except Exception:
                 pass  # Ignore parse errors
         
-        return AccountData(
+        return DashboardAccountData(
             account_id=data['account_id'],
             strategy_name=data.get('strategy_name'),
             current_value=data['net_liquidation'],  # Redis stores as 'net_liquidation'

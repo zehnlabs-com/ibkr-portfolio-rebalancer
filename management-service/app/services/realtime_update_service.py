@@ -8,8 +8,7 @@ import json
 import asyncio
 import logging
 from typing import Optional
-import redis.asyncio as redis
-
+from app.services.redis_data_service import RedisDataService
 from app.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -18,12 +17,9 @@ logger = setup_logger(__name__)
 class RealtimeUpdateService:
     """Service for handling real-time dashboard updates via Redis pub/sub"""
     
-    def __init__(self, redis_url: str, websocket_manager):
-        self.redis_url = redis_url
+    def __init__(self, redis_data_service: RedisDataService, websocket_manager):
+        self.redis_data_service = redis_data_service
         self.websocket_manager = websocket_manager
-        self.redis_subscriber: Optional[redis.Redis] = None
-        self.redis_client: Optional[redis.Redis] = None
-        self.pubsub: Optional[redis.client.PubSub] = None
         self._subscriber_task: Optional[asyncio.Task] = None
         self._running = False
         
@@ -34,18 +30,6 @@ class RealtimeUpdateService:
             return
             
         try:
-            # Create separate Redis connections for subscriber and data fetching
-            self.redis_subscriber = redis.from_url(self.redis_url, decode_responses=True)
-            self.redis_client = redis.from_url(self.redis_url, decode_responses=True)
-            
-            # Test connections
-            await self.redis_subscriber.ping()
-            await self.redis_client.ping()
-            
-            # Set up pub/sub
-            self.pubsub = self.redis_subscriber.pubsub()
-            await self.pubsub.subscribe("dashboard_updates")
-            
             self._running = True
             
             # Start the subscriber task
@@ -69,187 +53,96 @@ class RealtimeUpdateService:
             except asyncio.CancelledError:
                 pass
                 
-        if self.pubsub:
-            await self.pubsub.unsubscribe("dashboard_updates")
-            await self.pubsub.close()
-            
-        if self.redis_subscriber:
-            await self.redis_subscriber.close()
-            
-        if self.redis_client:
-            await self.redis_client.close()
-            
         logger.info("Real-time update service stopped")
         
     async def _subscriber_loop(self) -> None:
-        """Main subscriber loop that listens for Redis pub/sub messages"""
-        while self._running:
-            try:
-                # Listen for messages with timeout to allow clean shutdown
-                message = await asyncio.wait_for(
-                    self.pubsub.get_message(ignore_subscribe_messages=True, timeout=1),
-                    timeout=2.0
-                )
-                
-                if message and message['type'] == 'message':
-                    await self._handle_message(message)
+        """Main subscriber loop for Redis pub/sub messages"""
+        try:
+            async for message in self.redis_data_service.subscribe_to_updates():
+                if not self._running:
+                    break
                     
-            except asyncio.TimeoutError:
-                # Normal timeout - continue loop
-                continue
-            except Exception as e:
-                logger.error(f"Error in subscriber loop: {e}")
-                await asyncio.sleep(1)
-                
-    async def _handle_message(self, message: dict) -> None:
-        """Handle incoming Redis pub/sub messages"""
-        try:
-            data = json.loads(message['data'])
-            message_type = data.get('type')
-            
-            logger.info(f"Received message: {message_type}")
-            
-            if message_type == "account_data_updated":
-                await self._handle_account_data_updated(data)
-            elif message_type == "dashboard_summary_updated":
-                await self._handle_dashboard_summary_updated(data)
-            else:
-                logger.debug(f"Unknown message type: {message_type}")
-                
+                try:
+                    # Handle different message types
+                    message_type = message.get('type', 'unknown')
+                    
+                    if message_type == 'account_update':
+                        await self._handle_account_update(message)
+                    elif message_type == 'summary_update':
+                        await self._handle_summary_update(message)
+                    else:
+                        # Forward unknown messages as-is
+                        await self.websocket_manager.broadcast({
+                            "type": "dashboard_update",
+                            "data": message
+                        })
+                        
+                except Exception as e:
+                    logger.error(f"Error processing dashboard update: {e}")
+                    
         except Exception as e:
-            logger.error(f"Failed to handle message: {e}")
-            
-    async def _handle_account_data_updated(self, data: dict) -> None:
-        """Handle account data update notifications"""
+            logger.error(f"Error in subscriber loop: {e}")
+    
+    async def _handle_account_update(self, message: dict) -> None:
+        """Handle individual account data updates"""
         try:
-            account_id = data.get('account_id')
+            account_id = message.get('account_id')
             if not account_id:
-                logger.warning("Account data update message missing account_id")
+                logger.warning("Account update message missing account_id")
                 return
+            
+            # Get the updated account data
+            account_data = await self.redis_data_service.get_account_data(account_id)
+            if account_data:
+                # Broadcast account update to WebSocket clients
+                await self.websocket_manager.broadcast({
+                    "type": "account_update",
+                    "data": {
+                        "account_id": account_id,
+                        "account_data": account_data
+                    }
+                })
                 
-            # Fetch updated account data from Redis
-            account_data_str = await self.redis_client.get(f"account:{account_id}")
-            if not account_data_str:
-                logger.warning(f"No account data found for {account_id}")
-                return
+                logger.debug(f"Broadcasted account update for {account_id}")
                 
-            account_data_dict = json.loads(account_data_str)
-            
-            # Parse account data using dashboard handlers to get proper field mapping
-            from app.container import container
-            dashboard_handlers = container.dashboard_handlers
-            parsed_account = dashboard_handlers._parse_account_data(account_data_dict)
-            
-            # Convert to dictionary with proper field names for frontend
-            account_data = {
-                "account_id": parsed_account.account_id,
-                "strategy_name": parsed_account.strategy_name,
-                "current_value": parsed_account.current_value,
-                "last_close_netliq": parsed_account.last_close_netliq,
-                "todays_pnl": parsed_account.todays_pnl,
-                "todays_pnl_percent": parsed_account.todays_pnl_percent,
-                "total_unrealized_pnl": parsed_account.total_unrealized_pnl,
-                "positions": [
-                    {
-                        "symbol": pos.symbol,
-                        "quantity": pos.quantity,  # Properly mapped from redis 'position' field
-                        "market_value": pos.market_value,
-                        "avg_cost": pos.avg_cost,
-                        "current_price": pos.current_price,
-                        "unrealized_pnl": pos.unrealized_pnl,
-                        "unrealized_pnl_percent": pos.unrealized_pnl_percent
-                    } for pos in parsed_account.positions
-                ],
-                "positions_count": parsed_account.positions_count,
-                "last_update": parsed_account.last_update.isoformat(),
-                "last_rebalanced_on": parsed_account.last_rebalanced_on.isoformat() if parsed_account.last_rebalanced_on else None
-            }
-            
-            # Send account update to WebSocket clients
-            await self.websocket_manager.send_account_update(account_data)
-            
-            logger.info(f"Broadcast account update for {account_id}")
-            
         except Exception as e:
-            logger.error(f"Failed to handle account data update: {e}")
-            
-    async def _handle_dashboard_summary_updated(self, data: dict) -> None:
-        """Handle dashboard summary update notifications"""
+            logger.error(f"Failed to handle account update: {e}")
+    
+    async def _handle_summary_update(self, message: dict) -> None:
+        """Handle dashboard summary updates"""
         try:
-            # Get all account data from Redis and send dashboard summary
-            from app.container import container
-            dashboard_handlers = container.dashboard_handlers
+            # Broadcast summary update to WebSocket clients
+            await self.websocket_manager.broadcast({
+                "type": "summary_update", 
+                "data": message.get('summary', {})
+            })
             
-            # Get all accounts data
-            accounts_data = await dashboard_handlers._get_all_accounts_data()
-            
-            if not accounts_data:
-                logger.warning("No accounts data found for dashboard summary")
-                return
-            
-            # Calculate dashboard summary data
-            total_value = sum(account.current_value for account in accounts_data)
-            total_pnl = sum(account.todays_pnl for account in accounts_data)
-            
-            # Safe percentage calculation
-            denominator = total_value - total_pnl
-            if denominator > 0:
-                total_pnl_percent = (total_pnl / denominator) * 100
-            else:
-                total_pnl_percent = 0.0
-            
-            total_positions = sum(account.positions_count for account in accounts_data)
-            
-            dashboard_data = {
-                "total_value": total_value,
-                "total_pnl": total_pnl,
-                "total_pnl_percent": total_pnl_percent,
-                "total_positions": total_positions,
-                "accounts_count": len(accounts_data),
-                "accounts": [
-                    {
-                        "account_id": account.account_id,
-                        "strategy_name": account.strategy_name,
-                        "current_value": account.current_value,
-                        "todays_pnl": account.todays_pnl,
-                        "todays_pnl_percent": account.todays_pnl_percent,
-                        "positions_count": account.positions_count,
-                        "last_update": account.last_update.isoformat()
-                    } for account in accounts_data
-                ],
-                "last_update": accounts_data[0].last_update.isoformat() if accounts_data else None
-            }
-            
-            # Send dashboard update to WebSocket clients
-            dashboard_message = {
-                "type": "dashboard",
-                "action": "update",
-                "data": dashboard_data
-            }
-            await self.websocket_manager.broadcast(dashboard_message)
-            
-            # Also send account list update
-            account_message = {
-                "type": "account",
-                "action": "update",
-                "data": [
-                    {
-                        "account_id": account.account_id,
-                        "strategy_name": account.strategy_name,
-                        "current_value": account.current_value,
-                        "last_close_netliq": account.last_close_netliq,
-                        "todays_pnl": account.todays_pnl,
-                        "todays_pnl_percent": account.todays_pnl_percent,
-                        "total_unrealized_pnl": account.total_unrealized_pnl,
-                        "positions_count": account.positions_count,
-                        "last_update": account.last_update.isoformat(),
-                        "last_rebalanced_on": account.last_rebalanced_on.isoformat() if account.last_rebalanced_on else None
-                    } for account in accounts_data
-                ]
-            }
-            await self.websocket_manager.broadcast(account_message)
-            
-            logger.info(f"Broadcast dashboard summary update with {len(accounts_data)} accounts")
+            logger.debug("Broadcasted summary update")
             
         except Exception as e:
-            logger.error(f"Failed to handle dashboard summary update: {e}")
+            logger.error(f"Failed to handle summary update: {e}")
+    
+    async def get_current_dashboard_data(self) -> dict:
+        """Get current dashboard data for newly connected clients"""
+        try:
+            # Get all account data
+            accounts_data = await self.redis_data_service.get_all_accounts_data()
+            
+            return {
+                "type": "dashboard_initial",
+                "data": {
+                    "accounts": accounts_data,
+                    "timestamp": asyncio.get_event_loop().time()
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to get current dashboard data: {e}")
+            return {
+                "type": "dashboard_initial",
+                "data": {
+                    "accounts": [],
+                    "timestamp": asyncio.get_event_loop().time(),
+                    "error": str(e)
+                }
+            }

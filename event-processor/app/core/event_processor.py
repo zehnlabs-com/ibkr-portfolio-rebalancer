@@ -19,7 +19,7 @@ class EventProcessor:
     
     def __init__(self, service_container: ServiceContainer):
         self.service_container = service_container
-        self.user_notification_service = service_container.get_user_notification_service()
+        self.user_notification_service = service_container.user_notification_service()
         self.running = False
         self.retry_processor_task = None
         self.delayed_processor_task = None
@@ -91,7 +91,7 @@ class EventProcessor:
         """Main event processing loop with concurrent processing"""
         app_logger.log_info("Starting main processing loop")
         
-        queue_service = self.service_container.get_queue_service()
+        queue_service = self.service_container.queue_service()
         
         while self.running:
             try:
@@ -133,7 +133,7 @@ class EventProcessor:
         """Process a single event using command pattern"""
         app_logger.log_debug("Processing event", event_info)
         
-        queue_service = self.service_container.get_queue_service()
+        queue_service = self.service_container.queue_service()
         
         try:
             # Send event started notification
@@ -142,7 +142,7 @@ class EventProcessor:
             # Times queued tracking now handled in Redis only
             
             # Get command factory and create command
-            command_factory = self.service_container.get_command_factory()
+            command_factory = self.service_container.command_factory()
             command = command_factory.create_command(event_info.exec_command, event_info.event_id, event_info.account_id, event_info)
             
             if not command:
@@ -150,7 +150,13 @@ class EventProcessor:
                 return
             
             # Execute command with services
-            services = self.service_container.get_services()
+            services = {
+                'queue_service': self.service_container.queue_service(),
+                'redis_account_service': self.service_container.redis_account_service(),
+                'redis_notification_service': self.service_container.redis_notification_service(),
+                'ibkr_client': self.service_container.ibkr_client(),
+                'rebalancer_service': self.service_container.rebalancer_service()
+            }
             result = await command.execute(services)
             
             # Handle command result
@@ -225,7 +231,7 @@ class EventProcessor:
         """Handle failed events with PDT-safe error classification"""
         try:
             error_classification = self._classify_error_type(error_message)
-            queue_service = self.service_container.get_queue_service()
+            queue_service = self.service_container.queue_service()
             
             if error_classification == "non_retryable":
                 # Send notification and mark complete (no retry)
@@ -279,7 +285,7 @@ class EventProcessor:
             await self.user_notification_service.send_notification(event_info, 'event_critical_error', {'error_message': error_message})
             
             # Remove from active events (no requeue)
-            queue_service = self.service_container.get_queue_service()
+            queue_service = self.service_container.queue_service()
             await queue_service.remove_from_queued(event_info.account_id, event_info.exec_command)
             
             # Update event status
@@ -293,7 +299,7 @@ class EventProcessor:
     async def _retry_event_processor(self):
         """Background task to process retry events periodically"""
         app_logger.log_info("Starting retry event processor")
-        queue_service = self.service_container.get_queue_service()
+        queue_service = self.service_container.queue_service()
         
         while self.running:
             try:
@@ -313,7 +319,7 @@ class EventProcessor:
     async def _delayed_event_processor(self):
         """Background task to process delayed events periodically"""
         app_logger.log_info("Starting delayed event processor")
-        queue_service = self.service_container.get_queue_service()
+        queue_service = self.service_container.queue_service()
         
         while self.running:
             try:

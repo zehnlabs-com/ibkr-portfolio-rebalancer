@@ -1,7 +1,9 @@
 """
-Dependency injection container
+Dependency injection container using dependency-injector framework
 """
+from dependency_injector import containers, providers
 from app.config.settings import settings
+from app.services.redis_data_service import RedisDataService
 from app.repositories.redis_queue_repository import RedisQueueRepository
 from app.repositories.redis_health_repository import RedisHealthRepository
 from app.services.queue_service import QueueService
@@ -21,36 +23,146 @@ from app.services.docker_event_service import DockerEventService
 from app.handlers.websocket_handlers import get_websocket_manager
 
 
+class ApplicationContainer(containers.DeclarativeContainer):
+    """DI Container for Management Service using dependency-injector"""
+    
+    # Configuration
+    config = providers.Configuration()
+    config.redis_url.from_env("REDIS_URL", default="redis://redis:6379/0")
+    config.host.from_env("HOST", default="0.0.0.0")
+    config.port.from_env("PORT", default=8000, as_=int)
+    config.log_level.from_env("LOG_LEVEL", default="INFO")
+    
+    # Focused Redis services (replacing monolithic RedisDataService)
+    redis_queue_service = providers.Singleton(
+        lambda redis_url: __import__('app.services.redis_queue_service', fromlist=['RedisQueueService']).RedisQueueService(redis_url),
+        redis_url=config.redis_url
+    )
+    
+    redis_notification_service = providers.Singleton(
+        lambda redis_url: __import__('app.services.redis_notification_service', fromlist=['RedisNotificationService']).RedisNotificationService(redis_url),
+        redis_url=config.redis_url
+    )
+    
+    redis_account_service = providers.Singleton(
+        lambda redis_url: __import__('app.services.redis_account_service', fromlist=['RedisAccountService']).RedisAccountService(redis_url),
+        redis_url=config.redis_url
+    )
+    
+    # Legacy Redis data service (for backward compatibility during transition)
+    redis_data_service = providers.Singleton(
+        RedisDataService,
+        redis_url=config.redis_url
+    )
+    
+    # Repositories
+    queue_repository = providers.Singleton(
+        RedisQueueRepository,
+        redis_data_service=redis_data_service
+    )
+    
+    health_repository = providers.Singleton(
+        RedisHealthRepository,
+        redis_data_service=redis_data_service
+    )
+    
+    # Services
+    queue_service = providers.Singleton(
+        QueueService,
+        queue_repository=queue_repository
+    )
+    
+    health_service = providers.Singleton(
+        HealthService,
+        health_repository=health_repository,
+        queue_repository=queue_repository
+    )
+    
+    # Handlers
+    queue_handlers = providers.Singleton(
+        QueueHandlers,
+        queue_service=queue_service
+    )
+    
+    health_handlers = providers.Singleton(
+        HealthHandlers,
+        health_service=health_service
+    )
+    
+    dashboard_handlers = providers.Singleton(
+        DashboardHandlers,
+        redis_data_service=redis_data_service
+    )
+    
+    docker_handlers = providers.Singleton(DockerHandlers)
+    config_handlers = providers.Singleton(ConfigHandlers)
+    strategies_handlers = providers.Singleton(StrategiesHandlers)
+    
+    websocket_handlers = providers.Singleton(
+        WebSocketHandlers,
+        dashboard_handlers=dashboard_handlers
+    )
+    
+    notification_handlers = providers.Singleton(
+        NotificationHandlers,
+        redis_data_service=redis_data_service
+    )
+    
+    # Singleton instances for shared services
+    websocket_manager = providers.Singleton(get_websocket_manager)
+    
+    notification_cleanup_service = providers.Singleton(
+        NotificationCleanupService,
+        redis_data_service=redis_data_service
+    )
+    
+    notification_monitor_service = providers.Singleton(
+        NotificationMonitorService,
+        redis_data_service=redis_data_service,
+        websocket_manager=websocket_manager
+    )
+    
+    realtime_update_service = providers.Singleton(
+        RealtimeUpdateService,
+        redis_data_service=redis_data_service,
+        websocket_manager=websocket_manager
+    )
+    
+    docker_event_service = providers.Singleton(
+        DockerEventService,
+        websocket_manager=websocket_manager,
+        docker_handlers=docker_handlers
+    )
+
+
+# Legacy class wrapper for backward compatibility
 class Container:
-    """Dependency injection container"""
+    """Legacy container wrapper for backward compatibility"""
     
     def __init__(self):
-        # Repositories
-        self.queue_repository = RedisQueueRepository(settings.redis_url)
-        self.health_repository = RedisHealthRepository(settings.redis_url)
-        
-        # Services
-        self.queue_service = QueueService(self.queue_repository)
-        self.health_service = HealthService(self.health_repository, self.queue_repository)
-        
-        # Handlers
-        self.queue_handlers = QueueHandlers(self.queue_service)
-        self.health_handlers = HealthHandlers(self.health_service)
-        self.dashboard_handlers = DashboardHandlers(self.queue_repository)
-        self.docker_handlers = DockerHandlers()
-        self.config_handlers = ConfigHandlers()
-        self.websocket_handlers = WebSocketHandlers(self.dashboard_handlers)
-        self.strategies_handlers = StrategiesHandlers()
-        self.notification_handlers = NotificationHandlers(self.queue_repository.redis)
-        self.notification_cleanup_service = NotificationCleanupService(self.queue_repository.redis)
-        self.notification_monitor_service = NotificationMonitorService(settings.redis_url, get_websocket_manager())
-        self.realtime_update_service = RealtimeUpdateService(settings.redis_url, get_websocket_manager())
-        self.docker_event_service = DockerEventService(get_websocket_manager(), self.docker_handlers)
+        self._container = ApplicationContainer()
+        # Expose services as attributes for backward compatibility
+        self.redis_data_service = self._container.redis_data_service()
+        self.queue_repository = self._container.queue_repository()
+        self.health_repository = self._container.health_repository()
+        self.queue_service = self._container.queue_service()
+        self.health_service = self._container.health_service()
+        self.queue_handlers = self._container.queue_handlers()
+        self.health_handlers = self._container.health_handlers()
+        self.dashboard_handlers = self._container.dashboard_handlers()
+        self.docker_handlers = self._container.docker_handlers()
+        self.config_handlers = self._container.config_handlers()
+        self.websocket_handlers = self._container.websocket_handlers()
+        self.strategies_handlers = self._container.strategies_handlers()
+        self.notification_handlers = self._container.notification_handlers()
+        self.notification_cleanup_service = self._container.notification_cleanup_service()
+        self.notification_monitor_service = self._container.notification_monitor_service()
+        self.realtime_update_service = self._container.realtime_update_service()
+        self.docker_event_service = self._container.docker_event_service()
     
     async def startup(self):
         """Initialize connections"""
-        await self.queue_repository.connect()
-        await self.health_repository.connect()
+        await self.redis_data_service.connect()
         await self.notification_cleanup_service.start()
         await self.notification_monitor_service.start()
         await self.realtime_update_service.start()
@@ -62,8 +174,7 @@ class Container:
         await self.realtime_update_service.stop()
         await self.notification_monitor_service.stop()
         await self.notification_cleanup_service.stop()
-        await self.queue_repository.disconnect()
-        await self.health_repository.disconnect()
+        await self.redis_data_service.disconnect()
 
 
 # Global container instance

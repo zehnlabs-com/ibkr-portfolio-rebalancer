@@ -10,7 +10,7 @@ from app.logger import AppLogger
 from app.models.account_config import EventAccountConfig
 from app.services.rebalancer_service import TradingHoursException
 from app.config import config
-import redis.asyncio as redis
+from app.services.redis_account_service import RedisAccountService
 
 app_logger = AppLogger(__name__)
 
@@ -46,7 +46,7 @@ class RebalanceCommand(EventCommand):
                     error=f"No strategy_name found in event payload for account {self.event.account_id}"
                 )
             
-            account_config = EventAccountConfig(self.event.payload)
+            account_config = EventAccountConfig.from_dict(self.event.payload)
             
             app_logger.log_info("Using MKT order type (only type supported)", self.event)
             
@@ -55,35 +55,14 @@ class RebalanceCommand(EventCommand):
             
             app_logger.log_info(f"Rebalance completed - orders: {len(result.orders)}", self.event)
             
-            # Update last_rebalanced_on timestamp in Redis
-            try:                
-                redis_url = f"redis://{config.redis.host}:{config.redis.port}/{config.redis.db}"
-                redis_client = await redis.from_url(redis_url, decode_responses=True)
-                
-                account_id = self.event.account_id
-                redis_key = f"account_data:{account_id}"
-                
-                # Get existing account data or create new
-                existing_data = await redis_client.get(redis_key)
-                if existing_data:
-                    account_data = json.loads(existing_data)
+            # Update last_rebalanced_on timestamp via Redis data service
+            try:
+                redis_account_service = services.get('redis_account_service')
+                if redis_account_service:
+                    await redis_account_service.update_last_rebalanced(self.event.account_id)
+                    app_logger.log_info(f"Updated last_rebalanced_on for account {self.event.account_id}", self.event)
                 else:
-                    # Create minimal account data if it doesn't exist
-                    account_data = {
-                        "account_id": account_id,
-                        "strategy_name": self.event.payload.get('strategy_name', ''),
-                    }
-                
-                # Update with current timestamp
-                account_data['last_rebalanced_on'] = datetime.now(timezone.utc).isoformat()
-                
-                # Store back to Redis
-                await redis_client.set(redis_key, json.dumps(account_data))
-                app_logger.log_info(f"Updated last_rebalanced_on for account {account_id}", self.event)
-                
-                # Close Redis connection
-                await redis_client.aclose()
-                
+                    app_logger.log_warning("Redis account service not available for timestamp update", self.event)
             except Exception as e:
                 # Log error but don't fail the command
                 app_logger.log_error(f"Failed to update last_rebalanced_on: {e}", self.event)
