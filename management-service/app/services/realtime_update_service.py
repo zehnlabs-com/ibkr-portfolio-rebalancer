@@ -58,23 +58,37 @@ class RealtimeUpdateService:
     async def _subscriber_loop(self) -> None:
         """Main subscriber loop for Redis pub/sub messages"""
         try:
-            async for message in self.redis_data_service.subscribe_to_updates():
+            # Ensure Redis connection and get client directly
+            self.redis_data_service._ensure_connected()
+            redis_client = self.redis_data_service.redis_client
+
+            pubsub = redis_client.pubsub()
+            await pubsub.subscribe("dashboard_updates")
+            logger.info("Successfully subscribed to dashboard_updates channel")
+            
+            async for message in pubsub.listen():
                 if not self._running:
                     break
                     
-                try:
-                    # Handle different message types
-                    message_type = message.get('type', 'unknown')
+                if message['type'] != 'message':
+                    continue
                     
-                    if message_type == 'account_update':
-                        await self._handle_account_update(message)
-                    elif message_type == 'summary_update':
-                        await self._handle_summary_update(message)
+                try:
+                    import json
+                    data = json.loads(message['data'])
+                    
+                    # Handle different message types
+                    message_type = data.get('type', 'unknown')
+                    
+                    if message_type == 'account_data_updated':
+                        await self._handle_account_update(data)
+                    elif message_type == 'dashboard_summary_updated':
+                        await self._handle_summary_update(data)
                     else:
                         # Forward unknown messages as-is
                         await self.websocket_manager.broadcast({
                             "type": "dashboard_update",
-                            "data": message
+                            "data": data
                         })
                         
                 except Exception as e:
