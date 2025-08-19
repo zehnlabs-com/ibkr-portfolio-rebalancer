@@ -76,6 +76,7 @@ class RealtimeUpdateService:
                 try:
                     import json
                     data = json.loads(message['data'])
+                    logger.info(f"Processing dashboard update: {data.get('type', 'unknown')} for account {data.get('account_id', 'N/A')}")
                     
                     # Handle different message types
                     message_type = data.get('type', 'unknown')
