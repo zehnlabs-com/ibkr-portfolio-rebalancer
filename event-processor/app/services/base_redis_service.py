@@ -68,7 +68,7 @@ class BaseRedisService:
             self._client = redis.Redis(connection_pool=pool)
             # Test connection
             await self._client.ping()
-            logger.info(f"Connected to Redis at {self.redis_url}")
+            logger.debug(f"Connected to Redis at {self.redis_url}")
         return self._client
     
     @retry(
@@ -136,6 +136,6 @@ class BaseRedisService:
             if self._pool:
                 await self._pool.disconnect()
                 self._pool = None
-            logger.info("Redis connections closed")
+            logger.debug("Redis connections closed")
         except Exception as e:
             logger.error(f"Error closing Redis connections: {e}")

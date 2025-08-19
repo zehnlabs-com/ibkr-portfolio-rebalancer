@@ -32,7 +32,7 @@ class RedisDataService:
             self.redis_client = redis.from_url(self.redis_url, decode_responses=True)
             # Test connection
             await self.redis_client.ping()
-            logger.info(f"RedisDataService connected to Redis at {self.redis_url}")
+            logger.debug(f"RedisDataService connected to Redis at {self.redis_url}")
         except Exception as e:
             logger.error(f"Failed to connect to Redis: {e}")
             raise
@@ -41,7 +41,7 @@ class RedisDataService:
         """Disconnect from Redis"""
         if self.redis_client:
             await self.redis_client.close()
-            logger.info("RedisDataService disconnected from Redis")
+            logger.debug("RedisDataService disconnected from Redis")
     
     def _ensure_connected(self):
         """Ensure Redis client is connected"""
