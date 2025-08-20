@@ -85,7 +85,34 @@ async def trigger_account_rebalance(account_id: str):
     """Trigger rebalance for a specific account"""
     return await container.queue_handlers.trigger_account_rebalance(account_id)
 
-# Dashboard endpoints - REMOVED - Data now via WebSocket only
+# Notification endpoints
+@app.get("/api/notifications")
+async def get_notifications(
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100)
+):
+    """Get paginated notifications"""
+    return await container.notification_handlers.get_notifications(offset, limit)
+
+@app.get("/api/notifications/unread-count")
+async def get_unread_count():
+    """Get count of unread notifications"""
+    return await container.notification_handlers.get_unread_count()
+
+@app.put("/api/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str):
+    """Mark a specific notification as read"""
+    return await container.notification_handlers.mark_notification_read(notification_id)
+
+@app.put("/api/notifications/read-all")
+async def mark_all_notifications_read():
+    """Mark all notifications as read"""
+    return await container.notification_handlers.mark_all_notifications_read()
+
+@app.delete("/api/notifications/{notification_id}")
+async def delete_notification(notification_id: str):
+    """Delete a specific notification"""
+    return await container.notification_handlers.delete_notification(notification_id)
 
 @app.post("/api/containers/{container_name}/start")
 async def start_container(container_name: str):
