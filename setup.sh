@@ -417,7 +417,7 @@ register_with_zehnlabs() {
     local PAYLOAD=$(cat <<EOF
 {
   "email": "$USER_EMAIL",
-  "api_domain": "$API_DOMAIN"
+  "api_base_url": "https://$API_DOMAIN/ms"
 }
 EOF
 )
