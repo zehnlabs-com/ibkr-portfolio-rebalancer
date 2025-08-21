@@ -151,6 +151,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
+      - ./management-service/config.yaml:/app/config.yaml
       - ./management-service/logs:/app/logs
       - ./accounts.yaml:/app/config/accounts.yaml:rw
       - ./accounts.example.yaml:/app/config/accounts.example.yaml

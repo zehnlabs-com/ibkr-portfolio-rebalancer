@@ -2,7 +2,7 @@
 Dependency injection container using dependency-injector framework
 """
 from dependency_injector import containers, providers
-from app.config.settings import settings
+from app.config import config
 from app.services.redis_data_service import RedisDataService
 from app.repositories.redis_queue_repository import RedisQueueRepository
 from app.repositories.redis_health_repository import RedisHealthRepository
@@ -26,33 +26,25 @@ from app.handlers.websocket_handlers import get_websocket_manager
 class ApplicationContainer(containers.DeclarativeContainer):
     """DI Container for Management Service using dependency-injector"""
     
-    # Configuration
-    config = providers.Configuration()
-    config.redis_url.from_env("REDIS_URL", default="redis://redis:6379/0")
-    config.host.from_env("HOST", default="0.0.0.0")
-    config.port.from_env("PORT", default=8000, as_=int)
-    config.log_level.from_env("LOG_LEVEL", default="INFO")
+    # Configuration is already loaded from config.yaml
+    # No need for providers.Configuration() since we use the config directly
     
     # Focused Redis services (replacing monolithic RedisDataService)
     redis_queue_service = providers.Singleton(
-        lambda redis_url: __import__('app.services.redis_queue_service', fromlist=['RedisQueueService']).RedisQueueService(redis_url),
-        redis_url=config.redis_url
+        lambda: __import__('app.services.redis_queue_service', fromlist=['RedisQueueService']).RedisQueueService(config.redis_url)
     )
     
     redis_notification_service = providers.Singleton(
-        lambda redis_url: __import__('app.services.redis_notification_service', fromlist=['RedisNotificationService']).RedisNotificationService(redis_url),
-        redis_url=config.redis_url
+        lambda: __import__('app.services.redis_notification_service', fromlist=['RedisNotificationService']).RedisNotificationService(config.redis_url)
     )
     
     redis_account_service = providers.Singleton(
-        lambda redis_url: __import__('app.services.redis_account_service', fromlist=['RedisAccountService']).RedisAccountService(redis_url),
-        redis_url=config.redis_url
+        lambda: __import__('app.services.redis_account_service', fromlist=['RedisAccountService']).RedisAccountService(config.redis_url)
     )
     
     # Legacy Redis data service (for backward compatibility during transition)
     redis_data_service = providers.Singleton(
-        RedisDataService,
-        redis_url=config.redis_url
+        lambda: RedisDataService(config.redis_url)
     )
     
     # Repositories

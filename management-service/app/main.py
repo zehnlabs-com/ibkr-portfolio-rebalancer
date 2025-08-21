@@ -11,12 +11,12 @@ from fastapi.responses import HTMLResponse
 from app.container import container
 from app.models.queue_models import QueueStatus, QueueEvent, AddEventRequest, AddEventResponse, RemoveEventResponse, ClearQueuesResponse
 from app.models.health_models import DetailedHealthStatus
-from app.config.settings import settings
+from app.config import config
 
 # Configure logging
 from app.logger import configure_root_logger, setup_logger
-configure_root_logger(settings.log_level)
-logger = setup_logger(__name__, settings.log_level)
+configure_root_logger(config.logging.level)
+logger = setup_logger(__name__, config.logging.level)
 
 # Get version from environment variable (set by Docker)
 VERSION = os.getenv('SERVICE_VERSION', '1.0.0')
@@ -247,8 +247,8 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "main:app",
-        host=settings.host,
-        port=settings.port,
-        log_level=settings.log_level.lower(),
+        host=config.server.host,
+        port=config.server.port,
+        log_level=config.logging.level.lower(),
         reload=False
     )

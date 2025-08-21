@@ -6,6 +6,7 @@ import aiohttp
 from typing import List, Dict, Any
 from fastapi import HTTPException
 import logging
+from app.config import config
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +14,8 @@ class StrategiesHandlers:
     """Handlers for strategies management"""
     
     def __init__(self):
-        self.workers_api_url = "https://workers.fintech.zehnlabs.com/api/v1"
-        self.timeout = 10.0
+        self.workers_api_url = config.zehnlabs.workers_api_url
+        self.timeout = config.zehnlabs.api_timeout
     
     async def get_strategies(self) -> List[Dict[str, Any]]:
         """Get available strategies from Zehnlabs Workers API"""
