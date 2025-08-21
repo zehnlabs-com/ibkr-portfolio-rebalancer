@@ -16,6 +16,7 @@ from app.handlers.config_handlers import ConfigHandlers
 from app.handlers.websocket_handlers import WebSocketHandlers
 from app.handlers.strategies_handlers import StrategiesHandlers
 from app.handlers.notification_handlers import NotificationHandlers
+from app.handlers.auth_handlers import AuthHandlers
 from app.services.notification_cleanup_service import NotificationCleanupService
 from app.services.notification_monitor_service import NotificationMonitorService
 from app.services.realtime_update_service import RealtimeUpdateService
@@ -108,6 +109,8 @@ class ApplicationContainer(containers.DeclarativeContainer):
         redis_data_service=redis_data_service
     )
     
+    auth_handlers = providers.Singleton(AuthHandlers)
+    
     # Singleton instances for shared services
     websocket_manager = providers.Singleton(get_websocket_manager)
     
@@ -155,6 +158,7 @@ class Container:
         self.websocket_handlers = self._container.websocket_handlers()
         self.strategies_handlers = self._container.strategies_handlers()
         self.notification_handlers = self._container.notification_handlers()
+        self.auth_handlers = self._container.auth_handlers()
         self.notification_cleanup_service = self._container.notification_cleanup_service()
         self.notification_monitor_service = self._container.notification_monitor_service()
         self.realtime_update_service = self._container.realtime_update_service()

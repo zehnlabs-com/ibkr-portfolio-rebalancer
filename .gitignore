@@ -31,7 +31,7 @@ venv.bak/
 
 # Accounts
 accounts.yaml
-accounts.*.yaml
+clerk-users.json
 
 # IDE
 .vscode/
@@ -58,4 +58,5 @@ rest/
 test/
 CLAUDE.md
 
-*/node_modules/
+
+

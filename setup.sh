@@ -223,7 +223,7 @@ configure_tailscale_serve() {
         else
             # Set up Tailscale serve for Management Service - MUST succeed
             print_info "Setting up Tailscale serve for Management Service..."
-            if ! tailscale serve --bg /ms/ http://127.0.0.1:8000; then
+            if ! tailscale serve --bg --set-path /ms 8000; then
                 print_error "Failed to configure Tailscale serve for Management Service"
                 print_error "This is a required step for remote access to the Management API"
                 exit 1
@@ -322,15 +322,15 @@ clone_repository() {
     fi
 }
 
-# Rename configuration files
-rename_config_files() {
+# Copy configuration files
+copy_config_files() {
     print_step "Setting up configuration files..."
     
-    # Rename .env.example to .env
+    # Copy .env.example to .env
     if [ -f ".env.example" ]; then
         if [ ! -f ".env" ]; then
-            mv .env.example .env
-            print_info "Renamed .env.example to .env"
+            cp .env.example .env
+            print_info "Copied .env.example to .env"
         else
             print_info ".env already exists, keeping existing file"
         fi
@@ -339,11 +339,11 @@ rename_config_files() {
         exit 1
     fi
     
-    # Rename accounts.example.yaml to accounts.yaml
+    # Copy accounts.example.yaml to accounts.yaml
     if [ -f "accounts.example.yaml" ]; then
         if [ ! -f "accounts.yaml" ]; then
-            mv accounts.example.yaml accounts.yaml
-            print_info "Renamed accounts.example.yaml to accounts.yaml"
+            cp accounts.example.yaml accounts.yaml
+            print_info "Copied accounts.example.yaml to accounts.yaml"
         else
             print_info "accounts.yaml already exists, keeping existing file"
         fi
@@ -355,114 +355,129 @@ rename_config_files() {
     print_success "Configuration files are ready for editing"
 }
 
-# Show documentation links and wait for user
-show_documentation_and_wait() {
-    print_step "Configuration Required"
+# Get user's email for Zehnlabs registration
+get_user_email() {
+    print_step "Account Registration"
     
     echo ""
-    echo "=== CONFIGURATION REQUIRED ==="
+    echo "=== ZEHNLABS ACCOUNT ==="
     echo ""
-    echo "Before proceeding, you need to edit two configuration files:"
-    echo "  • .env (credentials and API keys)"
-    echo "  • accounts.yaml (IBKR account settings)"
+    echo "To complete setup, you need a valid email address registered with Zehnlabs."
     echo ""
-    echo "📖 Please follow the complete setup guide:"
-    echo "   https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/blob/main/docs/editing-configuration.md"
+    echo "📧 To find your registered email address:"
+    echo "   1. Open Telegram and find @FintechZL_bot"
+    echo "   2. Send the command: /api"
+    echo "   3. The bot will show your registered email address"
     echo ""
-    echo "📝 Once you have followed the guide and edited both files, press ENTER to continue..."
     
-    # Read from /dev/tty to work with piped execution
-    read -r < /dev/tty
-}
-
-# Start all services and verify
-start_all_services() {
-    print_step "Starting all services..."
-    
-    print_info "Building and starting Docker containers..."
-    $DOCKER_COMPOSE_CMD up --build -d
-    
-    print_info "Waiting for services to initialize (this may take 2-3 minutes)..."
-    
-    # Wait progressively with status updates
-    for i in {1..6}; do
-        sleep 10
-        print_info "Still initializing... ($((i*10))/60 seconds)"
-    done
-    
-    # Check if all critical services are running
-    print_step "Verifying services..."
-    
-    SERVICES=("redis" "ibkr-gateway" "event-broker" "event-processor" "management-service" "dozzle")
-    ALL_RUNNING=true
-    
-    for service in "${SERVICES[@]}"; do
-        if $DOCKER_COMPOSE_CMD ps "$service" 2>/dev/null | grep -q "Up\|running"; then
-            print_success "✓ $service is running"
+    while true; do
+        echo "Enter your Zehnlabs registered email address:"
+        read -r USER_EMAIL < /dev/tty
+        
+        # Basic email validation
+        if [[ "$USER_EMAIL" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+            echo ""
+            echo "You entered: $USER_EMAIL"
+            echo "Is this correct? (y/n)"
+            read -r confirm < /dev/tty
+            
+            if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                print_success "Email address confirmed: $USER_EMAIL"
+                
+                # Create clerk-users.json file
+                echo "[ \"$USER_EMAIL\" ]" > clerk-users.json
+                print_info "Created clerk-users.json with your email address"
+                
+                break
+            fi
         else
-            print_error "✗ $service is not running"
-            ALL_RUNNING=false
+            print_error "Invalid email format. Please enter a valid email address."
         fi
     done
+}
+
+# Register with Zehnlabs API
+register_with_zehnlabs() {
+    print_step "Registering with Zehnlabs..."
     
-    if [ "$ALL_RUNNING" = false ]; then
-        print_error "Some services failed to start. Check logs with: $DOCKER_COMPOSE_CMD logs"
+    # Get Tailscale FQDN
+    local API_DOMAIN=""
+    if command -v tailscale &> /dev/null && tailscale status &> /dev/null 2>&1; then
+        API_DOMAIN=$(tailscale status --json | jq -r '.Self.DNSName // empty' | sed 's/\.$//')
+        if [ -z "$API_DOMAIN" ]; then
+            print_error "Could not get Tailscale hostname. Ensure Tailscale is properly configured."
+            exit 1
+        fi        
+    else
+        print_error "Tailscale is required for registration. Please ensure Tailscale is installed and authenticated."
         exit 1
     fi
     
-    print_success "All services started successfully!"
+    # Prepare JSON payload
+    local PAYLOAD=$(cat <<EOF
+{
+  "email": "$USER_EMAIL",
+  "api_domain": "$API_DOMAIN"
+}
+EOF
+)
+    
+    print_info "Authenticating..."
+    
+    # Make API call and capture response
+    local RESPONSE=$(curl -s -w "HTTPSTATUS:%{http_code}" \
+        -H "Content-Type: application/json" \
+        -d "$PAYLOAD" \
+        "https://workers.fintech.zehnlabs.com/api/v1/auth/register")
+    
+    # Extract HTTP status code and body
+    local HTTP_STATUS=$(echo "$RESPONSE" | grep -o "HTTPSTATUS:[0-9]*" | cut -d: -f2)
+    local RESPONSE_BODY=$(echo "$RESPONSE" | sed 's/HTTPSTATUS:[0-9]*$//')
+    
+    # Check if request was successful
+    if [ "$HTTP_STATUS" -eq 200 ]; then
+        # Extract message from JSON response
+        local MESSAGE=$(echo "$RESPONSE_BODY" | jq -r '.message // "Registration successful"')
+        REGISTRATION_MESSAGE="$MESSAGE"
+        print_success "Authentication successful!"
+    else
+        # Extract error message if available
+        local ERROR_MESSAGE=$(echo "$RESPONSE_BODY" | jq -r '.message // .error // "Registration failed"')
+        print_error "Authentication failed (HTTP $HTTP_STATUS): $ERROR_MESSAGE"
+        exit 1
+    fi
 }
 
-# Display final instructions
-display_final_instructions() {
+# Display registration success and start management service
+display_registration_success() {
+    print_step "Starting Management Service..."
+    
     echo ""
-    print_success "🎉 Installation Complete!"
+    echo "=== REGISTRATION COMPLETE ==="
     echo ""
-    print_info "=== Access Your Services ==="
+    echo "$REGISTRATION_MESSAGE"
     echo ""
     
-    echo "🔗 Accessing Services:"
+    print_info "Starting management service container..."
+    $DOCKER_COMPOSE_CMD up --build -d management-service
     
-    # Check if Tailscale is installed and get hostname
-    if command -v tailscale &> /dev/null && tailscale status &> /dev/null 2>&1; then
-        # Get hostname and remove trailing period if present
-        TAILSCALE_HOSTNAME=$(tailscale status --json | jq -r '.Self.DNSName // empty' | sed 's/\.$//')
-        if [ -n "$TAILSCALE_HOSTNAME" ]; then
-            echo "   You can access the following services from any device on your Tailscale network:"
-            echo ""
-            echo "📊 Manage Containers and View Logs:"
-            echo "   http://$TAILSCALE_HOSTNAME:8080"
-            echo ""
-            echo "🔧 Management API:"
-            echo "   http://$TAILSCALE_HOSTNAME:8000"
-        else
-            # Tailscale installed but no DNSName available
-            echo ""
-            echo "📊 Manage Containers and View Logs:"
-            echo "   http://<Your Tailscale Host Name>:8080"
-            echo ""
-            echo "🔧 Management API:"
-            echo "   http://<Your Tailscale Host Name>:8000"
-        fi
+    # Wait a moment for service to start
+    sleep 30
+    
+    # Verify management service is running
+    if $DOCKER_COMPOSE_CMD ps management-service 2>/dev/null | grep -q "Up\|running"; then
+        print_success "✓ Management service is running"
     else
-        # Tailscale not installed or not running, use localhost
-        echo ""
-        echo "📊 Manage Containers and View Logs:"
-        echo "   http://localhost:8080"
-        echo ""
-        echo "🔧 Management API:"
-        echo "   http://localhost:8000"
+        print_warning "Management service may still be starting. Check logs with: $DOCKER_COMPOSE_CMD logs management-service"
     fi
     
     echo ""
-    echo "✅ Next Steps:"
-    echo "📱 Set up Mobile/Desktop Notifications:"
-    echo "   https://github.com/zehnlabs-com/ibkr-portfolio-rebalancer/blob/main/docs/user-notifications.md"
+    print_success "🎉 Setup Complete!"
     echo ""
-    print_success "Your IBKR Portfolio Rebalancer is now running!"
+    print_info "📧 You will receive an email shortly with instructions to access the control panel"
+    print_info "   where you can complete the final configuration of your setup."
+    echo ""
 }
-
-
 
 # Set up file permissions
 setup_permissions() {
@@ -509,11 +524,11 @@ main() {
     complete_tailscale_setup
     create_directories
     clone_repository
-    rename_config_files
+    copy_config_files
     setup_permissions
-    show_documentation_and_wait
-    start_all_services
-    display_final_instructions
+    get_user_email
+    register_with_zehnlabs
+    display_registration_success
 }
 
 # Run main function

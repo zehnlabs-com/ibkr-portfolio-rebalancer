@@ -155,6 +155,7 @@ services:
       - ./accounts.yaml:/app/config/accounts.yaml:rw
       - ./accounts.example.yaml:/app/config/accounts.example.yaml
       - ./replacement-sets.yaml:/app/config/replacement-sets.yaml:rw
+      - ./clerk-users.json:/app/clerk-users.json:ro
       - ./.env:/app/config/.env:rw
       - ./.env.example:/app/config/.env.example
       - /var/run/docker.sock:/var/run/docker.sock:ro

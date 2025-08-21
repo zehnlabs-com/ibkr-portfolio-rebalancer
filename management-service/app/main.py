@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse
 from app.container import container
 from app.models.queue_models import QueueStatus, QueueEvent, AddEventRequest, AddEventResponse, RemoveEventResponse, ClearQueuesResponse
 from app.models.health_models import DetailedHealthStatus
+from app.handlers.auth_handlers import UserValidationRequest, UserValidationResponse
 from app.config.settings import settings
 
 # Configure logging
@@ -78,6 +79,12 @@ async def add_event(event_request: AddEventRequest):
 async def clear_all_queues():
     """Clear all events from all queues"""
     return await container.queue_handlers.clear_all_queues()
+
+# Authentication endpoints
+@app.post("/api/auth/validate-user", response_model=UserValidationResponse)
+async def validate_user(request: UserValidationRequest):
+    """Validate user against clerk-users.json"""
+    return await container.auth_handlers.validate_user(request)
 
 # Account rebalance endpoint
 @app.post("/api/accounts/{account_id}/rebalance")
