@@ -1,8 +1,9 @@
 """
 Authentication dependencies for FastAPI routes
 """
+import logging
 from typing import Optional
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, WebSocket
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.services.auth_service import AuthService
 
@@ -65,3 +66,36 @@ async def optional_current_user(
     
     token = credentials.credentials
     return auth_service.verify_token(token)
+
+
+async def websocket_auth_required(websocket: WebSocket, token: str) -> dict:
+    """
+    Authenticate WebSocket connection using JWT token from query parameter
+    
+    Args:
+        websocket: The WebSocket connection
+        token: JWT token from query parameter
+        
+    Returns:
+        The decoded JWT payload if authentication succeeds
+        
+    Raises:
+        Exception if authentication fails (WebSocket will be closed without accepting)
+    """
+    logger = logging.getLogger(__name__)
+    
+    if not token:
+        logger.warning(f"WebSocket authentication failed - no token provided from {websocket.client}")
+        # Don't accept the connection - just raise an exception
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+    
+    # Verify the JWT token using the existing auth service
+    payload = auth_service.verify_token(token)
+    
+    if not payload:
+        logger.warning(f"WebSocket authentication failed - invalid token from {websocket.client}")
+        # Don't accept the connection - just raise an exception
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+    
+    logger.info(f"WebSocket authenticated successfully for user: {payload.get('sub')} from {websocket.client}")
+    return payload

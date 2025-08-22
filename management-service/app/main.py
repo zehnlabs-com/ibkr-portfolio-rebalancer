@@ -7,7 +7,7 @@ from typing import List, Dict, Any
 from fastapi import FastAPI, Depends, Query, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from app.dependencies.auth import get_current_user
+from app.dependencies.auth import get_current_user, auth_service
 
 from app.container import container
 from app.models.queue_models import QueueStatus, QueueEvent, AddEventRequest, AddEventResponse, RemoveEventResponse, ClearQueuesResponse
@@ -203,16 +203,48 @@ async def get_config_backups(current_user: dict = Depends(get_current_user)):
 
 # WebSocket endpoint for real-time updates
 @app.websocket("/api/dashboard/stream")
-async def dashboard_websocket(websocket: WebSocket):
+async def dashboard_websocket(websocket: WebSocket, token: str = Query(None)):
     """WebSocket endpoint for real-time dashboard updates"""
-    # TODO: Add WebSocket authentication
+    # Check if token is provided
+    if not token:
+        logger.warning(f"WebSocket connection rejected - no token from {websocket.client}")
+        await websocket.accept()  # Must accept before closing with code
+        await websocket.close(code=1008, reason="Authentication required")
+        return
+    
+    # Verify the token
+    payload = auth_service.verify_token(token)
+    if not payload:
+        logger.warning(f"WebSocket connection rejected - invalid token from {websocket.client}")
+        await websocket.accept()  # Must accept before closing with code
+        await websocket.close(code=1008, reason="Invalid or expired token")
+        return
+    
+    # Authentication successful - proceed with connection
+    logger.info(f"WebSocket authenticated successfully for user: {payload.get('sub')} from {websocket.client}")
     await container.websocket_handlers.dashboard_stream(websocket)
 
 # WebSocket endpoint for real-time container logs
 @app.websocket("/api/containers/{container_name}/logs/stream")
-async def container_logs_websocket(websocket: WebSocket, container_name: str):
+async def container_logs_websocket(websocket: WebSocket, container_name: str, token: str = Query(None)):
     """WebSocket endpoint for real-time container log streaming"""
-    # TODO: Add WebSocket authentication
+    # Check if token is provided
+    if not token:
+        logger.warning(f"WebSocket connection rejected for container logs - no token from {websocket.client}")
+        await websocket.accept()  # Must accept before closing with code
+        await websocket.close(code=1008, reason="Authentication required")
+        return
+    
+    # Verify the token
+    payload = auth_service.verify_token(token)
+    if not payload:
+        logger.warning(f"WebSocket connection rejected for container logs - invalid token from {websocket.client}")
+        await websocket.accept()  # Must accept before closing with code
+        await websocket.close(code=1008, reason="Invalid or expired token")
+        return
+    
+    # Authentication successful - proceed with connection
+    logger.info(f"Container logs WebSocket authenticated for user: {payload.get('sub')} from {websocket.client}")
     logger.info(f"Container logs WebSocket endpoint hit for: {container_name}")
     try:
         logger.info(f"Attempting to accept WebSocket connection for container: {container_name}")
