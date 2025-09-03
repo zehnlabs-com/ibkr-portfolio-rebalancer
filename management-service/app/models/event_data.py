@@ -11,11 +11,7 @@ from pydantic import BaseModel, Field, field_validator, ConfigDict
 class EventType(str, Enum):
     """Supported event types"""
     REBALANCE = "rebalance"
-    PRINT_POSITIONS = "print-positions"
-    PRINT_EQUITY = "print-equity"
-    PRINT_ORDERS = "print-orders"
     PRINT_REBALANCE = "print-rebalance"
-    CANCEL_ORDERS = "cancel-orders"
 
 
 class EventData(BaseModel):

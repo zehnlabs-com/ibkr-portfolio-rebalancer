@@ -12,7 +12,7 @@ API_URL="http://localhost:8000/queue/events"
 show_usage() {
     echo "Usage: $0 -command COMMAND [OPTIONS]"
     echo "Commands:"
-    echo "  Any valid command (e.g., rebalance, print-rebalance, print-positions, etc.)"
+    echo "  Any valid command (e.g., rebalance, print-rebalance)"
     echo "Options:"
     echo "  -all                Process all accounts from accounts.yaml"
     echo "  -account ACCOUNT_ID Process specific account"

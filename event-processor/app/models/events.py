@@ -6,7 +6,7 @@ from pydantic import BaseModel
 class EventInfo(BaseModel):
     event_id: str
     account_id: str
-    exec_command: str  # The command to execute (e.g., 'rebalance', 'print-positions')
+    exec_command: str  # The command to execute (e.g., 'rebalance', 'print-rebalance')
     status: str  # 'pending', 'processing', 'completed', 'failed'
     payload: Dict[str, Any]
     received_at: datetime
