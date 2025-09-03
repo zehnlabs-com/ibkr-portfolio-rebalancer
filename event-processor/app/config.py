@@ -32,9 +32,6 @@ class RedisConfig:
 class ProcessingConfig:
     """Event processing behavior configuration"""
     queue_timeout: int           # Seconds to wait for new events from Redis queue
-    startup_max_attempts: int    # Maximum startup retry attempts before failing
-    startup_delay: int           # Seconds between startup retry attempts
-    startup_initial_delay: int   # Initial delay at startup to allow services to stabilize
     max_concurrent_events: int   # Maximum number of events to process concurrently
 
 @dataclass
@@ -89,9 +86,6 @@ class Config:
         processing_config = config_data["processing"]  # Required section
         self.processing = ProcessingConfig(
             queue_timeout=processing_config["queue_timeout"],
-            startup_max_attempts=processing_config["startup_max_attempts"],
-            startup_delay=processing_config["startup_delay"],
-            startup_initial_delay=processing_config["startup_initial_delay"],
             max_concurrent_events=processing_config.get("max_concurrent_events", 3)
         )
         

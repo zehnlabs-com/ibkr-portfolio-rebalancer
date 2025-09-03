@@ -2,8 +2,6 @@
 Rebalance command implementation.
 """
 
-import json
-from datetime import datetime, timezone
 from typing import Dict, Any
 from app.commands.base import EventCommand, EventCommandResult, CommandStatus
 from app.logger import AppLogger

@@ -4,7 +4,7 @@ Queue system data models for Redis operations
 
 from datetime import datetime
 from typing import Dict, Any, Optional
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 
 
 class QueueStats(BaseModel):

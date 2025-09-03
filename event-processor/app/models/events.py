@@ -1,5 +1,5 @@
 from typing import Dict, Any, Optional
-from datetime import datetime, date
+from datetime import datetime
 import uuid
 from pydantic import BaseModel
 

@@ -32,8 +32,3 @@ class RebalanceResponse(BaseModel):
     message: str
     timestamp: datetime
 
-class PositionInfo(BaseModel):
-    symbol: str
-    position: float
-    market_value: float
-    avg_cost: float

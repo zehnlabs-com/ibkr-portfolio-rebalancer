@@ -26,9 +26,6 @@ ibkr:
 # Event processing behavior configuration
 processing:
   queue_timeout: 30           # Seconds to wait for new events from Redis queue (redis.brpop timeout)
-  startup_max_attempts: 500   # Maximum startup retry attempts before failing
-  startup_delay: 10           # Seconds between startup retry attempts
-  startup_initial_delay: 30   # Initial delay at startup to allow other services to stabilize
   max_concurrent_events: 24   # Maximum number of events to process concurrently
 
 # Strategy allocation API configuration
@@ -36,11 +33,6 @@ allocation:
   api_url: "https://workers.fintech.zehnlabs.com/api/v1/strategies"  # Base URL for strategy allocation API
   timeout: 30                                                        # HTTP request timeout in seconds
 
-# Data collection configuration for dashboard
-data-collection:
-  collection_interval: 120  # Seconds between data collection cycles 
-  cache_ttl: 300           # Seconds for Redis cache TTL (5 minutes)
-  market_close_time: "16:00"  # Market close time for daily net liquidation capture
 
 # Application logging configuration
 logging:

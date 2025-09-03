@@ -55,10 +55,3 @@ class CommandFactory:
             app_logger.log_error(f"Failed to create command {command_type}: {e}")
             return None
     
-    def get_registered_commands(self) -> Dict[str, Type[EventCommand]]:
-        """Get all registered command types"""
-        return self._commands.copy()
-    
-    def is_command_registered(self, command_type: str) -> bool:
-        """Check if a command type is registered"""
-        return command_type in self._commands

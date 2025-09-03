@@ -79,14 +79,6 @@ class QueueService:
         
         return event_info
     
-    async def get_ready_delayed_events(self):
-        """
-        Get events from delayed execution queue that are ready for execution
-        
-        This is handled internally by process_delayed_events
-        """
-        # This method is now internal to redis_queue_service
-        pass
     
     async def process_delayed_events(self):
         """
@@ -102,11 +94,6 @@ class QueueService:
         stats = await self.redis_queue_service.get_queue_stats()
         return stats.get('delayed_queue', 0)
     
-    async def get_delayed_events(self, limit: int = 100):
-        """Get events from delayed execution queue with details"""
-        # This would need implementation in redis_queue_service if needed
-        # For now, returning empty list as it's used for monitoring
-        return []
     
     async def recover_stuck_active_events(self) -> int:
         """
@@ -117,10 +104,3 @@ class QueueService:
         """
         return await self.redis_queue_service.recover_stuck_events()
     
-    async def _get_redis(self):
-        """Get Redis client - for compatibility with existing code"""
-        return await self.redis_queue_service._get_client()
-    
-    def _load_account_config(self, account_id: str):
-        """Load account configuration - for compatibility"""
-        return self.redis_queue_service._load_account_config(account_id)

@@ -3,7 +3,6 @@ Refactored event processor using command pattern.
 """
 
 import asyncio
-import re
 from typing import Dict, Any
 from app.core.service_container import ServiceContainer
 from app.commands.base import CommandStatus

@@ -18,14 +18,6 @@ from app.models.notification_data import NotificationData, NotificationType
 app_logger = AppLogger(__name__)
 
 
-@dataclass
-class UserNotificationEvent:
-    """Individual notification event"""
-    event_type: str
-    message: str
-    timestamp: datetime
-    details: Dict[str, Any]
-
 
 class UserNotificationService:
     """

@@ -92,17 +92,6 @@ class AccountData(BaseModel):
     class Config:
         frozen = True  # Make immutable like dataclass(frozen=True)
     
-    def get_position_by_symbol(self, symbol: str) -> Optional[PositionData]:
-        """Get position data by symbol"""
-        return next((pos for pos in self.positions if pos.symbol == symbol), None)
-    
-    def get_total_position_count(self) -> int:
-        """Get total number of positions"""
-        return len(self.positions)
-    
-    def get_total_market_value(self) -> float:
-        """Get total market value of all positions"""
-        return sum(pos.market_value for pos in self.positions)
 
 
 class DashboardSummary(BaseModel):
