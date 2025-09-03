@@ -81,18 +81,10 @@ class UserNotificationService:
         """Queue notification for successful event completion on first try"""
         await self._queue_notification_internal(event, 'event_success_first')
     
-    async def notify_event_completed_with_retry(self, event: EventInfo):
-        """Queue notification for successful event completion after retry"""
-        await self._queue_notification_internal(event, 'event_success_retry')
-    
     async def notify_event_execution_delayed(self, event: EventInfo, delayed_until: str):
         """Queue notification for delayed event with specific delay time"""
         extra_details = {'delayed_until': delayed_until}
         await self._queue_notification_internal(event, 'event_delayed', extra_details)
-    
-    async def notify_event_will_retry(self, event: EventInfo):
-        """Queue notification for event being queued for retry"""
-        await self._queue_notification_internal(event, 'event_retry')
     
     async def notify_event_connection_error(self, event: EventInfo, error_message: Optional[str] = None):
         """Queue notification for connection error"""
@@ -111,13 +103,9 @@ class UserNotificationService:
                 await self.notify_event_started(event_info)
             elif event_type == 'event_success_first':
                 await self.notify_event_completed(event_info)
-            elif event_type == 'event_success_retry':
-                await self.notify_event_completed_with_retry(event_info)
             elif event_type == 'event_delayed':
                 delayed_until = event_info.payload.get('delayed_until', 'unknown')
                 await self.notify_event_execution_delayed(event_info, delayed_until)
-            elif event_type == 'event_retry':
-                await self.notify_event_will_retry(event_info)  
             elif event_type == 'event_connection_error':
                 error_message = extra_details.get('error_message') if extra_details else None
                 await self.notify_event_connection_error(event_info, error_message)
@@ -194,12 +182,10 @@ class UserNotificationService:
         event_formats = {
             'event_started': f"Rebalance started for {strategy_name} at {time_str}",
             'event_success_first': f"Rebalance completed for {strategy_name} at {time_str}",
-            'event_success_retry': f"Rebalance completed after retry for {strategy_name} at {time_str}",
             'event_delayed': f"Rebalance delayed until {details.get('delayed_until', 'unknown')} for {strategy_name} at {time_str}",
-            'event_retry': f"Rebalance queued for retry for {strategy_name} at {time_str}",
             'event_connection_error': f"Connection error for {strategy_name} at {time_str}",
             'event_critical_error': f"Critical error for {strategy_name} at {time_str}",
-            'event_permanent_failure': f"Permanent failure for {strategy_name} at {time_str}",
+            'event_permanent_failure': f"Rebalance failed for {strategy_name} at {time_str} - Manual rebalance required",
             'event_partial_execution_suspected': f"Partial execution suspected for {strategy_name} at {time_str}"
         }
         
@@ -225,12 +211,11 @@ class UserNotificationService:
         elif event_type in ['event_connection_error', 'event_critical_error']:
             error_msg = details.get('error_message', 'No error details available')
             body += f"**Error:** {error_msg}\n"
-        elif event_type == 'event_retry':
-            body += f"**Retry Attempt:** {times_queued}\n"
-        elif event_type == 'event_success_retry':
-            body += f"**Succeeded After:** {times_queued - 1} retries\n"
-        elif event_type == 'event_partial_execution_suspected':
-            body += f"**Warning:** Some orders may have been partially executed\n"
+        elif event_type in ['event_permanent_failure', 'event_partial_execution_suspected']:
+            error_msg = details.get('error_message', 'No error details available')
+            action_required = details.get('action_required', f'Please manually rebalance account {account_id}')
+            body += f"**Error:** {error_msg}\n"
+            body += f"**Action Required:** {action_required}\n"
             
         return body
     

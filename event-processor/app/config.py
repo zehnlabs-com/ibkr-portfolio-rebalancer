@@ -35,8 +35,6 @@ class ProcessingConfig:
     startup_max_attempts: int    # Maximum startup retry attempts before failing
     startup_delay: int           # Seconds between startup retry attempts
     startup_initial_delay: int   # Initial delay at startup to allow services to stabilize
-    retry_delay_seconds: int     # Seconds to wait before retrying failed events
-    retry_check_interval: int    # Seconds between checks for ready-to-retry events
     max_concurrent_events: int   # Maximum number of events to process concurrently
 
 @dataclass
@@ -50,12 +48,6 @@ class LoggingConfig:
     """Application logging configuration"""
     level: str    # Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL
     format: str   # Log format: json or text
-
-@dataclass
-class OrderConfig:
-    """Order execution configuration (from environment variables)"""
-    time_in_force: str           # Order time-in-force: 'DAY' or 'GTC'
-    extended_hours_enabled: bool # Enable extended hours trading
 
 @dataclass
 class UserNotificationConfig:
@@ -100,8 +92,6 @@ class Config:
             startup_max_attempts=processing_config["startup_max_attempts"],
             startup_delay=processing_config["startup_delay"],
             startup_initial_delay=processing_config["startup_initial_delay"],
-            retry_delay_seconds=processing_config.get("retry_delay_seconds", 60),
-            retry_check_interval=processing_config.get("retry_check_interval", 60),
             max_concurrent_events=processing_config.get("max_concurrent_events", 3)
         )
         
@@ -117,12 +107,6 @@ class Config:
         self.logging = LoggingConfig(
             level=os.getenv("LOG_LEVEL", logging_config["level"]),
             format=logging_config["format"]
-        )
-        
-        # Order config (from environment variables)
-        self.order = OrderConfig(
-            time_in_force=os.getenv("TIME_IN_FORCE", "DAY"),
-            extended_hours_enabled=os.getenv("EXTENDED_HOURS_ENABLED", "false").lower() == "true"
         )
         
         # User notification config (from environment variables)

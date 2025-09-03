@@ -314,8 +314,7 @@ class RebalancerService:
                 quantity=quantity,
                 order_type="MKT",
                 event=event,
-                time_in_force=config.order.time_in_force,
-                extended_hours=config.order.extended_hours_enabled
+                time_in_force="DAY"
             )
             
             sell_tasks.append(trade)
@@ -353,8 +352,7 @@ class RebalancerService:
                 quantity=order.quantity,
                 order_type="MKT",
                 event=event,
-                time_in_force=config.order.time_in_force,
-                extended_hours=config.order.extended_hours_enabled
+                time_in_force="DAY"
             )
             
             buy_tasks.append(trade)

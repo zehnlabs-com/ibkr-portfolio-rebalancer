@@ -83,63 +83,6 @@ class RedisQueueService(BaseRedisService):
             app_logger.log_error(f"Failed to dequeue event: {e}")
             return None
     
-    async def requeue_event(self, event_info: EventInfo) -> None:
-        """
-        Put event back in queue for retry (at back of queue)
-        """
-        try:
-            # Increment times_queued counter
-            event_info.times_queued += 1
-            
-            # Convert EventInfo to dict format
-            event_data = self._event_info_to_dict(event_info)
-            
-            # Add to back of queue and tracking set
-            deduplication_key = f"{event_info.account_id}:{event_info.exec_command}"
-            
-            async def requeue_operation(client):
-                pipe = client.pipeline()
-                pipe.rpush("rebalance_queue", json.dumps(event_data))
-                pipe.sadd("active_events_set", deduplication_key)
-                return await pipe.execute()
-            
-            await self.execute_with_retry(requeue_operation)
-            
-            app_logger.log_info(f"Event requeued for retry", event_info)
-            
-        except Exception as e:
-            app_logger.log_error(f"Failed to requeue event: {e}")
-            raise
-    
-    async def move_to_retry(self, event_info: EventInfo) -> None:
-        """
-        Move event to retry queue with delay
-        """
-        try:
-            # Increment times_queued counter
-            event_info.times_queued += 1
-            
-            # Convert EventInfo to dict format
-            event_data = self._event_info_to_dict(event_info)
-            
-            # Add to retry queue and remove from active set
-            current_time = int(time.time())
-            deduplication_key = f"{event_info.account_id}:{event_info.exec_command}"
-            
-            async def retry_operation(client):
-                pipe = client.pipeline()
-                pipe.zadd("rebalance_retry_set", {json.dumps(event_data): current_time})
-                pipe.srem("active_events_set", deduplication_key)
-                return await pipe.execute()
-            
-            await self.execute_with_retry(retry_operation)
-            
-            app_logger.log_info(f"Event moved to retry queue", event_info)
-            
-        except Exception as e:
-            app_logger.log_error(f"Failed to move event to retry: {e}")
-            raise
-    
     async def move_to_delayed(self, event_info: EventInfo, execution_time: datetime) -> None:
         """
         Move event to delayed execution queue
@@ -167,51 +110,6 @@ class RedisQueueService(BaseRedisService):
         except Exception as e:
             app_logger.log_error(f"Failed to delay event: {e}")
             raise
-    
-    async def process_retry_queue(self) -> int:
-        """
-        Process events ready for retry
-        
-        Returns:
-            Number of events moved back to main queue
-        """
-        try:
-            current_time = int(time.time())
-            cutoff_time = current_time - config.processing.retry_delay_seconds
-            
-            async def get_ready_events(client):
-                return await client.zrangebyscore("rebalance_retry_set", 0, cutoff_time)
-            
-            ready_events = await self.execute_with_retry(get_ready_events)
-            
-            if not ready_events:
-                return 0
-            
-            app_logger.log_info(f"Found {len(ready_events)} events ready for retry")
-            
-            # Move events back to main queue
-            async def move_events(client):
-                pipe = client.pipeline()
-                for event_json in ready_events:
-                    event_data = json.loads(event_json)
-                    account_id = event_data['account_id']
-                    exec_command = event_data.get('exec')
-                    deduplication_key = f"{account_id}:{exec_command}"
-                    
-                    pipe.lpush("rebalance_queue", event_json)
-                    pipe.sadd("active_events_set", deduplication_key)
-                    pipe.zrem("rebalance_retry_set", event_json)
-                
-                return await pipe.execute()
-            
-            await self.execute_with_retry(move_events)
-            
-            app_logger.log_info(f"Moved {len(ready_events)} events from retry to main queue")
-            return len(ready_events)
-            
-        except Exception as e:
-            app_logger.log_error(f"Failed to process retry queue: {e}")
-            return 0
     
     async def process_delayed_queue(self) -> int:
         """
@@ -298,7 +196,6 @@ class RedisQueueService(BaseRedisService):
                 return {
                     'main_queue': await client.llen("rebalance_queue"),
                     'active_events': await client.scard("active_events_set"),
-                    'retry_queue': await client.zcard("rebalance_retry_set"),
                     'delayed_queue': await client.zcard("delayed_execution_set")
                 }
             
@@ -306,7 +203,7 @@ class RedisQueueService(BaseRedisService):
             
         except Exception as e:
             app_logger.log_error(f"Failed to get queue stats: {e}")
-            return {'main_queue': 0, 'active_events': 0, 'retry_queue': 0, 'delayed_queue': 0}
+            return {'main_queue': 0, 'active_events': 0, 'delayed_queue': 0}
     
     async def recover_stuck_events(self) -> int:
         """

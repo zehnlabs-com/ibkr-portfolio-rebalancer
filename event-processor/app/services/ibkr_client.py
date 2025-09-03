@@ -498,7 +498,7 @@ class IBKRClient:
     
     
     async def place_order(self, account_id: str, symbol: str, quantity: int, order_type: str = "MKT", event=None, 
-                        time_in_force: str = "DAY", extended_hours: bool = False):
+                        time_in_force: str = "DAY"):
         if not await self.ensure_connected():
             raise Exception("Unable to establish IBKR connection")
         
@@ -517,8 +517,6 @@ class IBKRClient:
         action = "BUY" if quantity > 0 else "SELL"        
         
         order = MarketOrder(action, abs(quantity))
-        if extended_hours:
-            order.outsideRth = True
         order.account = account_id
         
         trade = self.ib.placeOrder(contract, order)
@@ -742,10 +740,8 @@ class IBKRClient:
                     all_within_hours = False
                     continue
                 
-                if config.order.extended_hours_enabled:
-                    sessions = contract_detail_obj.tradingSessions()
-                else:
-                    sessions = contract_detail_obj.liquidSessions()
+                # Always use liquid hours only (regular market hours)
+                sessions = contract_detail_obj.liquidSessions()
                 
                 # Check if current time is within any session
                 is_within = False
@@ -773,9 +769,8 @@ class IBKRClient:
                 else:
                     app_logger.log_debug(f"Symbol {symbol} is within trading hours", event)
             
-            hours_type = "liquid hours" if not config.order.extended_hours_enabled else "trading hours"
             if all_within_hours:
-                app_logger.log_info(f"All symbols are within {hours_type}", event)
+                app_logger.log_info(f"All symbols are within liquid hours", event)
             else:
                 next_str = earliest_next_start.strftime("%Y-%m-%d %H:%M:%S") if earliest_next_start else "unknown"
                 app_logger.log_info(f"Some symbols outside {hours_type}, earliest next start: {next_str}", event)

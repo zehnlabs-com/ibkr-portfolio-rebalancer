@@ -14,7 +14,6 @@ class NotificationType(Enum):
     EVENT_STARTED = "event_started"
     EVENT_COMPLETED = "event_completed" 
     EVENT_FAILED = "event_failed"
-    EVENT_RETRY = "event_retry"
     SYSTEM_ERROR = "system_error"
     SYSTEM_INFO = "system_info"
 

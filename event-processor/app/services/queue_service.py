@@ -25,14 +25,6 @@ class QueueService:
         """
         return await self.redis_queue_service.dequeue_event()
     
-    async def requeue_event(self, event_info: EventInfo) -> EventInfo:
-        """
-        Put event back in queue for retry (at back of queue - FIFO retry)
-        Increments times_queued counter
-        """
-        await self.redis_queue_service.requeue_event(event_info)
-        return event_info
-    
     async def remove_from_queued(self, account_id: str, exec_command: str = None):
         """Remove account+command from active events set"""
         await self.redis_queue_service.remove_from_active(account_id, exec_command)
@@ -59,33 +51,6 @@ class QueueService:
                 account_id = str(event_key).split(':', 1)[0]
                 accounts.add(account_id)
         return accounts
-    
-    async def requeue_event_retry(self, event_info: EventInfo) -> EventInfo:
-        """
-        Put event in retry queue for retry after configured delay
-        Increments times_queued counter and removes from active events
-        """
-        await self.redis_queue_service.move_to_retry(event_info)
-        
-        # Send retry notification
-        if self.user_notification_service:
-            await self.user_notification_service.send_notification(event_info, 'event_retry')
-        
-        return event_info
-    
-    async def process_retry_events(self):
-        """
-        Process retry events that are ready for retry
-        Move ready events from retry queue to main queue
-        """
-        count = await self.redis_queue_service.process_retry_queue()
-        if count > 0:
-            app_logger.log_info(f"Processed {count} retry events")
-    
-    async def get_retry_events_count(self) -> int:
-        """Get count of events in retry queue"""
-        stats = await self.redis_queue_service.get_queue_stats()
-        return stats.get('retry_queue', 0)
     
     async def is_connected(self) -> bool:
         """Check if Redis connection is active"""
