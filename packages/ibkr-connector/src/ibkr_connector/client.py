@@ -247,7 +247,7 @@ class IBKRClient(BrokerClient):
 
         except Exception as e:
             self.logger.error(f"Batch price request failed: {e}")
-            raise ValueError(f"Batch pricing system failure. This could be a serious system issue that may require manual resolution.")
+            raise ValueError(f"Batch pricing system failure: {e}")
 
     async def _qualify_contracts(self, symbols: List[str]) -> Dict[str, Contract]:
         """Qualify contracts for a list of symbols.
@@ -288,13 +288,15 @@ class IBKRClient(BrokerClient):
         """Fetch prices for qualified contracts with retry logic for bid=nan.
 
         When IBKR returns bid=nan (data not yet populated), retries up to max_retries
-        times with a delay between attempts.
+        times with a delay between attempts. After all retries are exhausted, falls back
+        to a synthetic bid using the last trade price or previous close price (mirroring
+        the synthetic ask pattern). Raises only if no price data is available at all.
 
         Returns:
             List of ContractPrice objects for all symbols
 
         Raises:
-            ValueError if any symbols still have bid=nan after all retries
+            ValueError if any symbols have no usable price data after all retries
         """
         retry_delay = self.config.ibkr.market_data_retry_delay_seconds
         max_retries = self.config.ibkr.market_data_max_retries
@@ -302,6 +304,7 @@ class IBKRClient(BrokerClient):
         # Track which symbols still need valid prices
         pending_symbols = set(symbol_to_contract.keys())
         successful_prices: Dict[str, ContractPrice] = {}
+        last_tickers: Dict[str, object] = {}  # Most recent ticker for each pending symbol
 
         for attempt in range(max_retries + 1):  # +1 because first attempt is not a "retry"
             if not pending_symbols:
@@ -324,6 +327,7 @@ class IBKRClient(BrokerClient):
 
             for ticker in tickers:
                 symbol = ticker.contract.symbol
+                last_tickers[symbol] = ticker
 
                 # Check if bid is valid
                 if ticker.bid is None or ticker.bid <= 0 or math.isnan(ticker.bid):
@@ -365,10 +369,41 @@ class IBKRClient(BrokerClient):
                 self.logger.info(f"Waiting {retry_delay}s before retry for symbols with bid=nan: {sorted(pending_symbols)}")
                 await asyncio.sleep(retry_delay)
 
-        # After all retries, check if any symbols still failed
+        # After all retries, attempt synthetic bid fallback using last trade or close price
         if pending_symbols:
-            self.logger.error(f"Failed to get valid bid price for {len(pending_symbols)} symbols after {max_retries} retries: {sorted(pending_symbols)}")
-            raise ValueError(f"Batch pricing failed for symbols after {max_retries} retries: {sorted(pending_symbols)}. IBKR did not return valid bid prices.")
+            self.logger.warning(f"Attempting synthetic bid fallback for {len(pending_symbols)} symbols with no bid after {max_retries} retries: {sorted(pending_symbols)}")
+            still_failed = []
+
+            for symbol in sorted(pending_symbols):
+                ticker = last_tickers.get(symbol)
+                last = ticker.last if (ticker and ticker.last and ticker.last > 0 and not math.isnan(ticker.last)) else None
+                close = ticker.close if (ticker and ticker.close and ticker.close > 0 and not math.isnan(ticker.close)) else None
+                synthetic_bid = last or close
+
+                if not synthetic_bid:
+                    still_failed.append(symbol)
+                    continue
+
+                source = "last" if last else "close"
+                ask_price = ticker.ask
+                if ask_price is None or ask_price <= 0 or math.isnan(ask_price):
+                    ask_price = synthetic_bid + self.config.ibkr.synthetic_ask_offset_usd
+                    self.logger.warning(f"No bid or ask for {symbol}. Using synthetic bid=${synthetic_bid:.2f} ({source}) and synthetic ask=${ask_price:.2f}")
+                else:
+                    self.logger.warning(f"No bid for {symbol}. Using synthetic bid=${synthetic_bid:.2f} ({source}), ask=${ask_price:.2f}")
+
+                contract_price = ContractPrice(
+                    symbol=symbol,
+                    bid=synthetic_bid,
+                    ask=ask_price,
+                    last=last or 0.0,
+                    close=close or 0.0
+                )
+                successful_prices[symbol] = contract_price
+
+            if still_failed:
+                self.logger.error(f"Failed to get any usable price for {len(still_failed)} symbols: {still_failed}")
+                raise ValueError(f"Batch pricing failed for symbols after {max_retries} retries and synthetic bid fallback: {still_failed}. No bid, last, or close price available.")
 
         return list(successful_prices.values())
 
