@@ -72,7 +72,7 @@ Before getting started, ensure you have the following installed:
     -   [Install Docker Engine for Linux](https://docs.docker.com/engine/install/)
 
 **Recommended System Requirements:**
--   1GB RAM
+-   2GB RAM minimum, 4GB or more recommended for a high number of accounts 
 -   20GB free disk space
 -   1GHz CPU or better
 
