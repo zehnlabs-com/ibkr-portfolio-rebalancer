@@ -1,7 +1,5 @@
 x-system-version: &system-version "2.0.0"
 
-name: zehnlabs-rebalancer
-
 volumes:
   ib_data:
 
@@ -12,11 +10,10 @@ networks:
 services:
   ibkr-gateway:
     image: gnzsnz/ib-gateway:10.41.1c
-    container_name: ibkr-gateway
     ports:
-      - "127.0.0.1:4001:4003"
-      - "127.0.0.1:4002:4004"
-      - "0.0.0.0:5900:5900"
+      - "127.0.0.1:${IB_LIVE_API_PORT:-4001}:4003"
+      - "127.0.0.1:${IB_PAPER_API_PORT:-4002}:4004"
+      - "${VNC_BIND_ADDRESS:-127.0.0.1}:${VNC_PORT:-5900}:5900"
     environment:
       TWS_USERID: ${IB_USERNAME}
       TWS_PASSWORD: ${IB_PASSWORD}
@@ -50,7 +47,6 @@ services:
       dockerfile: ./event-broker/Dockerfile
       args:
         VERSION: *system-version
-    container_name: event-broker
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       SERVICE_VERSION: *system-version

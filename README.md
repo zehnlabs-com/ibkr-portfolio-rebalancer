@@ -107,6 +107,16 @@ Now, edit the `.env` file with your specific details:
 | `USER_NOTIFICATIONS_ENABLED`         | Set to `true` to enable push notifications via ntfy.sh.                                                                                |
 | `USER_NOTIFICATIONS_CHANNEL`         | A unique, hard-to-guess topic name for your ntfy.sh notifications (e.g., `my-secret-rebalancer-alerts-a1b2c3`).                         |
 
+The following variables are pre-configured with safe defaults and do not need to be changed for a single instance. If you are running **multiple instances on the same host** (multiple IBKR logins), each instance must use unique values to avoid port and namespace conflicts.
+
+| Variable                | Description                                                                                      | Default               |
+| ----------------------- | ------------------------------------------------------------------------------------------------ | --------------------- |
+| `COMPOSE_PROJECT_NAME`  | Unique project name — namespaces all Docker containers, volumes, and networks for this instance. | `zehnlabs-rebalancer` |
+| `IB_LIVE_API_PORT`      | Host port for IBKR Gateway live trading API.                                                     | `4001`                |
+| `IB_PAPER_API_PORT`     | Host port for IBKR Gateway paper trading API.                                                    | `4002`                |
+| `VNC_PORT`              | Host port for VNC access to the IBKR Gateway GUI.                                               | `5900`                |
+| `VNC_BIND_ADDRESS`      | Network interface VNC binds to. Use `127.0.0.1` to restrict to localhost.                        | `127.0.0.1`           |
+
 ### Step 3: Configure Your Accounts
 
 Create an `accounts.yaml` file by copying the example:
@@ -273,7 +283,7 @@ You can receive real-time notifications about rebalancing activities on your pho
 
 ### VNC Access
 
-The IBKR Gateway runs with a graphical user interface (GUI) that can be accessed via a VNC client (like [RealVNC](https://www.realvnc.com/en/connect/download/viewer/) or [TightVNC](https://www.tightvnc.com/)). This is **rarely needed** but can be useful for debugging. Connect to `localhost:5900` using the `VNC_PASSWORD` you set in the `.env` file.
+The IBKR Gateway runs with a graphical user interface (GUI) that can be accessed via a VNC client (like [RealVNC](https://www.realvnc.com/en/connect/download/viewer/) or [TightVNC](https://www.tightvnc.com/)). This is **rarely needed** but can be useful for debugging. Connect to `localhost:<VNC_PORT>` (default `localhost:5900`) using the `VNC_PASSWORD` you set in the `.env` file.
 
 ### Viewing Logs
 
