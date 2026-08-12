@@ -40,7 +40,7 @@ show_usage() {
     echo "  - The event-broker container must be running"
     echo "  - Account must be configured in accounts.yaml"
     echo "  - Use 'print-rebalance' first to preview trades before executing"
-    echo "  - Check event-broker logs: docker-compose logs -f event-broker"
+    echo "  - Check event-broker logs: docker compose logs -f event-broker"
 }
 
 # Parse command line arguments
@@ -88,9 +88,9 @@ if [[ ! "$ACCOUNT_ID" =~ ^[A-Z0-9]+$ ]]; then
 fi
 
 # Check if event-broker is running
-if ! docker-compose ps event-broker | grep -q "Up"; then
+if ! docker compose ps event-broker | grep -q "Up"; then
     echo "Error: event-broker container is not running"
-    echo "Start it with: docker-compose up -d event-broker"
+    echo "Start it with: docker compose up -d event-broker"
     exit 1
 fi
 
@@ -132,7 +132,7 @@ echo "📋 Event content:"
 cat "$MANUAL_REBALANCE_FILE" | jq '.' 2>/dev/null || cat "$MANUAL_REBALANCE_FILE"
 echo ""
 echo "📊 Monitor progress with:"
-echo "   docker-compose logs -f event-broker"
+echo "   docker compose logs -f event-broker"
 echo ""
 
 # Inform about execution time

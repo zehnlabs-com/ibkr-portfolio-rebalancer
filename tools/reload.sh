@@ -3,4 +3,4 @@
 # Usage: ./tools/reload.sh
 
 echo "🔄 Reloading event-broker..."
-docker-compose stop event-broker && docker-compose up -d event-broker
+docker compose stop event-broker && docker compose up -d event-broker
